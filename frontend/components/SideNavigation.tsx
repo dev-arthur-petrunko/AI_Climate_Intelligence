@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { Globe, Sparkles, Layers, Menu } from "lucide-react";
+import { Globe, Sparkles, Layers, Menu, Settings, Heart } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import LanguageSwitcher from "./LanguageSwitcher";
 
@@ -21,6 +21,8 @@ export default function SideNavigation() {
     { id: "globe", label: t.nav.globe, icon: Globe, path: "/" },
     { id: "analytics", label: t.nav.analytics, icon: Layers, path: "/analytics" },
     { id: "predictions", label: t.nav.predictions, icon: Sparkles, path: "/predictions" },
+    { id: "settings", label: t.nav.settings, icon: Settings, path: "/settings" },
+    { id: "support", label: t.nav.support, icon: Heart, path: "/support" },
   ];
 
   return (
