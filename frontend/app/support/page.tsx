@@ -42,7 +42,7 @@ export default function SupportPage() {
               return (
                 <div
                   key={index}
-                  className="glass p-6 flex items-start space-x-4 hover:glow transition-all duration-300"
+                  className="glass p-6 flex items-start space-x-4 hover:shadow-glow hover:-translate-y-1 transition-all duration-300"
                 >
                   <div className="p-3 rounded-lg bg-violet/12 text-violet shrink-0">
                     <Icon className="w-5 h-5" />

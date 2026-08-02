@@ -104,7 +104,7 @@ export function KPICards() {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="glass p-6 animate-pulse">
+          <div key={i} className="glass p-6 skeleton">
             <div className="h-4 w-24 bg-white/10 rounded mb-4" />
             <div className="h-8 w-20 bg-white/10 rounded mb-2" />
             <div className="h-3 w-28 bg-white/5 rounded" />
@@ -132,10 +132,11 @@ export function KPICards() {
         return (
           <div
             key={`${kpi.name}-${index}`}
-            className="glass p-6 hover:glow transition-all duration-300 group"
+            className="glass p-6 hover:shadow-glow hover:-translate-y-1 transition-all duration-300 group animate-fade-up"
+            style={{ animationDelay: `${Math.min(index * 55, 380)}ms` }}
           >
             <div className="flex items-center justify-between mb-4">
-              <div className="p-3 rounded-lg bg-violet/12 text-violet">
+              <div className={`p-3 rounded-lg ${color} bg-violet/12 transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-6`}>
                 <Icon className="w-5 h-5" />
               </div>
               <TrendIcon name={kpi.name} trendUp={kpi.trend_up} />
@@ -185,9 +186,11 @@ export function AIClimateSummary() {
   }, [load]);
 
   return (
-    <div className="glass-strong p-6">
+    <div className="glass-strong p-6 hover:shadow-glow transition-all duration-300 animate-fade-up" style={{ animationDelay: "150ms" }}>
       <div className="flex items-center space-x-2 mb-4">
-        <Sparkles className="w-5 h-5 text-emerald" />
+        <span className="p-2 rounded-lg bg-violet/12 text-emerald">
+          <Sparkles className="w-4 h-4" />
+        </span>
         <h2 className="text-xl font-semibold">{t.widgets.aiSummary}</h2>
       </div>
       <div className="space-y-4">
@@ -195,7 +198,7 @@ export function AIClimateSummary() {
           {summary ?? t.common.noData}
         </p>
         <div className="flex items-center space-x-2 text-xs text-secondary">
-          <div className="w-2 h-2 bg-emerald rounded-full animate-pulse" />
+          <div className="w-2 h-2 bg-emerald rounded-full ping-dot text-emerald" />
           <span>{t.common.updated} {updated}</span>
         </div>
       </div>
@@ -227,6 +230,16 @@ const eventColorMap: Record<string, string> = {
   "Coastal Flood": "text-emerald",
 };
 
+/** Маппінг типів подій на hex-кольори (для акцентної смужки) */
+const eventBarColorMap: Record<string, string> = {
+  Wildfire: "#FF5C8A",
+  Cyclone: "#FFC24D",
+  Volcano: "#FFC24D",
+  "Extreme Rainfall": "#7C4DFF",
+  "Arctic Ice Loss": "#8B93B8",
+  "Coastal Flood": "#2EE6A6",
+};
+
 export function LiveEventFeed() {
   const [events, setEvents] = useState<ClimateEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -254,14 +267,14 @@ export function LiveEventFeed() {
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-semibold">{t.widgets.liveEventFeed}</h2>
         <div className="flex items-center space-x-2">
-          <div className="w-2 h-2 bg-emerald rounded-full animate-pulse" />
+          <div className="w-2 h-2 bg-emerald rounded-full ping-dot text-emerald" />
           <span className="text-xs text-secondary">{t.common.live}</span>
         </div>
       </div>
       {loading ? (
         <div className="space-y-3">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-14 bg-surface-2 rounded-lg animate-pulse" />
+            <div key={i} className="h-14 bg-surface-2 rounded-lg skeleton" />
           ))}
         </div>
       ) : events.length === 0 ? (
@@ -274,15 +287,22 @@ export function LiveEventFeed() {
           {events.slice(0, 6).map((event, index) => {
             const Icon = eventIconMap[event.event_type] || Activity;
             const color = eventColorMap[event.event_type] || "text-secondary";
+            const barColor = eventBarColorMap[event.event_type] || "#7C4DFF";
             return (
               <div
                 key={`${event.event_type}-${index}`}
-                className="flex items-center space-x-3 p-3 rounded-lg bg-surface-2 hover:bg-surface-hover transition-colors cursor-pointer"
+                className="group relative flex items-center space-x-3 p-3 pl-4 rounded-lg bg-surface-2 hover:bg-surface-hover transition-colors cursor-pointer overflow-hidden animate-fade-up"
+                style={{ animationDelay: `${index * 45}ms` }}
               >
-                <div className={`p-2 rounded-lg bg-violet/12 ${color}`}>
+                {/* Акцентна смужка зліва — з'являється при наведенні */}
+                <span
+                  className="absolute left-0 top-0 bottom-0 w-0.5 rounded-r-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                  style={{ background: barColor }}
+                />
+                <div className={`p-2 rounded-lg bg-violet/12 ${color} transition-transform duration-300 group-hover:scale-110`}>
                   <Icon className="w-4 h-4" />
                 </div>
-                <div className="flex-1">
+                <div className="flex-1 transition-transform duration-300 group-hover:translate-x-0.5">
                   <div className="text-sm font-medium">{event.location}</div>
                   <div className="text-xs text-violet">{event.event_type}</div>
                 </div>

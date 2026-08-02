@@ -31,11 +31,15 @@ function useOverview(intervalMs = 60000) {
 
 export default function MissionHeader() {
   const data = useOverview();
-  const [now, setNow] = useState(new Date());
+  const [now, setNow] = useState<Date | null>(null);
   const { t } = useI18n();
 
-  /** Оновлення годинника кожну секунду */
+  /** Оновлення годинника кожну секунду.
+   *  Початковий стан null: на сервері рендериться прочерк, щоб уникнути
+   *  розбіжності гідрації (серверний і клієнтський час різні).
+   */
   useEffect(() => {
+    setNow(new Date());
     const id = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(id);
   }, []);
@@ -74,7 +78,7 @@ export default function MissionHeader() {
               <span className="text-[9px] uppercase tracking-widest text-emerald">{t.common.live}</span>
             </div>
             <span className="text-xs font-mono text-secondary tabular-nums">
-              {now.toLocaleTimeString("en-GB", { hour12: false })}
+              {now ? now.toLocaleTimeString("en-GB", { hour12: false }) : "—"}
             </span>
           </div>
 

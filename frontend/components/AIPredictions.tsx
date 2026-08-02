@@ -162,7 +162,7 @@ export default function AIPredictions() {
           return (
             <div
               key={`${prediction.category}-${index}`}
-              className={`glass p-6 cursor-pointer transition-all hover:glow ${
+              className={`glass p-6 cursor-pointer transition-all hover:shadow-glow hover:-translate-y-1 ${
                 isExpanded ? "ring-2 ring-violet" : ""
               }`}
               onClick={() => setExpandedPrediction(isExpanded ? null : index)}

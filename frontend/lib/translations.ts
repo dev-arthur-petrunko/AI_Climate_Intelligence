@@ -117,6 +117,9 @@ export const en = {
     frp: "FRP",
     hover: "Hover over markers to inspect",
     scrollToDashboard: "Climate Dashboard",
+    updatedAt: "Data time",
+    liveTag: "Live",
+    fresh: { fresh: "Fresh", stale: "Stale", outdated: "Outdated" },
     legend: {
       fire: "Fires",
       cyclone: "Cyclones",
@@ -336,6 +339,9 @@ export const uk: TranslationDict = {
     frp: "FRP",
     hover: "Наведіть на маркери для перегляду",
     scrollToDashboard: "Кліматичний дашборд",
+    updatedAt: "Час даних",
+    liveTag: "Онлайн",
+    fresh: { fresh: "Актуальні", stale: "Застарілі", outdated: "Застаріло" },
     legend: {
       fire: "Пожежі",
       cyclone: "Циклони",
@@ -555,6 +561,9 @@ export const de: TranslationDict = {
     frp: "FRP",
     hover: "Fahren Sie über die Marker, um sie zu inspizieren",
     scrollToDashboard: "Klima-Dashboard",
+    updatedAt: "Datenzeit",
+    liveTag: "Live",
+    fresh: { fresh: "Aktuell", stale: "Nicht aktuell", outdated: "Veraltet" },
     legend: {
       fire: "Brände",
       cyclone: "Wirbelstürme",
@@ -774,6 +783,9 @@ export const pl: TranslationDict = {
     frp: "FRP",
     hover: "Najedź na znaczniki, aby sprawdzić",
     scrollToDashboard: "Pulpit klimatyczny",
+    updatedAt: "Czas danych",
+    liveTag: "Na żywo",
+    fresh: { fresh: "Aktualne", stale: "Nieaktualne", outdated: "Przestarzałe" },
     legend: {
       fire: "Pożary",
       cyclone: "Cyklony",
@@ -993,6 +1005,9 @@ export const fr: TranslationDict = {
     frp: "FRP",
     hover: "Survolez les marqueurs pour inspecter",
     scrollToDashboard: "Tableau de bord climatique",
+    updatedAt: "Date des données",
+    liveTag: "Direct",
+    fresh: { fresh: "Récent", stale: "Périmé", outdated: "Obsolète" },
     legend: {
       fire: "Incendies",
       cyclone: "Cyclones",
@@ -1212,6 +1227,9 @@ export const it: TranslationDict = {
     frp: "FRP",
     hover: "Passa il mouse sui marker per ispezionare",
     scrollToDashboard: "Dashboard climatico",
+    updatedAt: "Data dei dati",
+    liveTag: "Live",
+    fresh: { fresh: "Recenti", stale: "Vecchi", outdated: "Obsoleti" },
     legend: {
       fire: "Incendi",
       cyclone: "Cicloni",
@@ -1431,6 +1449,9 @@ export const ka: TranslationDict = {
     frp: "FRP",
     hover: "გადაიტანეთ მარკერებზე დასათვალიერებლად",
     scrollToDashboard: "კლიმატის დაშბორდი",
+    updatedAt: "მონაცემების დრო",
+    liveTag: "ლაივი",
+    fresh: { fresh: "აქტუალური", stale: "მოძველებული", outdated: "მოძველებულია" },
     legend: {
       fire: "ხანძრები",
       cyclone: "ციკლონები",

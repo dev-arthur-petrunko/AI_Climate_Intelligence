@@ -218,6 +218,70 @@ button:active, .btn-touch:active {
   animation: drift 4s ease-in-out infinite alternate;
 }
 
+/* Pop-in для тултіпа — вилітає з точки наведення */
+@keyframes tooltip-pop {
+  from {
+    opacity: 0;
+    transform: translateY(5px) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-tooltip-pop {
+  animation: tooltip-pop 160ms var(--ease-out) both;
+  transform-origin: top left;
+}
+
+/* Скелетон завантаження з хвилею */
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: rgba(124, 77, 255, 0.08);
+}
+
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.06), transparent);
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+/* Пульсуюче кільце для індикаторів "Live" */
+@keyframes ping-soft {
+  0% {
+    transform: scale(0.7);
+    opacity: 0.7;
+  }
+  70%, 100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+.ping-dot {
+  position: relative;
+}
+
+.ping-dot::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 9999px;
+  border: 1px solid currentColor;
+  animation: ping-soft 1.8s var(--ease-out) infinite;
+}
+
 /* Мерехтіння зірок */
 .stars-twinkle {
   background-image:
@@ -247,11 +311,16 @@ button:active, .btn-touch:active {
 @media (prefers-reduced-motion: reduce) {
   .animate-fade-up,
   .animate-fade-in,
-  .animate-drift {
+  .animate-drift,
+  .animate-tooltip-pop {
     animation: none;
   }
   .stars-twinkle,
   .stars-twinkle::after {
+    animation: none;
+  }
+  .skeleton::after,
+  .ping-dot::after {
     animation: none;
   }
 }

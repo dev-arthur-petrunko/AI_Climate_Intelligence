@@ -34,6 +34,9 @@ const config: Config = {
         "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
         "gradient-conic": "conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))",
       },
+      boxShadow: {
+        glow: "0 0 24px rgba(124,77,255,0.28), 0 8px 40px rgba(46,230,166,0.08)",
+      },
       animation: {
         "glow": "glow 3s ease-in-out infinite",
         "float": "float 6s ease-in-out infinite",

@@ -27,7 +27,38 @@ interface EventPoint {
   severity?: string;
   location?: string;
   frp?: number;
+  time?: string;
 }
+
+/** Кешована перевірка "зменшеного руху" — вимикає пульсацію та дихання */
+let reducedMotionCache: boolean | null = null;
+function reducedMotion(): boolean {
+  if (reducedMotionCache === null && typeof window !== "undefined") {
+    reducedMotionCache = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }
+  return reducedMotionCache === true;
+}
+
+/** Свіжість даних: live (подія/резервні дані) або за віком дати */
+type Freshness = "live" | "fresh" | "stale" | "outdated";
+
+function freshnessOf(time?: string): Freshness {
+  if (!time) return "live";
+  const t = Date.parse(time);
+  if (Number.isNaN(t)) return "live";
+  const days = (Date.now() - t) / 86400000;
+  if (days <= 30) return "fresh";
+  if (days <= 365) return "stale";
+  return "outdated";
+}
+
+/** Колір індикатора свіжості (Aurora палітра) */
+const freshnessColor: Record<Freshness, string> = {
+  live: "#2EE6A6",
+  fresh: "#2EE6A6",
+  stale: "#FFC24D",
+  outdated: "#FF5C8A",
+};
 
 /** Резервні події на випадок, якщо бекенд недоступний */
 const fallbackEvents: EventPoint[] = [
@@ -102,6 +133,8 @@ function Earth({
   onHover: (ev: EventPoint | null) => void;
 }) {
   const groupRef = useRef<THREE.Group>(null);
+  const atmosphereRef = useRef<THREE.MeshPhongMaterial>(null);
+  const glowShellRef = useRef<THREE.MeshBasicMaterial>(null);
   const [colorMap, setColorMap] = useState<THREE.Texture | null>(null);
   const [bumpMap, setBumpMap] = useState<THREE.Texture | null>(null);
 
@@ -132,19 +165,31 @@ function Earth({
     return () => { cancelled = true; };
   }, []);
 
-  // Автообертання планети
+  // Автообертання планети та "дихання" атмосферного сяйва
   useFrame((_, delta) => {
     if (groupRef.current && autoRotate) {
       groupRef.current.rotation.y += delta * 0.06;
+    }
+    // М'яка пульсація сяйва — вимкнена при reduced-motion
+    if (reducedMotion()) return;
+    const t = performance.now() / 1000;
+    if (atmosphereRef.current) {
+      atmosphereRef.current.opacity = 0.14 + 0.022 * Math.sin(t * 0.7);
+    }
+    if (glowShellRef.current) {
+      glowShellRef.current.opacity = 0.06 + 0.022 * Math.sin(t * 0.7 + 1.3);
     }
   });
 
   return (
     <group ref={groupRef}>
-      {/* Земля з текстурою та рельєфом */}
+      {/* Земля з текстурою та рельєфом.
+          key примушує перестворити матеріал після завантаження текстури —
+          інакше шейдер не перекомпілюється і планета лишається без текстури. */}
       <mesh>
         <sphereGeometry args={[EARTH_RADIUS, 64, 64]} />
         <meshPhongMaterial
+          key={colorMap ? "textured" : "plain"}
           map={colorMap || undefined}
           bumpMap={bumpMap || undefined}
           bumpScale={0.25}
@@ -158,6 +203,7 @@ function Earth({
       <mesh>
         <sphereGeometry args={[EARTH_RADIUS * 1.005, 64, 64]} />
         <meshBasicMaterial
+          ref={glowShellRef}
           color="#29F2FF"
           transparent
           opacity={0.06}
@@ -167,13 +213,14 @@ function Earth({
 
       {/* Маркери подій */}
       {events.map((ev, i) => (
-        <Marker key={i} ev={ev} onHover={onHover} />
+        <Marker key={i} ev={ev} onHover={onHover} index={i} />
       ))}
 
       {/* Атмосферне сяйво */}
       <mesh>
         <sphereGeometry args={[EARTH_RADIUS * 1.035, 64, 64]} />
         <meshPhongMaterial
+          ref={atmosphereRef}
           color="#7C4DFF"
           transparent
           opacity={0.14}
@@ -194,28 +241,71 @@ function Earth({
 function Marker({
   ev,
   onHover,
+  index,
 }: {
   ev: EventPoint;
   onHover: (ev: EventPoint | null) => void;
+  index: number;
 }) {
   const groupRef = useRef<THREE.Group>(null);
+  const glowMatRef = useRef<THREE.MeshBasicMaterial>(null);
+  const coreMatRef = useRef<THREE.MeshBasicMaterial>(null);
+  const ringRef = useRef<THREE.Mesh>(null);
+  const ringMatRef = useRef<THREE.MeshBasicMaterial>(null);
   const { camera } = useThree();
+  const [hovered, setHovered] = useState(false);
 
   const position = useMemo(
     () => latLonToVec3(ev.coordinates[1], ev.coordinates[0], EARTH_RADIUS * 1.002),
     [ev]
   );
   const color = eventColor(ev.event_type);
+  // Старт появи маркера: каскадний вхід залежно від порядкового номера
+  const enterDelay = useMemo(() => (index % 14) * 65, [index]);
+  const enteredAt = useRef(0);
 
   // Масштабування за відстанню до камери: маркер лишається помітним,
   // але при zoom-in зменшується, щоб точніше показувати локалізацію.
+  // Додатково: поява (pop-in), пульс розміру, розширення хвилі-кільця.
   useFrame((state) => {
-    if (!groupRef.current) return;
-    const dist = camera.position.distanceTo(position);
+    const g = groupRef.current;
+    if (!g) return;
     const t = state.clock.elapsedTime;
-    // 13 — початкова відстань камери; 1.0 — базовий масштаб
-    const scale = (dist / 13) * (1 + 0.12 * Math.sin(t * 3 + position.x));
-    groupRef.current.scale.setScalar(scale);
+    if (!enteredAt.current) enteredAt.current = t;
+    const dist = camera.position.distanceTo(position);
+
+    // Поява маркера: pop-in з ease-out cubic (≈0.4с)
+    const age = t - enteredAt.current - enterDelay / 1000;
+    const pop = age <= 0 ? 0 : Math.min(1, age / 0.4);
+    const easePop = 1 - Math.pow(1 - pop, 3);
+    g.visible = pop > 0.001;
+    if (!g.visible) return;
+
+    // При наведенні маркер злегка збільшується; завжди — м'яке "дихання"
+    const hoverBoost = hovered ? 1.4 : 1;
+    const breathe = reducedMotion() ? 1 : 1 + 0.09 * Math.sin(t * 2.6 + position.x);
+    const scale = (dist / 13) * hoverBoost * (0.15 + 0.85 * easePop) * breathe;
+    g.scale.setScalar(scale);
+
+    // Яскравіше сяйво та біле ядро при наведенні
+    if (glowMatRef.current) {
+      glowMatRef.current.opacity = hovered ? 0.45 : 0.2;
+    }
+    if (coreMatRef.current) {
+      coreMatRef.current.color.set(hovered ? "#ffffff" : color);
+    }
+
+    // Розширення "хвилі" навколо маркера — як сонер. Вимикається при reduced-motion.
+    if (ringRef.current && ringMatRef.current) {
+      if (!reducedMotion() && pop > 0.5) {
+        const cycle = (t * 0.55 + index * 0.37) % 1;
+        ringRef.current.scale.setScalar(0.9 + cycle * 2.1);
+        ringMatRef.current.opacity = (1 - cycle) * (hovered ? 0.55 : 0.3);
+        ringRef.current.visible = true;
+      } else {
+        ringRef.current.visible = false;
+      }
+    }
   });
 
   // Проєкція позиції маркера у екранні координати для тултіпа
@@ -232,20 +322,45 @@ function Marker({
 
   const handleOver = (e: any) => {
     e.stopPropagation();
+    setHovered(true);
     onHover({ ...ev, _screen: getScreenPos() } as EventPoint);
+  };
+
+  const handleOut = () => {
+    setHovered(false);
+    onHover(null);
   };
 
   return (
     <group ref={groupRef} position={position}>
       {/* Сяйво навколо маркера */}
-      <mesh onPointerOver={handleOver} onPointerOut={() => onHover(null)}>
-        <sphereGeometry args={[0.3, 16, 16]} />
-        <meshBasicMaterial color={color} transparent opacity={0.2} depthWrite={false} />
+      <mesh onPointerOver={handleOver} onPointerOut={handleOut}>
+        <sphereGeometry args={[0.3, 12, 12]} />
+        <meshBasicMaterial
+          ref={glowMatRef}
+          color={color}
+          transparent
+          opacity={0.2}
+          depthWrite={false}
+        />
       </mesh>
       {/* Ядро маркера */}
-      <mesh onPointerOver={handleOver} onPointerOut={() => onHover(null)}>
-        <sphereGeometry args={[0.12, 16, 16]} />
-        <meshBasicMaterial color={color} />
+      <mesh onPointerOver={handleOver} onPointerOut={handleOut}>
+        <sphereGeometry args={[0.12, 10, 10]} />
+        <meshBasicMaterial ref={coreMatRef} color={color} />
+      </mesh>
+      {/* Хвиля-кільце — декоративне, не перехоплює наведення */}
+      <mesh ref={ringRef} visible={false}>
+        <sphereGeometry args={[0.5, 20, 20]} />
+        <meshBasicMaterial
+          ref={ringMatRef}
+          color={color}
+          transparent
+          opacity={0}
+          side={THREE.BackSide}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+        />
       </mesh>
     </group>
   );
@@ -262,11 +377,11 @@ function Scene({
   const [interacting, setInteracting] = useState(false);
   return (
     <>
-      <ambientLight intensity={0.6} />
-      <directionalLight position={[8, 4, 5]} intensity={1.8} color="#ffffff" />
-      <directionalLight position={[-8, -3, -6]} intensity={0.35} color="#8B9AB5" />
-      <pointLight position={[-10, -5, -5]} intensity={0.6} color="#7C4DFF" />
-      <pointLight position={[0, 8, 0]} intensity={0.4} color="#2EE6A6" />
+      <ambientLight intensity={2.2} />
+      <directionalLight position={[8, 4, 5]} intensity={3.2} color="#ffffff" />
+      <directionalLight position={[-8, -3, -6]} intensity={0.8} color="#8B9AB5" />
+      <pointLight position={[-10, -5, -5]} intensity={1.2} color="#7C4DFF" />
+      <pointLight position={[0, 8, 0]} intensity={0.8} color="#2EE6A6" />
       <Stars radius={100} depth={50} count={4000} factor={4} fade speed={0.5} />
       <Earth events={events} autoRotate={!interacting} onHover={onHover} />
       <OrbitControls
@@ -313,6 +428,7 @@ export default function EarthGlobe() {
             event_type: "Sea Level",
             severity: "medium",
             location: `${slValue >= 0 ? "+" : ""}${slValue.toFixed(1)} mm · ${t.globe.legend.seaLevel}`,
+            time: sl?.latest?.date,
           });
         });
       }
@@ -332,6 +448,7 @@ export default function EarthGlobe() {
             event_type: "Ocean Heat",
             severity: "high",
             location: `${ohValue.toFixed(0)} ZJ · ${t.globe.legend.oceanHeat}`,
+            time: oh?.latest?.year != null ? String(oh.latest.year) : undefined,
           });
         });
       }
@@ -344,6 +461,7 @@ export default function EarthGlobe() {
           event_type: "Ocean pH",
           severity: "medium",
           location: `pH ${phValue.toFixed(3)} · ${t.globe.legend.ph}`,
+          time: ph?.latest?.date,
         });
       }
 
@@ -355,6 +473,7 @@ export default function EarthGlobe() {
           event_type: "Antarctic Ice",
           severity: "low",
           location: `${southExtent.toFixed(2)}M km² · ${t.globe.legend.ice}`,
+          time: south?.latest?.date,
         });
       }
 
@@ -383,6 +502,7 @@ export default function EarthGlobe() {
             event_type: ev.event_type,
             severity: ev.severity,
             location: ev.location,
+            time: ev.time,
           }))
         );
       }
@@ -421,23 +541,35 @@ export default function EarthGlobe() {
   // Позиція тултіпа
   const screen = (hovered as any)?._screen;
 
+  // Свіжість даних маркера (для індикатора актуальності)
+  const hoverFresh = freshnessOf(hovered?.time);
+  const hoverFreshLabel =
+    hoverFresh === "live"
+      ? t.globe.liveTag
+      : (t.globe.fresh as Record<string, string>)[hoverFresh];
+  const hoverFreshColor = freshnessColor[hoverFresh];
+
   // Перекладені підписи легенди
   const legendLabel = (key: string) =>
     (t.globe.legend as any)[key] ?? key;
 
   return (
-    <div className="w-full h-full relative bg-[#070A16] overflow-hidden">
+    <div className="w-full h-full relative bg-[#070A16] overflow-hidden animate-fade-in">
       <Canvas
         camera={{ position: [0, 0, 13], fov: 45 }}
-        gl={{ antialias: true, toneMapping: THREE.NoToneMapping, toneMappingExposure: 1.2 }}
+        gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.0 }}
       >
         <Scene events={events} onHover={(ev) => setHovered(ev)} />
       </Canvas>
 
       {/* Легенда типів подій та кліматичних точок — над кнопкою прокрутки */}
       <div className="absolute bottom-16 left-1/2 -translate-x-1/2 glass rounded-full px-4 py-2 flex items-center gap-3 flex-wrap justify-center z-20">
-        {LEGEND.map((item) => (
-          <span key={item.key} className="flex items-center space-x-1.5 text-[10px] text-secondary">
+        {LEGEND.map((item, i) => (
+          <span
+            key={item.key}
+            className="flex items-center space-x-1.5 text-[10px] text-secondary animate-fade-up"
+            style={{ animationDelay: `${350 + i * 55}ms` }}
+          >
             <span className="w-2 h-2 rounded-full inline-block" style={{ background: item.color }} />
             <span>{legendLabel(item.key)}</span>
           </span>
@@ -470,9 +602,10 @@ export default function EarthGlobe() {
       {/* Тултіп при наведенні на маркер */}
       {hovered && screen && (
         <div
-          className="absolute z-30 glass-strong rounded-xl px-3.5 py-2.5 max-w-[220px] pointer-events-none"
+          key={`${hovered.event_type}-${hovered.location}-${hovered.time}`}
+          className="absolute z-30 glass-strong rounded-xl px-3.5 py-2.5 max-w-[240px] pointer-events-none animate-tooltip-pop"
           style={{
-            left: Math.min(screen.x + 14, window.innerWidth - 240),
+            left: Math.min(screen.x + 14, window.innerWidth - 260),
             top: screen.y + 14,
             boxShadow: "0 8px 40px rgba(0,0,0,0.6)",
           }}
@@ -489,12 +622,24 @@ export default function EarthGlobe() {
           <div className="mt-1.5 text-[10px] font-mono text-secondary">
             {hovered.coordinates[0].toFixed(2)}°, {hovered.coordinates[1].toFixed(2)}°
           </div>
+          {/* Актуальність даних: час + індикатор свіжості */}
+          <div className="mt-2 pt-1.5 border-t border-violet/15 flex items-center justify-between gap-2">
+            <div className="flex items-center space-x-1.5 min-w-0">
+              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: hoverFreshColor }} />
+              <span className="text-[10px] text-secondary truncate">
+                {t.globe.updatedAt}: {hovered.time || "—"}
+              </span>
+            </div>
+            <span className="text-[10px] font-semibold shrink-0" style={{ color: hoverFreshColor }}>
+              {hoverFreshLabel}
+            </span>
+          </div>
         </div>
       )}
 
       {/* Підказка про взаємодію */}
       <div className="absolute top-5 left-1/2 -translate-x-1/2 flex items-center space-x-1.5 text-[9px] text-secondary/60 uppercase tracking-[0.2em]">
-        <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald animate-pulse" />
+        <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald ping-dot text-emerald" />
         <span>{t.globe.hover}</span>
       </div>
     </div>

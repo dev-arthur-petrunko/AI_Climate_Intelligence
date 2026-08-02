@@ -31,7 +31,7 @@ export default function Home() {
       {/* Секція 2: Дашборд — з'являється при прокрутці вниз */}
       <section id="climate-dashboard" className="relative -mt-1 bg-background px-6 pt-8 pb-12">
         <div className="max-w-7xl mx-auto">
-          <div className="mb-8">
+          <div className="mb-8 animate-fade-up">
             <h2 className="text-3xl font-bold text-gradient mb-2">{t.dashboard.sectionTitle}</h2>
             <p className="text-secondary">{t.dashboard.sectionSubtitle}</p>
           </div>
