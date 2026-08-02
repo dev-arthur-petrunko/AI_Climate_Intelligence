@@ -123,6 +123,23 @@ export interface KPIItem {
   insight: string;
 }
 
+export interface AIAnalysis {
+  analysis: string;
+  model?: string;
+  generated_at?: string;
+  live?: boolean;
+}
+
+export interface AIPrediction {
+  category: string;
+  prediction: string;
+  probability: number;
+  confidence_interval: [number, number];
+  reasoning: string;
+  risk_level?: string;
+  timeframe?: string;
+}
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 async function getJSON<T>(path: string, params?: Record<string, string | number>): Promise<T> {
@@ -150,4 +167,8 @@ export const api = {
   oceanHeat: () => getJSON<OceanHeatData>("/api/ocean-heat"),
   oceanPh: () => getJSON<OceanPhData>("/api/ocean-ph"),
   aiSummary: () => getJSON<{ summary: string; last_updated: string; confidence: number }>("/api/ai-summary"),
+  aiAnalysis: (lang?: string) =>
+    getJSON<AIAnalysis>("/api/ai-analysis", lang ? { lang } : undefined),
+  predictions: (lang?: string) =>
+    getJSON<AIPrediction[]>("/api/predictions", lang ? { lang } : undefined),
 };

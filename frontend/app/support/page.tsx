@@ -7,7 +7,6 @@
 import { Heart, Star, Share2, Bug, Code2, HandHeart } from "lucide-react";
 import SideNavigation from "@/components/SideNavigation";
 import MissionHeader from "@/components/MissionHeader";
-import AIAssistant from "@/components/AIAssistant";
 import { useI18n } from "@/lib/i18n";
 
 const ICONS = [Star, Share2, Bug, Code2];
@@ -60,7 +59,6 @@ export default function SupportPage() {
           </div>
         </div>
       </div>
-      <AIAssistant />
     </main>
   );
 }

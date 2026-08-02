@@ -60,20 +60,13 @@ const freshnessColor: Record<Freshness, string> = {
   outdated: "#FF5C8A",
 };
 
-/** Резервні події на випадок, якщо бекенд недоступний */
+/** Резервні події на випадок, якщо бекенд недоступний (тільки реальні типи) */
 const fallbackEvents: EventPoint[] = [
   { coordinates: [-123.0, 49.5], event_type: "Wildfire", severity: "high", location: "British Columbia, Canada" },
   { coordinates: [-119.0, 38.5], event_type: "Wildfire", severity: "high", location: "California, USA" },
   { coordinates: [-60.0, -4.0], event_type: "Wildfire", severity: "high", location: "Amazonas, Brazil" },
   { coordinates: [22.0, 38.5], event_type: "Wildfire", severity: "high", location: "Greece" },
   { coordinates: [145.0, -19.0], event_type: "Wildfire", severity: "medium", location: "Queensland, Australia" },
-  { coordinates: [-155.28, 19.42], event_type: "Volcano", severity: "high", location: "Kilauea, Hawaii" },
-  { coordinates: [15.0, 37.75], event_type: "Volcano", severity: "medium", location: "Etna, Sicily" },
-  { coordinates: [110.44, -7.54], event_type: "Volcano", severity: "high", location: "Merapi, Indonesia" },
-  { coordinates: [76.27, 10.85], event_type: "Extreme Rainfall", severity: "high", location: "Kerala, India" },
-  { coordinates: [-42.0, 72.0], event_type: "Arctic Ice Loss", severity: "high", location: "Greenland" },
-  { coordinates: [90.41, 23.7], event_type: "Coastal Flood", severity: "high", location: "Bangladesh" },
-  { coordinates: [12.34, 45.44], event_type: "Coastal Flood", severity: "medium", location: "Venice, Italy" },
 ];
 
 /** Перетворення широти/довготи у 3D-позицію на сфері */
@@ -113,13 +106,10 @@ interface LegendItem {
 const LEGEND: LegendItem[] = [
   { key: "fire", color: "#FF5C8A" },
   { key: "cyclone", color: "#7C4DFF" },
-  { key: "volcano", color: "#FFC24D" },
-  { key: "rainfall", color: "#36A3FF" },
-  { key: "ice", color: "#C8D2E6" },
-  { key: "flood", color: "#2EE6A6" },
   { key: "seaLevel", color: "#FFC24D" },
   { key: "oceanHeat", color: "#FF5C8A" },
   { key: "ph", color: "#7C4DFF" },
+  { key: "ice", color: "#C8D2E6" },
 ];
 
 /** Земля: кольори Blue Marble + рельєф bump map + атмосфера + маркери */

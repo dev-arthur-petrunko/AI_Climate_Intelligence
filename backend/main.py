@@ -19,6 +19,7 @@ from data_sources import (
     get_hurricanes,
     get_fires,
 )
+from ai_groq import get_ai_analysis, get_ai_predictions
 
 # Створення основного додатка FastAPI з описом та версією
 app = FastAPI(
@@ -75,6 +76,8 @@ class AIPrediction(BaseModel):
     probability: float
     confidence_interval: Tuple[float, float]
     reasoning: str
+    risk_level: Optional[str] = None
+    timeframe: Optional[str] = None
 
 
 # --- REST API Маршрути ---
@@ -413,9 +416,8 @@ async def get_overview_safe() -> dict:
 
 @app.get("/api/events", response_model=List[ClimateEvent])
 async def get_climate_events():
-    """Поточні глобальні кліматичні події з координатами для 3D глобуса.
-    Повертає реальні дані з NASA FIRMS (пожежі) та NOAA NHC (циклони),
-    а також симульовані події: вулкани, зливи, арктичний лід, прибережні повені."""
+    """Актуальні глобальні кліматичні події з координатами для 3D глобуса.
+    Тільки реальні дані на сьогодні: NASA FIRMS (пожежі) та NOAA NHC (циклони)."""
     events = []
 
     # --- Реальні дані: пожежі (NASA FIRMS) ---
@@ -454,176 +456,50 @@ async def get_climate_events():
     except Exception:
         pass
 
-    # --- Симульовані події: вулкани, зливи, арктичний лід, повені ---
-    # (замінюють реальні API, які потребують ключів або не мають ендпоінтів)
-    simulated = [
-        {
-            "event_type": "Volcano",
-            "location": "Kilauea, Hawaii",
-            "time": "erupting",
-            "severity": "high",
-            "coordinates": (-155.28, 19.42),
-        },
-        {
-            "event_type": "Volcano",
-            "location": "Etna, Sicily",
-            "time": "erupting",
-            "severity": "medium",
-            "coordinates": (15.00, 37.75),
-        },
-        {
-            "event_type": "Volcano",
-            "location": "Merapi, Indonesia",
-            "time": "erupting",
-            "severity": "high",
-            "coordinates": (110.44, -7.54),
-        },
-        {
-            "event_type": "Extreme Rainfall",
-            "location": "Kerala, India",
-            "time": "monsoon",
-            "severity": "high",
-            "coordinates": (76.27, 10.85),
-        },
-        {
-            "event_type": "Extreme Rainfall",
-            "location": "Guangdong, China",
-            "time": "typhoon season",
-            "severity": "medium",
-            "coordinates": (113.26, 23.13),
-        },
-        {
-            "event_type": "Extreme Rainfall",
-            "location": "São Paulo, Brazil",
-            "time": "ongoing",
-            "severity": "medium",
-            "coordinates": (-46.63, -23.55),
-        },
-        {
-            "event_type": "Arctic Ice Loss",
-            "location": "Greenland",
-            "time": "ongoing",
-            "severity": "high",
-            "coordinates": (-42.00, 72.00),
-        },
-        {
-            "event_type": "Arctic Ice Loss",
-            "location": "Svalbard, Norway",
-            "time": "ongoing",
-            "severity": "medium",
-            "coordinates": (15.63, 78.22),
-        },
-        {
-            "event_type": "Coastal Flood",
-            "location": "Bangladesh",
-            "time": "ongoing",
-            "severity": "high",
-            "coordinates": (90.41, 23.70),
-        },
-        {
-            "event_type": "Coastal Flood",
-            "location": "Venice, Italy",
-            "time": "acqua alta",
-            "severity": "medium",
-            "coordinates": (12.34, 45.44),
-        },
-        {
-            "event_type": "Coastal Flood",
-            "location": "Miami, USA",
-            "time": "king tide",
-            "severity": "low",
-            "coordinates": (-80.19, 25.76),
-        },
-    ]
-
-    # Додаємо симульовані події завжди — щоб глобус показував всі типи стихій
-    events.extend(simulated)
-
-    # Додаткові регіональні події для насиченості глобуса
-    extra = [
-        {"event_type": "Wildfire", "location": "Siberia, Russia", "time": "recent", "severity": "medium", "coordinates": (102.0, 58.5)},
-        {"event_type": "Wildfire", "location": "Angola, Africa", "time": "recent", "severity": "medium", "coordinates": (18.0, -12.0)},
-        {"event_type": "Wildfire", "location": "Botswana, Africa", "time": "recent", "severity": "medium", "coordinates": (25.0, -20.0)},
-        {"event_type": "Wildfire", "location": "New South Wales, Australia", "time": "recent", "severity": "high", "coordinates": (149.0, -32.0)},
-        {"event_type": "Wildfire", "location": "Chile", "time": "recent", "severity": "medium", "coordinates": (-71.0, -35.0)},
-        {"event_type": "Volcano", "location": "Krakatoa, Indonesia", "time": "erupting", "severity": "medium", "coordinates": (105.42, -6.10)},
-        {"event_type": "Volcano", "location": "Mount Fuji, Japan", "time": "monitoring", "severity": "low", "coordinates": (138.73, 35.36)},
-        {"event_type": "Volcano", "location": "Nyiragongo, DR Congo", "time": "erupting", "severity": "high", "coordinates": (29.25, -1.52)},
-        {"event_type": "Volcano", "location": "Popocatepetl, Mexico", "time": "erupting", "severity": "medium", "coordinates": (-98.62, 19.02)},
-        {"event_type": "Extreme Rainfall", "location": "Kerala, India", "time": "monsoon", "severity": "high", "coordinates": (76.50, 11.00)},
-        {"event_type": "Extreme Rainfall", "location": "Kyushu, Japan", "time": "typhoon", "severity": "medium", "coordinates": (130.5, 33.0)},
-        {"event_type": "Extreme Rainfall", "location": "Colombia", "time": "ongoing", "severity": "medium", "coordinates": (-74.0, 4.6)},
-        {"event_type": "Arctic Ice Loss", "location": "Beaufort Sea", "time": "ongoing", "severity": "high", "coordinates": (-140.0, 74.0)},
-        {"event_type": "Arctic Ice Loss", "location": "Kara Sea, Russia", "time": "ongoing", "severity": "medium", "coordinates": (80.0, 77.0)},
-        {"event_type": "Coastal Flood", "location": "Netherlands", "time": "storm surge", "severity": "medium", "coordinates": (4.9, 52.0)},
-        {"event_type": "Coastal Flood", "location": "Texas, USA", "time": "king tide", "severity": "medium", "coordinates": (-95.0, 29.0)},
-        {"event_type": "Cyclone", "location": "Tropical Storm (Indian Ocean)", "time": "active", "severity": "medium", "coordinates": (88.0, -12.0)},
-    ]
-    events.extend(extra)
-
-    # Фолбек, якщо зовсім немає даних
-    if not events:
-        events = simulated
-
     return events
 
 
 @app.get("/api/predictions", response_model=List[AIPrediction])
-async def get_predictions():
-    """Прогнози штучного інтелекту щодо кліматичних ризиків"""
-    predictions = []
-    try:
-        ice_data = get_sea_ice()
-        anomaly = (ice_data or {}).get("anomaly")
-        if anomaly is not None and anomaly < 0:
-            predictions.append(
-                {
-                    "category": "Sea Ice",
-                    "prediction": "Arctic sea ice extent remains below the 1981-2010 baseline",
-                    "probability": 0.88,
-                    "confidence_interval": (0.82, 0.94),
-                    "reasoning": f"Current extent anomaly of {anomaly:+.2f}M km² relative to the 30-year baseline (NSIDC).",
-                }
-            )
-    except Exception:
-        pass
-
-    try:
-        gistemp_data = get_gistemp()
-        series = (gistemp_data or {}).get("series", [])
-        if series:
-            recent = series[-10:]
-            if len(recent) >= 2 and recent[-1]["value"] > recent[0]["value"]:
-                predictions.append(
-                    {
-                        "category": "Temperature",
-                        "prediction": "Global mean temperature anomaly continues to trend upward",
-                        "probability": 0.92,
-                        "confidence_interval": (0.86, 0.96),
-                        "reasoning": f"Warming of {recent[-1]['value'] - recent[0]['value']:+.2f}°C over the last {len(recent)} years in NASA GISTEMP data.",
-                    }
-                )
-    except Exception:
-        pass
-
-    if not predictions:
-        predictions = [
+async def get_predictions(lang: str = Query("en")):
+    """Прогнози штучного інтелекту щодо кліматичних ризиків (AI Groq)"""
+    predictions = get_ai_predictions(lang)
+    normalized = []
+    for p in predictions:
+        ci = p.get("confidence_interval") or p.get("confidence") or [p.get("probability", 0.5), p.get("probability", 0.5)]
+        if isinstance(ci, (list, tuple)) and len(ci) == 2:
+            low, high = ci[0], ci[1]
+        else:
+            low = high = p.get("probability", 0.5)
+        normalized.append(
+            {
+                "category": p.get("category", "Climate"),
+                "prediction": p.get("prediction", ""),
+                "probability": max(0.0, min(1.0, float(p.get("probability", 0.5)))),
+                "confidence_interval": (low, high),
+                "reasoning": p.get("reasoning", ""),
+                "risk_level": p.get("risk_level"),
+                "timeframe": p.get("timeframe"),
+            }
+        )
+    if not normalized:
+        return [
             {
                 "category": "Temperature",
-                "prediction": "Вище середнього температура очікується в Європі",
+                "prediction": "Above average temperatures expected in Southern Europe",
                 "probability": 0.85,
                 "confidence_interval": (0.78, 0.92),
-                "reasoning": "На основі паттернів атмосферного тиску та історичних даних",
-            },
-            {
-                "category": "Wildfire Risk",
-                "prediction": "Високий ризик лісових пожеж у Середземноморському регіоні",
-                "probability": 0.72,
-                "confidence_interval": (0.65, 0.79),
-                "reasoning": "Умови посухи у поєднанні з високими температурами",
+                "reasoning": "AI forecast based on atmospheric pressure patterns and historical data.",
+                "risk_level": "high",
+                "timeframe": "7-30 days",
             },
         ]
-    return predictions
+    return normalized
+
+
+@app.get("/api/ai-analysis")
+async def ai_analysis(lang: str = Query("en")):
+    """AI-аналіз сьогоднішньої кліматичної ситуації (AI Groq, 2 рази на день о 09:00 та 17:00 за Києвом, мовою інтерфейсу)"""
+    return get_ai_analysis(lang)
 
 
 @app.get("/api/ai-summary")

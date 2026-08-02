@@ -1,10 +1,30 @@
 "use client";
 
-import { useState } from "react";
-import { Thermometer, Flame, Waves, CloudRain, Wind, Sparkles, TrendingUp, AlertTriangle } from "lucide-react";
+/**
+ * AI-прогнози — дані генерує AI Groq на бекенді (/api/predictions).
+ * Показує ймовірності, довірчі інтервали та рівні ризику.
+ * У разі недоступності бекенду — резервні локальні прогнози.
+ */
+
+import { useState, useEffect, useCallback } from "react";
+import {
+  Thermometer,
+  Flame,
+  Waves,
+  CloudRain,
+  Wind,
+  Sparkles,
+  TrendingUp,
+  AlertTriangle,
+  Snowflake,
+  Activity,
+  Gauge,
+  Mountain,
+} from "lucide-react";
+import { api, AIPrediction } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 
-interface Prediction {
+interface PredictionCard {
   category: string;
   icon: any;
   prediction: string;
@@ -12,101 +32,133 @@ interface Prediction {
   confidenceInterval: [number, number];
   reasoning: string;
   timeframe: string;
-  minDays: number;
-  maxDays: number;
   riskLevel: "low" | "medium" | "high";
 }
 
-const predictionsData: Prediction[] = [
+/** Fallback-прогнози на випадок, якщо бекенд недоступний */
+const fallbackPredictions: PredictionCard[] = [
   {
-    category: "temperature",
+    category: "Temperature",
     icon: Thermometer,
     prediction: "Above average temperatures expected in Southern Europe",
     probability: 0.85,
     confidenceInterval: [0.78, 0.92],
     reasoning: "Based on atmospheric pressure patterns and historical data showing persistent high-pressure systems",
     timeframe: "7-30 days",
-    minDays: 7,
-    maxDays: 30,
-    riskLevel: "high"
+    riskLevel: "high",
   },
   {
-    category: "wildfire",
+    category: "Wildfire Risk",
     icon: Flame,
     prediction: "High wildfire risk in Mediterranean region",
     probability: 0.72,
     confidenceInterval: [0.65, 0.79],
     reasoning: "Drought conditions combined with high temperatures and low humidity create favorable conditions",
     timeframe: "7-14 days",
-    minDays: 7,
-    maxDays: 14,
-    riskLevel: "high"
+    riskLevel: "high",
   },
   {
-    category: "flood",
+    category: "Flood Risk",
     icon: Waves,
     prediction: "Elevated flood risk in Southeast Asia",
     probability: 0.68,
     confidenceInterval: [0.60, 0.76],
     reasoning: "Monsoon season intensification expected with above-average precipitation forecasts",
     timeframe: "30-90 days",
-    minDays: 30,
-    maxDays: 90,
-    riskLevel: "medium"
+    riskLevel: "medium",
   },
   {
-    category: "heatwaves",
-    icon: TrendingUp,
-    prediction: "Extended heatwave period in North America",
-    probability: 0.61,
-    confidenceInterval: [0.55, 0.67],
-    reasoning: "Heat dome formation patterns indicate prolonged high-temperature conditions",
-    timeframe: "14-30 days",
-    minDays: 14,
-    maxDays: 30,
-    riskLevel: "medium"
-  },
-  {
-    category: "storm",
-    icon: Wind,
-    prediction: "Increased tropical storm activity in Atlantic",
-    probability: 0.59,
-    confidenceInterval: [0.52, 0.66],
-    reasoning: "Sea surface temperatures above historical averages support storm development",
+    category: "Sea Ice",
+    icon: Snowflake,
+    prediction: "Arctic sea ice extent remains below the seasonal baseline",
+    probability: 0.88,
+    confidenceInterval: [0.82, 0.94],
+    reasoning: "Current extent anomaly relative to the 1981-2010 baseline (NSIDC)",
     timeframe: "30-90 days",
-    minDays: 30,
-    maxDays: 90,
-    riskLevel: "medium"
+    riskLevel: "high",
   },
   {
-    category: "drought",
-    icon: CloudRain,
-    prediction: "Developing drought conditions in East Africa",
-    probability: 0.74,
-    confidenceInterval: [0.68, 0.80],
-    reasoning: "Below-average rainfall forecasts combined with existing soil moisture deficits",
+    category: "Ocean Heat",
+    icon: Activity,
+    prediction: "Ocean heat content continues to accumulate",
+    probability: 0.85,
+    confidenceInterval: [0.78, 0.92],
+    reasoning: "Upper-ocean heat storage keeps increasing year over year",
     timeframe: "90 days",
-    minDays: 90,
-    maxDays: 90,
-    riskLevel: "high"
-  }
+    riskLevel: "high",
+  },
 ];
 
+/** Підбір іконки за ключовими словами в категорії */
+function iconFor(category: string) {
+  const c = (category || "").toLowerCase();
+  if (c.includes("fire") || c.includes("wildfire")) return Flame;
+  if (c.includes("flood")) return Waves;
+  if (c.includes("ice")) return Snowflake;
+  if (c.includes("heat") || c.includes("temperatur")) return Thermometer;
+  if (c.includes("cyclone") || c.includes("storm") || c.includes("wind")) return Wind;
+  if (c.includes("rain") || c.includes("drought")) return CloudRain;
+  if (c.includes("ocean") || c.includes("sea level")) return Waves;
+  if (c.includes("volcano")) return Mountain;
+  if (c.includes("ph")) return Gauge;
+  return TrendingUp;
+}
+
+/** Визначення рівня ризику з рядка */
+function riskLevelOf(level?: string): "low" | "medium" | "high" {
+  const l = (level || "").toLowerCase();
+  if (l === "low") return "low";
+  if (l === "high") return "high";
+  return "medium";
+}
+
 export default function AIPredictions() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const [cards, setCards] = useState<PredictionCard[]>(fallbackPredictions);
+  const [loading, setLoading] = useState(true);
+  const [live, setLive] = useState(false);
+  const [selectedTimeframe, setSelectedTimeframe] = useState("days30");
+  const [expandedPrediction, setExpandedPrediction] = useState<number | null>(null);
+
+  /** Завантаження прогнозів з API (AI Groq через бекенд, мовою інтерфейсу) */
+  const load = useCallback(async () => {
+    try {
+      const data: AIPrediction[] = await api.predictions(locale);
+      if (Array.isArray(data) && data.length > 0) {
+        setCards(
+          data.map((p) => ({
+            category: p.category,
+            icon: iconFor(p.category),
+            prediction: p.prediction,
+            probability: p.probability,
+            confidenceInterval: p.confidence_interval ?? [p.probability, p.probability],
+            reasoning: p.reasoning,
+            timeframe: p.timeframe || "7-90 days",
+            riskLevel: riskLevelOf(p.risk_level),
+          }))
+        );
+        setLive(true);
+      }
+    } catch {
+      /* зберігаємо резервні прогнози */
+    } finally {
+      setLoading(false);
+    }
+  }, [locale]);
+
+  useEffect(() => {
+    setLoading(true);
+    load();
+    const id = setInterval(load, 30 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [load]);
+
   const timeframes = [
     { key: "days7", maxDays: 7 },
     { key: "days30", maxDays: 30 },
     { key: "days90", maxDays: 90 },
     { key: "year1", maxDays: 365 },
   ];
-  const [selectedTimeframe, setSelectedTimeframe] = useState("days30");
-  const [expandedPrediction, setExpandedPrediction] = useState<number | null>(null);
-
-  const selectedMaxDays = timeframes.find((tf) => tf.key === selectedTimeframe)?.maxDays ?? 30;
-  const visiblePredictions = predictionsData.filter(
-    (prediction) => prediction.minDays <= selectedMaxDays
-  );
 
   const getRiskColor = (level: string) => {
     switch (level) {
@@ -126,15 +178,18 @@ export default function AIPredictions() {
     }
   };
 
-  const cardLabel = (key: string) =>
-    (t.predictions.cards as Record<string, { category: string }>)[key]?.category ?? key;
-
   return (
     <div className="space-y-6">
       <div className="glass p-4">
         <div className="flex items-center space-x-2 mb-4">
           <Sparkles className="w-5 h-5 text-emerald" />
           <h3 className="font-semibold">{t.predictions.ui.timeframe}</h3>
+          <div className="ml-auto flex items-center space-x-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald ping-dot text-emerald" />
+            <span className="text-[10px] text-secondary uppercase tracking-wider">
+              {live ? "AI Groq" : t.common.offline}
+            </span>
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           {timeframes.map((timeframe) => (
@@ -153,82 +208,95 @@ export default function AIPredictions() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {visiblePredictions.map((prediction, index) => {
-          const Icon = prediction.icon;
-          const isExpanded = expandedPrediction === index;
-          const card = (t.predictions.cards as Record<string, any>)[prediction.category];
-
-          return (
-            <div
-              key={`${prediction.category}-${index}`}
-              className={`glass p-6 cursor-pointer transition-all hover:shadow-glow hover:-translate-y-1 ${
-                isExpanded ? "ring-2 ring-violet" : ""
-              }`}
-              onClick={() => setExpandedPrediction(isExpanded ? null : index)}
-            >
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center space-x-3">
-                  <div className={`p-3 rounded-lg bg-violet/12 ${getRiskColor(prediction.riskLevel)}`}>
-                    <Icon className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold">{card?.category ?? cardLabel(prediction.category)}</h3>
-                    <div className={`text-xs ${getRiskColor(prediction.riskLevel)} flex items-center space-x-1`}>
-                      <AlertTriangle className="w-3 h-3" />
-                      <span className="capitalize">
-                        {t.predictions.risk[prediction.riskLevel]} {t.predictions.ui.risk}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-2xl font-bold text-violet">
-                    {Math.round(prediction.probability * 100)}%
-                  </div>
-                  <div className="text-xs text-secondary">{t.predictions.ui.probability}</div>
-                </div>
-              </div>
-
-              <p className="text-sm text-secondary mb-4">{card?.prediction ?? prediction.prediction}</p>
-
-              <div className="mb-4">
-                <div className="flex justify-between text-xs text-secondary mb-1">
-                  <span>{t.predictions.ui.confidence}</span>
-                  <span>
-                    {Math.round(prediction.confidenceInterval[0] * 100)}% - {Math.round(prediction.confidenceInterval[1] * 100)}%
-                  </span>
-                </div>
-                <div className="h-2 bg-surface-2 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-violet to-emerald rounded-full transition-all"
-                    style={{ width: `${prediction.probability * 100}%` }}
-                  />
-                </div>
-              </div>
-
-              {isExpanded && (
-                <div className="pt-4 border-t border-violet/15 space-y-3">
-                  <div>
-                    <div className="text-xs text-secondary mb-1">{t.predictions.ui.timeframeLabel}</div>
-                    <div className="text-sm">{prediction.timeframe}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-secondary mb-1">{t.predictions.ui.aiReasoning}</div>
-                    <div className="text-sm leading-relaxed">{card?.reasoning ?? prediction.reasoning}</div>
-                  </div>
-                  <div className={`p-3 rounded-lg border ${getRiskBg(prediction.riskLevel)}`}>
-                    <div className="text-xs text-secondary mb-1">{t.predictions.ui.riskAssessment}</div>
-                    <div className={`text-sm font-medium ${getRiskColor(prediction.riskLevel)}`}>
-                      {prediction.riskLevel.toUpperCase()} {t.predictions.ui.riskLevel}
-                    </div>
-                  </div>
-                </div>
-              )}
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="glass p-6 skeleton">
+              <div className="h-10 w-10 bg-white/10 rounded-lg mb-4" />
+              <div className="h-4 w-1/2 bg-white/10 rounded mb-3" />
+              <div className="h-8 w-16 bg-white/10 rounded mb-3" />
+              <div className="h-3 w-full bg-white/5 rounded mb-2" />
+              <div className="h-3 w-2/3 bg-white/5 rounded" />
             </div>
-          );
-        })}
-      </div>
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {cards.map((prediction, index) => {
+            const Icon = prediction.icon;
+            const isExpanded = expandedPrediction === index;
+
+            return (
+              <div
+                key={`${prediction.category}-${index}`}
+                className={`glass p-6 cursor-pointer transition-all hover:shadow-glow hover:-translate-y-1 ${
+                  isExpanded ? "ring-2 ring-violet" : ""
+                }`}
+                onClick={() => setExpandedPrediction(isExpanded ? null : index)}
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center space-x-3">
+                    <div className={`p-3 rounded-lg bg-violet/12 ${getRiskColor(prediction.riskLevel)}`}>
+                      <Icon className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold">{prediction.category}</h3>
+                      <div className={`text-xs ${getRiskColor(prediction.riskLevel)} flex items-center space-x-1`}>
+                        <AlertTriangle className="w-3 h-3" />
+                        <span className="capitalize">
+                          {t.predictions.risk[prediction.riskLevel]} {t.predictions.ui.risk}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-2xl font-bold text-violet">
+                      {Math.round(prediction.probability * 100)}%
+                    </div>
+                    <div className="text-xs text-secondary">{t.predictions.ui.probability}</div>
+                  </div>
+                </div>
+
+                <p className="text-sm text-secondary mb-4">{prediction.prediction}</p>
+
+                <div className="mb-4">
+                  <div className="flex justify-between text-xs text-secondary mb-1">
+                    <span>{t.predictions.ui.confidence}</span>
+                    <span>
+                      {Math.round(prediction.confidenceInterval[0] * 100)}% - {Math.round(prediction.confidenceInterval[1] * 100)}%
+                    </span>
+                  </div>
+                  <div className="h-2 bg-surface-2 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-violet to-emerald rounded-full transition-all"
+                      style={{ width: `${prediction.probability * 100}%` }}
+                    />
+                  </div>
+                </div>
+
+                {isExpanded && (
+                  <div className="pt-4 border-t border-violet/15 space-y-3">
+                    <div>
+                      <div className="text-xs text-secondary mb-1">{t.predictions.ui.timeframeLabel}</div>
+                      <div className="text-sm">{prediction.timeframe}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-secondary mb-1">{t.predictions.ui.aiReasoning}</div>
+                      <div className="text-sm leading-relaxed">{prediction.reasoning}</div>
+                    </div>
+                    <div className={`p-3 rounded-lg border ${getRiskBg(prediction.riskLevel)}`}>
+                      <div className="text-xs text-secondary mb-1">{t.predictions.ui.riskAssessment}</div>
+                      <div className={`text-sm font-medium ${getRiskColor(prediction.riskLevel)}`}>
+                        {prediction.riskLevel.toUpperCase()} {t.predictions.ui.riskLevel}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <div className="glass-strong p-6">
         <div className="flex items-center space-x-2 mb-4">

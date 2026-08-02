@@ -22,14 +22,15 @@ climate-intelligence/
 │   │   ├── LiveEventFeed.tsx      # Live climate events feed
 │   │   ├── AIClimateSummary.tsx   # AI-generated climate summary
 │   │   ├── AnalyticsCharts.tsx    # Interactive Plotly charts
-│   │   ├── AIAssistant.tsx        # AI chat assistant
-│   │   └── AIPredictions.tsx     # AI predictions display
+│   │   ├── AIAnalysisPanel.tsx    # AI analysis popup panel (right side of globe)
+│   │   └── AIPredictions.tsx      # AI predictions display (Groq)
 │   ├── package.json
 │   ├── tsconfig.json
 │   ├── tailwind.config.ts
 │   └── next.config.js
 ├── backend/                # FastAPI backend
 │   ├── main.py            # Main FastAPI application
+│   ├── ai_groq.py         # Groq AI analysis + predictions
 │   └── requirements.txt
 └── README.md
 ```
@@ -114,23 +115,25 @@ python main.py                        # Start server (http://localhost:8000)
 - Export capabilities
 
 ### AI Predictions
-- AI-generated forecasts
+- Groq-powered AI forecasts (llama-3.3-70b-versatile)
 - Probability scores and confidence intervals
 - Risk level assessments
 - Multiple timeframe options (7 days, 30 days, 90 days, 1 year)
 
-### AI Assistant
-- Conversational AI interface
-- Natural language queries
-- Real-time responses
-- Floating chat widget
+### AI Analysis Panel
+- Separate window popping up on the right side of the 3D globe
+- AI analysis of today's climate situation (AI Groq)
+- Regenerated twice a day at 09:00 and 17:00 Kyiv time
+- Generated in the selected UI language (en/uk/de/pl/fr/it/ka)
+- Collapsible, refreshable, links to the predictions page
 
 ## API Endpoints (Backend)
 - `GET /` - API information
 - `GET /api/health` - Health check
 - `GET /api/kpi` - Climate KPI metrics
 - `GET /api/events` - Current climate events
-- `GET /api/predictions` - AI-generated predictions
+- `GET /api/predictions` - AI-generated predictions (AI Groq)
+- `GET /api/ai-analysis` - Today's AI climate analysis (Groq, 09:00 & 17:00 Kyiv, per language)
 - `GET /api/ai-summary` - AI climate summary
 - `GET /api/overview?lat=..&lon=..` - Aggregated snapshot
 - `GET /api/weather?lat=..&lon=..` - Weather + forecast (Open-Meteo)
@@ -208,7 +211,7 @@ python main.py                        # Start server (http://localhost:8000)
 - ✅ Dashboard with KPI cards
 - ✅ Analytics with interactive charts
 - ✅ AI predictions page
-- ✅ AI assistant chat widget
+- ✅ AI analysis panel (Groq, 09:00 & 17:00 Kyiv, per language)
 - ✅ Navigation with routing
 - ✅ Responsive design
 - ⏳ Real data integration

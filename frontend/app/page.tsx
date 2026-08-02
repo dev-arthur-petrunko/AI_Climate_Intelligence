@@ -11,7 +11,7 @@ import SideNavigation from "@/components/SideNavigation";
 import EarthGlobe from "@/components/EarthGlobe";
 import MissionHeader from "@/components/MissionHeader";
 import { KPICards, LiveEventFeed, AIClimateSummary } from "@/components/DashboardSections";
-import AIAssistant from "@/components/AIAssistant";
+import AIAnalysisPanel from "@/components/AIAnalysisPanel";
 import { useI18n } from "@/lib/i18n";
 
 export default function Home() {
@@ -23,6 +23,9 @@ export default function Home() {
         <Suspense fallback={<div className="w-full h-full bg-[#070A16]" />}>
           <EarthGlobe />
         </Suspense>
+
+        {/* AI-аналіз — окреме вікно, спливає справа на глобусі */}
+        <AIAnalysisPanel />
 
         {/* Плавний градієнтний перехід до дашборду */}
         <div className="absolute bottom-0 left-0 right-0 h-56 bg-gradient-to-b from-transparent via-background/30 to-background pointer-events-none z-10" />
@@ -49,9 +52,6 @@ export default function Home() {
 
       {/* Верхній бар зі статистикою */}
       <MissionHeader />
-
-      {/* AI-асистент */}
-      <AIAssistant />
     </main>
   );
 }

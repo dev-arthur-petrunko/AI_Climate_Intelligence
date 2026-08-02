@@ -241,6 +241,16 @@ export const en = {
     greeting:
       "Hello! I'm your AI Climate Assistant. Ask me anything about climate data, trends, predictions, or specific regions.",
   },
+  analysis: {
+    title: "AI Analysis",
+    schedule: "Updated 09:00 & 17:00 Kyiv",
+    refresh: "Refresh",
+    close: "Close",
+    open: "Open AI analysis",
+    toggle: "Toggle panel",
+    viewPredictions: "View AI predictions",
+    offline: "Offline model",
+  },
 };
 
 export const uk: TranslationDict = {
@@ -462,6 +472,16 @@ export const uk: TranslationDict = {
     placeholder: "Запитайте про клімат...",
     greeting:
       "Вітаю! Я ваш AI кліматичний асистент. Питайте про кліматичні дані, тренди, прогнози чи регіони.",
+  },
+  analysis: {
+    title: "AI Аналіз",
+    schedule: "Оновлюється о 09:00 та 17:00 (Київ)",
+    refresh: "Оновити",
+    close: "Закрити",
+    open: "Відкрити AI аналіз",
+    toggle: "Згорнути панель",
+    viewPredictions: "Переглянути AI прогнози",
+    offline: "Офлайн модель",
   },
 };
 
@@ -685,6 +705,16 @@ export const de: TranslationDict = {
     greeting:
       "Hallo! Ich bin Ihr KI-Klimaassistent. Fragen Sie mich zu Klimadaten, Trends, Prognosen oder Regionen.",
   },
+  analysis: {
+    title: "KI-Analyse",
+    schedule: "Aktualisiert 09:00 & 17:00 (Kiew)",
+    refresh: "Aktualisieren",
+    close: "Schließen",
+    open: "KI-Analyse öffnen",
+    toggle: "Panel umschalten",
+    viewPredictions: "KI-Prognosen ansehen",
+    offline: "Offline-Modell",
+  },
 };
 
 export const pl: TranslationDict = {
@@ -906,6 +936,16 @@ export const pl: TranslationDict = {
     placeholder: "Zapytaj o dane klimatyczne...",
     greeting:
       "Witaj! Jestem Twoim asystentem AI ds. klimatu. Pytaj o dane, trendy, prognozy lub regiony.",
+  },
+  analysis: {
+    title: "Analiza AI",
+    schedule: "Aktualizowana 09:00 i 17:00 (Kijów)",
+    refresh: "Odśwież",
+    close: "Zamknij",
+    open: "Otwórz analizę AI",
+    toggle: "Przełącz panel",
+    viewPredictions: "Zobacz prognozy AI",
+    offline: "Model offline",
   },
 };
 
@@ -1129,6 +1169,16 @@ export const fr: TranslationDict = {
     greeting:
       "Bonjour ! Je suis votre assistant climatique IA. Posez-moi des questions sur le climat, les tendances, les prévisions ou les régions.",
   },
+  analysis: {
+    title: "Analyse IA",
+    schedule: "Mis à jour 09:00 & 17:00 (Kyiv)",
+    refresh: "Actualiser",
+    close: "Fermer",
+    open: "Ouvrir l'analyse IA",
+    toggle: "Basculer le panneau",
+    viewPredictions: "Voir les prévisions IA",
+    offline: "Modèle hors ligne",
+  },
 };
 
 export const it: TranslationDict = {
@@ -1351,6 +1401,16 @@ export const it: TranslationDict = {
     greeting:
       "Ciao! Sono il tuo assistente climatico IA. Chiedimi dati, tendenze, previsioni o regioni.",
   },
+  analysis: {
+    title: "Analisi IA",
+    schedule: "Aggiornata 09:00 e 17:00 (Kiev)",
+    refresh: "Aggiorna",
+    close: "Chiudi",
+    open: "Apri l'analisi IA",
+    toggle: "Attiva/disattiva pannello",
+    viewPredictions: "Vedi le previsioni IA",
+    offline: "Modello offline",
+  },
 };
 
 export const ka: TranslationDict = {
@@ -1572,6 +1632,16 @@ export const ka: TranslationDict = {
     placeholder: "ჰკითხეთ კლიმატის მონაცემების შესახებ...",
     greeting:
       "გამარჯობა! მე ვარ თქვენი კლიმატის AI ასისტენტი. მკითხეთ კლიმატის მონაცემებზე, ტენდენციებზე ან რეგიონებზე.",
+  },
+  analysis: {
+    title: "AI ანალიზი",
+    schedule: "განახლდება 09:00 და 17:00 (კიევი)",
+    refresh: "განახლება",
+    close: "დახურვა",
+    open: "AI ანალიზის გახსნა",
+    toggle: "პანელის გადართვა",
+    viewPredictions: "AI პროგნოზების ნახვა",
+    offline: "ოფლაინ მოდელი",
   },
 };
 

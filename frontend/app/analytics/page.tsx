@@ -9,7 +9,6 @@ import { Suspense } from "react";
 import SideNavigation from "@/components/SideNavigation";
 import MissionHeader from "@/components/MissionHeader";
 import AnalyticsCharts from "@/components/AnalyticsCharts";
-import AIAssistant from "@/components/AIAssistant";
 import { useI18n } from "@/lib/i18n";
 
 export default function Analytics() {
@@ -29,7 +28,6 @@ export default function Analytics() {
           </Suspense>
         </div>
       </div>
-      <AIAssistant />
     </main>
   );
 }

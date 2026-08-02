@@ -8,7 +8,6 @@
 import SideNavigation from "@/components/SideNavigation";
 import MissionHeader from "@/components/MissionHeader";
 import AIPredictions from "@/components/AIPredictions";
-import AIAssistant from "@/components/AIAssistant";
 import { useI18n } from "@/lib/i18n";
 
 export default function Predictions() {
@@ -26,7 +25,6 @@ export default function Predictions() {
           <AIPredictions />
         </div>
       </div>
-      <AIAssistant />
     </main>
   );
 }

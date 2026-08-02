@@ -7,7 +7,6 @@
 import { Globe, Info, Settings, CheckCircle2 } from "lucide-react";
 import SideNavigation from "@/components/SideNavigation";
 import MissionHeader from "@/components/MissionHeader";
-import AIAssistant from "@/components/AIAssistant";
 import { useI18n } from "@/lib/i18n";
 
 export default function SettingsPage() {
@@ -74,7 +73,6 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
-      <AIAssistant />
     </main>
   );
 }
