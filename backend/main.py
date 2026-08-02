@@ -294,11 +294,11 @@ async def overview(lat: float = Query(DEFAULT_LAT), lon: float = Query(DEFAULT_L
             "wave_height": wave_current,
         },
         "ocean_climate": {
-            "sea_level": (get_sea_level() or {}).get("latest"),
-            "sea_level_trend": (get_sea_level() or {}).get("trend"),
-            "ocean_heat": (get_ocean_heat() or {}).get("latest"),
-            "ocean_ph": (get_ocean_ph() or {}).get("latest"),
-            "antarctic_ice": (get_sea_ice_south() or {}).get("latest"),
+            "sea_level": (_safe(lambda: get_sea_level(), {}) or {}).get("latest"),
+            "sea_level_trend": (_safe(lambda: get_sea_level(), {}) or {}).get("trend"),
+            "ocean_heat": (_safe(lambda: get_ocean_heat(), {}) or {}).get("latest"),
+            "ocean_ph": (_safe(lambda: get_ocean_ph(), {}) or {}).get("latest"),
+            "antarctic_ice": (_safe(lambda: get_sea_ice_south(), {}) or {}).get("latest"),
         },
         "hurricanes": {
             "active": (storm_data or {}).get("active", False),
