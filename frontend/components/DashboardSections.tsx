@@ -35,8 +35,12 @@ const iconMap: Record<string, any> = {
   "Local Temperature": Thermometer,
   "Atmospheric CO₂": Cloud,
   "Arctic Sea Ice Extent": Snowflake,
+  "Antarctic Sea Ice Extent": Snowflake,
   "Active Fire Hotspots": Flame,
   "Active Cyclones": Wind,
+  "Global Sea Level": Waves,
+  "Ocean Heat Content": Activity,
+  "Ocean pH": Gauge,
 };
 
 /** Визначення кольору за назвою показника та напрямком тренду */
@@ -46,6 +50,9 @@ function colorFor(name: string, trendUp: boolean) {
   if (name.includes("Sea Ice")) return "text-emerald";
   if (name.includes("CO₂")) return "text-amber";
   if (name.includes("Temperature")) return "text-amber";
+  if (name.includes("Sea Level")) return "text-violet";
+  if (name.includes("Ocean Heat")) return "text-pink";
+  if (name.includes("Ocean pH")) return "text-emerald";
   return trendUp ? "text-emerald" : "text-violet";
 }
 
@@ -87,6 +94,10 @@ export function KPICards() {
     const id = setInterval(load, 120000);
     return () => clearInterval(id);
   }, [load]);
+
+  /** Перекладена назва показника */
+  const kpiLabel = (name: string) =>
+    (t.kpi as Record<string, string>)[name] ?? name;
 
   /** Скелетон завантаження */
   if (loading) {
@@ -130,7 +141,7 @@ export function KPICards() {
               <TrendIcon name={kpi.name} trendUp={kpi.trend_up} />
             </div>
             <div className="text-2xl font-bold mb-1 text-primary">{kpi.value}</div>
-            <div className="text-sm text-secondary mb-3">{kpi.name}</div>
+            <div className="text-sm text-secondary mb-3">{kpiLabel(kpi.name)}</div>
             <div className="text-xs text-secondary opacity-60 group-hover:opacity-100 transition-opacity">
               {kpi.insight}
             </div>

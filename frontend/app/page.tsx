@@ -12,8 +12,10 @@ import EarthGlobe from "@/components/EarthGlobe";
 import MissionHeader from "@/components/MissionHeader";
 import { KPICards, LiveEventFeed, AIClimateSummary } from "@/components/DashboardSections";
 import AIAssistant from "@/components/AIAssistant";
+import { useI18n } from "@/lib/i18n";
 
 export default function Home() {
+  const { t } = useI18n();
   return (
     <main className="bg-background min-h-screen">
       {/* Секція 1: Глобус на весь екран — видимий зразу */}
@@ -30,8 +32,8 @@ export default function Home() {
       <section id="climate-dashboard" className="relative -mt-1 bg-background px-6 pt-8 pb-12">
         <div className="max-w-7xl mx-auto">
           <div className="mb-8">
-            <h2 className="text-3xl font-bold text-gradient mb-2">Кліматичний дашборд</h2>
-            <p className="text-secondary">Моніторинг глобального клімату в реальному часі на основі ШІ</p>
+            <h2 className="text-3xl font-bold text-gradient mb-2">{t.dashboard.sectionTitle}</h2>
+            <p className="text-secondary">{t.dashboard.sectionSubtitle}</p>
           </div>
           <KPICards />
 

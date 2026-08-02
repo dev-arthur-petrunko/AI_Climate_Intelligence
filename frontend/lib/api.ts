@@ -38,6 +38,13 @@ export interface OverviewData {
     sea_surface_temperature?: number | null;
     wave_height?: number | null;
   };
+  ocean_climate?: {
+    sea_level?: { date?: string; value?: number } | null;
+    sea_level_trend?: number | null;
+    ocean_heat?: { year?: number; value?: number } | null;
+    ocean_ph?: { date?: string; value?: number } | null;
+    antarctic_ice?: { date?: string; extent?: number } | null;
+  };
   air_quality: {
     us_aqi?: number | null;
     pm2_5?: number | null;
@@ -73,6 +80,31 @@ export interface SeaIceData {
   baseline_period: string;
   annual_minimum: { year: number; value: number }[];
   recent: { date: string; extent: number }[];
+}
+
+export interface SeaLevelData {
+  source: string;
+  unit: string;
+  reference: string;
+  series: { date: string; value: number }[];
+  latest: { date: string; value: number } | null;
+  trend: number | null;
+}
+
+export interface OceanHeatData {
+  source: string;
+  unit: string;
+  reference: string;
+  series: { year: number; value: number }[];
+  latest: { year: number; value: number } | null;
+}
+
+export interface OceanPhData {
+  source: string;
+  unit: string;
+  reference: string;
+  series: { date: string; value: number }[];
+  latest: { date: string; value: number } | null;
 }
 
 export interface ClimateEvent {
@@ -113,5 +145,9 @@ export const api = {
   gistemp: () => getJSON<GISTEMPSeries>("/api/gistemp"),
   co2: () => getJSON<CO2Series>("/api/co2"),
   seaIce: () => getJSON<SeaIceData>("/api/sea-ice"),
+  seaIceSouth: () => getJSON<SeaIceData>("/api/sea-ice-south"),
+  seaLevel: () => getJSON<SeaLevelData>("/api/sea-level"),
+  oceanHeat: () => getJSON<OceanHeatData>("/api/ocean-heat"),
+  oceanPh: () => getJSON<OceanPhData>("/api/ocean-ph"),
   aiSummary: () => getJSON<{ summary: string; last_updated: string; confidence: number }>("/api/ai-summary"),
 };

@@ -9,6 +9,10 @@ Providers (no API key required unless noted):
   - NASA GISTEMP:    global surface temperature anomaly (1880 - present)
   - NOAA GML:        global CO2 concentration (monthly)
   - NSIDC:           Arctic sea ice extent (daily, v4.0)
+  - NSIDC:           Antarctic sea ice extent (daily, v4.0)
+  - OWID:            global sea level rise (Church & White + UHSLC)
+  - OWID:            ocean heat content, top 2000 m (NOAA GML)
+  - OWID:            ocean acidification (seawater pH, Hawaii station)
   - NOAA NHC:        active tropical cyclones (Atlantic RSS)
   - NASA FIRMS:      active fire hotspots (requires FIRMS_API_KEY env var)
 """
@@ -296,6 +300,229 @@ def fetch_sea_ice() -> dict:
 
 def get_sea_ice() -> dict:
     return _cached("sea_ice", 6 * 3600, fetch_sea_ice)
+
+
+# ---------------------------------------------------------------------------
+# NSIDC: Antarctic sea ice extent (daily, v4.0)
+# ---------------------------------------------------------------------------
+
+def fetch_sea_ice_south() -> dict:
+    url = "https://noaadata.apps.nsidc.org/NOAA/G02135/south/daily/data/S_seaice_extent_daily_v4.0.csv"
+    r = httpx.get(url, timeout=_TIMEOUT, headers=_HEADERS)
+    r.raise_for_status()
+
+    records = []
+    for raw_line in r.text.splitlines():
+        parts = [p.strip() for p in raw_line.split(",")]
+        if len(parts) < 4:
+            continue
+        year, month, day, extent = parts[0], parts[1], parts[2], parts[3]
+        if not (year.isdigit() and month.isdigit() and day.isdigit()):
+            continue
+        try:
+            ext = float(extent)
+        except ValueError:
+            continue
+        if ext <= 0:
+            continue
+        records.append(
+            {
+                "date": f"{int(year)}-{int(month):02d}-{int(day):02d}",
+                "extent": round(ext, 3),
+            }
+        )
+
+    if not records:
+        raise RuntimeError("No southern sea ice data parsed")
+
+    latest = records[-1]
+
+    # Annual February minimum (peak melt season in the Southern Hemisphere)
+    yearly_min = {}
+    for rec in records:
+        year = int(rec["date"][:4])
+        month = int(rec["date"][5:7])
+        if month == 2:
+            yearly_min[year] = min(yearly_min.get(year, 1e9), rec["extent"])
+
+    # 1981-2010 baseline monthly means for anomaly computation
+    baseline = {}
+    for rec in records:
+        year = int(rec["date"][:4])
+        if 1981 <= year <= 2010:
+            month = int(rec["date"][5:7])
+            baseline.setdefault(month, []).append(rec["extent"])
+    baseline_mean = {
+        m: sum(vals) / len(vals) for m, vals in baseline.items() if vals
+    }
+
+    anomaly = None
+    latest_month = int(latest["date"][5:7])
+    if latest_month in baseline_mean:
+        anomaly = round(latest["extent"] - baseline_mean[latest_month], 3)
+
+    cutoff = (datetime.strptime(latest["date"], "%Y-%m-%d") - timedelta(days=365)).isoformat()[:10]
+    recent = [rec for rec in records if rec["date"] >= cutoff]
+
+    return {
+        "source": "NSIDC Sea Ice Index v4",
+        "hemisphere": "Antarctic",
+        "latest": latest,
+        "anomaly": anomaly,
+        "baseline_period": "1981-2010",
+        "annual_minimum": [
+            {"year": y, "value": round(v, 3)} for y, v in sorted(yearly_min.items())
+        ],
+        "recent": recent,
+    }
+
+
+def get_sea_ice_south() -> dict:
+    return _cached("sea_ice_south", 6 * 3600, fetch_sea_ice_south)
+
+
+# ---------------------------------------------------------------------------
+# OWID: global sea level rise (Church & White + UHSLC)
+# ---------------------------------------------------------------------------
+
+def fetch_sea_level() -> dict:
+    url = "https://ourworldindata.org/grapher/sea-level.csv"
+    r = httpx.get(url, timeout=_TIMEOUT, headers=_HEADERS, follow_redirects=True)
+    r.raise_for_status()
+
+    series = []
+    reader = csv.DictReader(io.StringIO(r.text))
+    for row in reader:
+        if (row.get("Entity") or "").lower() != "world":
+            continue
+        day = (row.get("Day") or "").strip()
+        raw = (row.get("Average of Church and White (2011) and UHSLC") or "").strip()
+        if not raw:
+            raw = (row.get("Church and White (2011)") or "").strip()
+        if not day or not raw:
+            continue
+        try:
+            value = float(raw)
+        except ValueError:
+            continue
+        series.append({"date": day, "value": round(value, 2)})
+
+    if not series:
+        raise RuntimeError("No sea level data parsed")
+
+    series.sort(key=lambda p: p["date"])
+    latest = series[-1]
+
+    # Тренд: зміна рівня моря за останні ~20 років
+    reference_year = int(latest["date"][:4]) - 20
+    ref_point = next(
+        (p for p in reversed(series) if int(p["date"][:4]) <= reference_year), None
+    )
+    trend = None
+    if ref_point:
+        years = max(1, int(latest["date"][:4]) - int(ref_point["date"][:4]))
+        trend = round((latest["value"] - ref_point["value"]) / years, 2)
+
+    return {
+        "source": "Church & White (2011) + UHSLC (OWID)",
+        "unit": "mm",
+        "reference": "mean sea level 1900-2000",
+        "series": series,
+        "latest": latest,
+        "trend": trend,
+    }
+
+
+def get_sea_level() -> dict:
+    return _cached("sea_level", 6 * 3600, fetch_sea_level)
+
+
+# ---------------------------------------------------------------------------
+# OWID: ocean heat content, top 2000 m (NOAA GML)
+# ---------------------------------------------------------------------------
+
+def fetch_ocean_heat() -> dict:
+    url = "https://ourworldindata.org/grapher/ocean-heat-top-2000m.csv"
+    r = httpx.get(url, timeout=_TIMEOUT, headers=_HEADERS, follow_redirects=True)
+    r.raise_for_status()
+
+    series = []
+    reader = csv.DictReader(io.StringIO(r.text))
+    for row in reader:
+        if (row.get("Entity") or "").lower() != "world":
+            continue
+        year = (row.get("Year") or "").strip()
+        raw = (row.get("NOAA") or "").strip()
+        if not year or not raw or not year.isdigit():
+            continue
+        try:
+            value = float(raw)
+        except ValueError:
+            continue
+        series.append({"year": int(year), "value": round(value, 2)})
+
+    if not series:
+        raise RuntimeError("No ocean heat data parsed")
+
+    series.sort(key=lambda p: p["year"])
+    latest = series[-1]
+
+    return {
+        "source": "NOAA GML (via OWID)",
+        "unit": "ZJ",
+        "reference": "ocean heat content, 0-2000 m",
+        "series": series,
+        "latest": latest,
+    }
+
+
+def get_ocean_heat() -> dict:
+    return _cached("ocean_heat", 6 * 3600, fetch_ocean_heat)
+
+
+# ---------------------------------------------------------------------------
+# OWID: ocean acidification (seawater pH, Hawaii station)
+# ---------------------------------------------------------------------------
+
+def fetch_ocean_ph() -> dict:
+    url = "https://ourworldindata.org/grapher/seawater-ph.csv"
+    r = httpx.get(url, timeout=_TIMEOUT, headers=_HEADERS, follow_redirects=True)
+    r.raise_for_status()
+
+    series = []
+    reader = csv.DictReader(io.StringIO(r.text))
+    for row in reader:
+        if (row.get("Entity") or "").lower() != "hawaii":
+            continue
+        day = (row.get("Day") or "").strip()
+        raw = (row.get("Annual average") or "").strip()
+        if not raw:
+            raw = (row.get("Monthly average") or "").strip()
+        if not day or not raw:
+            continue
+        try:
+            value = float(raw)
+        except ValueError:
+            continue
+        series.append({"date": day, "value": round(value, 4)})
+
+    if not series:
+        raise RuntimeError("No ocean pH data parsed")
+
+    series.sort(key=lambda p: p["date"])
+    latest = series[-1]
+
+    return {
+        "source": "NOAA / OWID (Hawaii station)",
+        "unit": "pH",
+        "reference": "surface seawater pH (total scale)",
+        "series": series,
+        "latest": latest,
+    }
+
+
+def get_ocean_ph() -> dict:
+    return _cached("ocean_ph", 6 * 3600, fetch_ocean_ph)
 
 
 # ---------------------------------------------------------------------------

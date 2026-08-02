@@ -132,6 +132,19 @@ python main.py                        # Start server (http://localhost:8000)
 - `GET /api/events` - Current climate events
 - `GET /api/predictions` - AI-generated predictions
 - `GET /api/ai-summary` - AI climate summary
+- `GET /api/overview?lat=..&lon=..` - Aggregated snapshot
+- `GET /api/weather?lat=..&lon=..` - Weather + forecast (Open-Meteo)
+- `GET /api/marine?lat=..&lon=..` - SST + waves (Open-Meteo Marine)
+- `GET /api/air-quality?lat=..&lon=..` - Air quality (Open-Meteo)
+- `GET /api/gistemp` - Temperature anomaly (NASA GISTEMP)
+- `GET /api/co2` - CO₂ concentration (NOAA GML)
+- `GET /api/sea-ice` - Arctic sea ice (NSIDC)
+- `GET /api/sea-ice-south` - Antarctic sea ice (NSIDC)
+- `GET /api/sea-level` - Global sea level (Church & White + UHSLC)
+- `GET /api/ocean-heat` - Ocean heat content (NOAA GML)
+- `GET /api/ocean-ph` - Ocean acidification pH (NOAA/OWID)
+- `GET /api/hurricanes` - Tropical cyclones (NOAA NHC)
+- `GET /api/fires?days=1` - Fire hotspots (NASA FIRMS, needs key)
 
 ## Design Philosophy
 - Premium dark theme with futuristic appearance

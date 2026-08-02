@@ -65,9 +65,31 @@ function eventColor(type?: string): string {
     case "extreme rainfall": return "#36A3FF";
     case "arctic ice loss": return "#C8D2E6";
     case "coastal flood": return "#2EE6A6";
+    case "sea level": return "#FFC24D";
+    case "ocean heat": return "#FF5C8A";
+    case "ocean ph": return "#7C4DFF";
+    case "antarctic ice": return "#29F2FF";
     default: return "#2EE6A6";
   }
 }
+
+/** Легенда типів подій та кліматичних точок */
+interface LegendItem {
+  key: string;
+  color: string;
+}
+
+const LEGEND: LegendItem[] = [
+  { key: "fire", color: "#FF5C8A" },
+  { key: "cyclone", color: "#7C4DFF" },
+  { key: "volcano", color: "#FFC24D" },
+  { key: "rainfall", color: "#36A3FF" },
+  { key: "ice", color: "#C8D2E6" },
+  { key: "flood", color: "#2EE6A6" },
+  { key: "seaLevel", color: "#FFC24D" },
+  { key: "oceanHeat", color: "#FF5C8A" },
+  { key: "ph", color: "#7C4DFF" },
+];
 
 /** Земля: кольори Blue Marble + рельєф bump map + атмосфера + маркери */
 function Earth({
@@ -261,16 +283,6 @@ function Scene({
   );
 }
 
-/** Легенда типів подій */
-const LEGEND: { label: string; color: string }[] = [
-  { label: "Пожежі", color: "#FF5C8A" },
-  { label: "Циклони", color: "#7C4DFF" },
-  { label: "Вулкани", color: "#FFC24D" },
-  { label: "Зливи", color: "#36A3FF" },
-  { label: "Лід", color: "#C8D2E6" },
-  { label: "Повені", color: "#2EE6A6" },
-];
-
 /**
  * Головний компонент глобуса — завантажує події з бекенду,
  * рендерить 3D-планету, легенду та тултіпи.
@@ -280,15 +292,93 @@ export default function EarthGlobe() {
   const [hovered, setHovered] = useState<EventPoint | null>(null);
   const { t } = useI18n();
 
-  /** Завантаження подій з API бекенду */
+  /** Побудова океанічних кліматичних точок з API даних */
+  const buildOceanPoints = useCallback(
+    (sl: any, oh: any, ph: any, south: any): EventPoint[] => {
+      const points: EventPoint[] = [];
+
+      // Рівень моря — прибережні точки з поточним значенням
+      const slValue = sl?.latest?.value;
+      if (typeof slValue === "number") {
+        const coasts: [number, number][] = [
+          [-80.19, 25.76], // Miami
+          [4.9, 52.37],    // Amsterdam
+          [90.41, 23.7],   // Bangladesh
+          [139.69, 35.68], // Tokyo
+          [-43.21, -22.9], // Rio de Janeiro
+        ];
+        coasts.forEach(([lon, lat]) => {
+          points.push({
+            coordinates: [lon, lat],
+            event_type: "Sea Level",
+            severity: "medium",
+            location: `${slValue >= 0 ? "+" : ""}${slValue.toFixed(1)} mm · ${t.globe.legend.seaLevel}`,
+          });
+        });
+      }
+
+      // Тепло океану — океанічні басейни
+      const ohValue = oh?.latest?.value;
+      if (typeof ohValue === "number") {
+        const basins: [number, number][] = [
+          [-140, 0],  // Pacific
+          [-30, 10],  // Atlantic
+          [80, -10],  // Indian
+          [150, -30], // South Pacific
+        ];
+        basins.forEach(([lon, lat]) => {
+          points.push({
+            coordinates: [lon, lat],
+            event_type: "Ocean Heat",
+            severity: "high",
+            location: `${ohValue.toFixed(0)} ZJ · ${t.globe.legend.oceanHeat}`,
+          });
+        });
+      }
+
+      // Закислення океану — станція Гаваї (джерело даних)
+      const phValue = ph?.latest?.value;
+      if (typeof phValue === "number") {
+        points.push({
+          coordinates: [-155.28, 19.42],
+          event_type: "Ocean pH",
+          severity: "medium",
+          location: `pH ${phValue.toFixed(3)} · ${t.globe.legend.ph}`,
+        });
+      }
+
+      // Антарктичний морський лід — південний полюс
+      const southExtent = south?.latest?.extent;
+      if (typeof southExtent === "number") {
+        points.push({
+          coordinates: [0, -78],
+          event_type: "Antarctic Ice",
+          severity: "low",
+          location: `${southExtent.toFixed(2)}M km² · ${t.globe.legend.ice}`,
+        });
+      }
+
+      return points;
+    },
+    [t]
+  );
+
+  /** Завантаження подій та океанічних даних з API бекенду */
   const load = useCallback(async () => {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
     try {
-      const res = await fetch(`${apiUrl}/api/events`);
-      const data = await res.json();
+      const [eventsRes, sl, oh, ph, south] = await Promise.all([
+        fetch(`${apiUrl}/api/events`),
+        fetch(`${apiUrl}/api/sea-level`).then((r) => (r.ok ? r.json() : null)),
+        fetch(`${apiUrl}/api/ocean-heat`).then((r) => (r.ok ? r.json() : null)),
+        fetch(`${apiUrl}/api/ocean-ph`).then((r) => (r.ok ? r.json() : null)),
+        fetch(`${apiUrl}/api/sea-ice-south`).then((r) => (r.ok ? r.json() : null)),
+      ]);
+      const data = await eventsRes.json();
+      const points: EventPoint[] = [];
       if (Array.isArray(data) && data.length > 0) {
-        setEvents(
-          data.slice(0, 200).map((ev: any) => ({
+        points.push(
+          ...data.slice(0, 200).map((ev: any) => ({
             coordinates: ev.coordinates as [number, number],
             event_type: ev.event_type,
             severity: ev.severity,
@@ -296,10 +386,14 @@ export default function EarthGlobe() {
           }))
         );
       }
+      points.push(...buildOceanPoints(sl, oh, ph, south));
+      if (points.length > 0) {
+        setEvents(points);
+      }
     } catch {
       /* залишаємо резервні події */
     }
-  }, []);
+  }, [buildOceanPoints]);
 
   useEffect(() => {
     load();
@@ -308,11 +402,28 @@ export default function EarthGlobe() {
   }, [load]);
 
   // Перекладений тип події
+  const oceanLegendKey = (type?: string) => {
+    switch ((type || "").toLowerCase()) {
+      case "sea level": return "seaLevel";
+      case "ocean heat": return "oceanHeat";
+      case "ocean ph": return "ph";
+      case "antarctic ice": return "ice";
+      default: return "";
+    }
+  };
+
   const eventLabel = (type?: string) =>
-    (t.events as any)[type || ""] || type || "";
+    (t.events as any)[type || ""] ||
+    (t.globe.legend as any)[oceanLegendKey(type)] ||
+    type ||
+    "";
 
   // Позиція тултіпа
   const screen = (hovered as any)?._screen;
+
+  // Перекладені підписи легенди
+  const legendLabel = (key: string) =>
+    (t.globe.legend as any)[key] ?? key;
 
   return (
     <div className="w-full h-full relative bg-[#070A16] overflow-hidden">
@@ -323,12 +434,12 @@ export default function EarthGlobe() {
         <Scene events={events} onHover={(ev) => setHovered(ev)} />
       </Canvas>
 
-      {/* Легенда типів подій — над кнопкою прокрутки */}
+      {/* Легенда типів подій та кліматичних точок — над кнопкою прокрутки */}
       <div className="absolute bottom-16 left-1/2 -translate-x-1/2 glass rounded-full px-4 py-2 flex items-center gap-3 flex-wrap justify-center z-20">
         {LEGEND.map((item) => (
-          <span key={item.label} className="flex items-center space-x-1.5 text-[10px] text-secondary">
+          <span key={item.key} className="flex items-center space-x-1.5 text-[10px] text-secondary">
             <span className="w-2 h-2 rounded-full inline-block" style={{ background: item.color }} />
-            <span>{item.label}</span>
+            <span>{legendLabel(item.key)}</span>
           </span>
         ))}
       </div>
@@ -341,11 +452,11 @@ export default function EarthGlobe() {
             document.getElementById("climate-dashboard")?.scrollIntoView({ behavior: "smooth" })
           }
           className="group relative flex items-center gap-2 rounded-full glass px-4 py-2.5 transition-all duration-500 hover:pr-6 hover:shadow-[0_0_40px_rgba(41,242,255,0.25)]"
-          aria-label="Прокрутити вниз до дашборда"
+          aria-label={t.globe.scrollToDashboard}
         >
           {/* Текст, що розкривається при наведенні */}
           <span className="max-w-0 overflow-hidden whitespace-nowrap text-[11px] uppercase tracking-[0.2em] text-accent-cyan opacity-0 transition-all duration-500 group-hover:max-w-[220px] group-hover:opacity-100 group-hover:mr-1">
-            Кліматичний дашборд
+            {t.globe.scrollToDashboard}
           </span>
           {/* Стрілка */}
           <span className="animate-bounce inline-flex text-accent-cyan transition-transform duration-300 group-hover:translate-y-0.5">

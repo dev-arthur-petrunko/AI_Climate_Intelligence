@@ -12,6 +12,10 @@ from data_sources import (
     get_gistemp,
     get_co2,
     get_sea_ice,
+    get_sea_ice_south,
+    get_sea_level,
+    get_ocean_heat,
+    get_ocean_ph,
     get_hurricanes,
     get_fires,
 )
@@ -128,6 +132,30 @@ async def sea_ice():
     return get_sea_ice()
 
 
+@app.get("/api/sea-ice-south")
+async def sea_ice_south():
+    """Протяжність антарктичного морського льоду (NSIDC Sea Ice Index)"""
+    return get_sea_ice_south()
+
+
+@app.get("/api/sea-level")
+async def sea_level():
+    """Глобальний рівень моря (Church & White 2011 + UHSLC, через OWID)"""
+    return get_sea_level()
+
+
+@app.get("/api/ocean-heat")
+async def ocean_heat():
+    """Вміст тепла в океані, верхні 2000 м (NOAA GML, через OWID)"""
+    return get_ocean_heat()
+
+
+@app.get("/api/ocean-ph")
+async def ocean_ph():
+    """Закислення океану — pH поверхневої води, станція Гаваї (NOAA/OWID)"""
+    return get_ocean_ph()
+
+
 @app.get("/api/hurricanes")
 async def hurricanes():
     """Активні тропічні циклони в Атлантиці (NOAA NHC)"""
@@ -151,7 +179,6 @@ async def overview(lat: float = Query(DEFAULT_LAT), lon: float = Query(DEFAULT_L
     ice_data = get_sea_ice()
     storm_data = get_hurricanes()
     fire_data = get_fires(1)
-
     current = weather_data.get("current", {})
     daily = weather_data.get("daily", {})
 
@@ -189,10 +216,6 @@ async def overview(lat: float = Query(DEFAULT_LAT), lon: float = Query(DEFAULT_L
             "weather_code": current.get("weather_code"),
             "forecast": daily,
         },
-        "ocean": {
-            "sea_surface_temperature": marine_current,
-            "wave_height": wave_current,
-        },
         "air_quality": {
             "us_aqi": aqi,
             "pm2_5": (aq_data.get("current") or {}).get("pm2_5"),
@@ -205,6 +228,17 @@ async def overview(lat: float = Query(DEFAULT_LAT), lon: float = Query(DEFAULT_L
             "extent": ice_latest.get("extent"),
             "date": ice_latest.get("date"),
             "anomaly": (ice_data or {}).get("anomaly"),
+        },
+        "ocean": {
+            "sea_surface_temperature": marine_current,
+            "wave_height": wave_current,
+        },
+        "ocean_climate": {
+            "sea_level": (get_sea_level() or {}).get("latest"),
+            "sea_level_trend": (get_sea_level() or {}).get("trend"),
+            "ocean_heat": (get_ocean_heat() or {}).get("latest"),
+            "ocean_ph": (get_ocean_ph() or {}).get("latest"),
+            "antarctic_ice": (get_sea_ice_south() or {}).get("latest"),
         },
         "hurricanes": {
             "active": (storm_data or {}).get("active", False),
@@ -295,6 +329,58 @@ async def get_kpi_metrics():
             "insight": "NOAA National Hurricane Center",
         }
     )
+
+    # --- Океанічний клімат: рівень моря, тепло океану, закислення, південний лід ---
+    ocean_climate = (overview_data or {}).get("ocean_climate") or {}
+
+    sl = ocean_climate.get("sea_level") or {}
+    if sl.get("value") is not None:
+        sl_trend = ocean_climate.get("sea_level_trend")
+        kpis.append(
+            {
+                "name": "Global Sea Level",
+                "value": f"{sl['value']:+.0f} mm",
+                "trend": f"{sl_trend:+.2f} mm/yr" if sl_trend is not None else "relative",
+                "trend_up": True,
+                "insight": f"Church & White + UHSLC, {sl.get('date', '')[:4]}",
+            }
+        )
+
+    oh = ocean_climate.get("ocean_heat") or {}
+    if oh.get("value") is not None:
+        kpis.append(
+            {
+                "name": "Ocean Heat Content",
+                "value": f"{oh['value']:.0f} ZJ",
+                "trend": f"0-2000 m, {oh.get('year', '')}",
+                "trend_up": True,
+                "insight": "NOAA GML ocean heat content (OWID)",
+            }
+        )
+
+    ph = ocean_climate.get("ocean_ph") or {}
+    if ph.get("value") is not None:
+        kpis.append(
+            {
+                "name": "Ocean pH",
+                "value": f"{ph['value']:.3f}",
+                "trend": "Hawaii station",
+                "trend_up": False,
+                "insight": "NOAA/OWID surface seawater pH",
+            }
+        )
+
+    south_ice = ocean_climate.get("antarctic_ice") or {}
+    if south_ice.get("extent") is not None:
+        kpis.append(
+            {
+                "name": "Antarctic Sea Ice Extent",
+                "value": f"{south_ice['extent']:.1f}M km²",
+                "trend": f"daily, {south_ice.get('date', '')}",
+                "trend_up": False,
+                "insight": "NSIDC Sea Ice Index (south)",
+            }
+        )
 
     if not kpis:
         return [
@@ -561,6 +647,22 @@ async def get_ai_summary():
             if ice.get("anomaly") is not None:
                 summary_parts.append(
                     f"Arctic sea ice extent is {ice['anomaly']:+.2f}M km² versus the 1981-2010 baseline (NSIDC)."
+                )
+            ocean_climate = overview_data.get("ocean_climate") or {}
+            sl = ocean_climate.get("sea_level") or {}
+            if sl.get("value") is not None:
+                summary_parts.append(
+                    f"Global mean sea level stands at {sl['value']:+.0f} mm relative to the 1900-2000 mean."
+                )
+            oh = ocean_climate.get("ocean_heat") or {}
+            if oh.get("value") is not None:
+                summary_parts.append(
+                    f"Ocean heat content (0-2000 m) reached {oh['value']:.0f} zettajoules."
+                )
+            ph = ocean_climate.get("ocean_ph") or {}
+            if ph.get("value") is not None:
+                summary_parts.append(
+                    f"Surface ocean pH fell to {ph['value']:.3f}, reflecting continued acidification (Hawaii station)."
                 )
             fires = (overview_data.get("fires") or {}).get("count", 0)
             summary_parts.append(f"Satellites are currently tracking {fires} active fire hotspots globally.")

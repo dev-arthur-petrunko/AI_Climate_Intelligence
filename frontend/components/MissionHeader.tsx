@@ -9,6 +9,7 @@ import { useEffect, useState, useCallback } from "react";
 import { Radio } from "lucide-react";
 import { api, OverviewData } from "@/lib/api";
 import LanguageSwitcher from "./LanguageSwitcher";
+import { useI18n } from "@/lib/i18n";
 
 /** Хук отримання загальних даних клімату (оновлюється кожні N мс) */
 function useOverview(intervalMs = 60000) {
@@ -31,6 +32,7 @@ function useOverview(intervalMs = 60000) {
 export default function MissionHeader() {
   const data = useOverview();
   const [now, setNow] = useState(new Date());
+  const { t } = useI18n();
 
   /** Оновлення годинника кожну секунду */
   useEffect(() => {
@@ -57,10 +59,10 @@ export default function MissionHeader() {
         <div className="pointer-events-auto glass rounded-xl px-4 py-2 flex items-center space-x-2 animate-fade-up" style={{ animationDelay: "100ms" }}>
           {/* Показники клімату — приховані на мобільних */}
           <div className="hidden lg:flex items-center">
-            {statItem("CO₂", co2 ? `${co2.toFixed(0)} ppm` : "—", "text-amber")}
-            {statItem("Sea Ice", iceAnomaly != null ? `${iceAnomaly.toFixed(1)}M` : "—", "text-pink")}
-            {statItem("Fires", String(fires), "text-amber")}
-            {statItem("Cyclones", String(cyclones), "text-violet")}
+            {statItem(t.mission.co2, co2 ? `${co2.toFixed(0)} ppm` : "—", "text-amber")}
+            {statItem(t.mission.seaIce, iceAnomaly != null ? `${iceAnomaly.toFixed(1)}M` : "—", "text-pink")}
+            {statItem(t.mission.fires, String(fires), "text-amber")}
+            {statItem(t.mission.cyclones, String(cyclones), "text-violet")}
           </div>
 
           <div className="hidden md:block w-px h-8 bg-violet/20" />
@@ -69,7 +71,7 @@ export default function MissionHeader() {
           <div className="flex items-center space-x-3">
             <div className="flex items-center space-x-1.5">
               <Radio className="w-3 h-3 text-emerald animate-pulse" />
-              <span className="text-[9px] uppercase tracking-widest text-emerald">Live</span>
+              <span className="text-[9px] uppercase tracking-widest text-emerald">{t.common.live}</span>
             </div>
             <span className="text-xs font-mono text-secondary tabular-nums">
               {now.toLocaleTimeString("en-GB", { hour12: false })}
