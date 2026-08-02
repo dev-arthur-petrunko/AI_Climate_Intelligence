@@ -18,8 +18,8 @@ export default function Home() {
   const { t } = useI18n();
   return (
     <main className="bg-background min-h-screen">
-      {/* Секція 1: Глобус на весь екран — видимий зразу */}
-      <section className="h-screen w-full relative">
+      {/* Секція 1: Глобус — прикріплений у фоні, видимий зразу */}
+      <section className="sticky top-0 h-screen w-full relative z-0">
         <Suspense fallback={<div className="w-full h-full bg-[#070A16]" />}>
           <EarthGlobe />
         </Suspense>
@@ -31,8 +31,9 @@ export default function Home() {
         <div className="absolute bottom-0 left-0 right-0 h-56 bg-gradient-to-b from-transparent via-background/30 to-background pointer-events-none z-10" />
       </section>
 
-      {/* Секція 2: Дашборд — з'являється при прокрутці вниз */}
-      <section id="climate-dashboard" className="relative -mt-1 bg-background px-6 pt-8 pb-12">
+      {/* Секція 2: Дашборд — підіймається над глобусом при прокрутці вниз,
+          опускається назад при скролі вгору, знову відкриваючи глобус */}
+      <section id="climate-dashboard" className="relative z-10 -mt-1 bg-background rounded-t-[2rem] border-t border-white/5 px-6 pt-10 pb-12 shadow-[0_-30px_80px_rgba(0,0,0,0.6)]">
         <div className="max-w-7xl mx-auto">
           <div className="mb-8 animate-fade-up">
             <h2 className="text-3xl font-bold text-gradient mb-2">{t.dashboard.sectionTitle}</h2>

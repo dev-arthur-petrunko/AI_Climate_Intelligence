@@ -21,6 +21,7 @@ import os
 import time
 import csv
 import io
+import logging
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 
@@ -28,6 +29,8 @@ import httpx
 from dotenv import load_dotenv
 
 load_dotenv()
+
+logger = logging.getLogger("climate.data_sources")
 
 _TIMEOUT = httpx.Timeout(25.0)
 _HEADERS = {
@@ -52,7 +55,7 @@ def _cached(key: str, ttl_seconds: int, fetcher):
 # Open-Meteo: weather
 # ---------------------------------------------------------------------------
 
-def fetch_weather(lat: float, lon: float) -> dict:
+def _fetch_weather_openmeteo(lat: float, lon: float) -> dict:
     params = {
         "latitude": lat,
         "longitude": lon,
@@ -69,10 +72,81 @@ def fetch_weather(lat: float, lon: float) -> dict:
         "timezone": "auto",
     }
     r = httpx.get(
-        "https://api.open-meteo.com/v1/forecast", params=params, timeout=_TIMEOUT, headers=_HEADERS
+        "https://api.open-meteo.com/v1/forecast", params=params,
+        timeout=httpx.Timeout(8.0), headers=_HEADERS,
     )
     r.raise_for_status()
     return r.json()
+
+
+# Грубе співставлення коду погоди OpenWeatherMap -> WMO (сумісно з фронтендом)
+_OWM_TO_WMO = {
+    "Clear": 0, "Clouds": 2, "Rain": 61, "Drizzle": 51,
+    "Thunderstorm": 95, "Snow": 71, "Mist": 45, "Fog": 45, "Haze": 45,
+}
+
+
+def _fetch_weather_owm(lat: float, lon: float, api_key: str) -> dict:
+    """Резервне джерело погоди — активується, коли Open-Meteo недоступний з IP хостингу."""
+    current_r = httpx.get(
+        "https://api.openweathermap.org/data/2.5/weather",
+        params={"lat": lat, "lon": lon, "appid": api_key, "units": "metric"},
+        timeout=httpx.Timeout(8.0),
+    )
+    current_r.raise_for_status()
+    c = current_r.json()
+
+    forecast_r = httpx.get(
+        "https://api.openweathermap.org/data/2.5/forecast",
+        params={"lat": lat, "lon": lon, "appid": api_key, "units": "metric"},
+        timeout=httpx.Timeout(8.0),
+    )
+    forecast_r.raise_for_status()
+    f = forecast_r.json()
+
+    # Агрегуємо 3-годинні точки OWM у денні min/max (до 5 днів наперед)
+    daily_map: dict[str, dict] = {}
+    for item in f.get("list", []):
+        day = item["dt_txt"][:10]
+        temp = item["main"]["temp"]
+        slot = daily_map.setdefault(day, {"min": temp, "max": temp})
+        slot["min"] = min(slot["min"], temp)
+        slot["max"] = max(slot["max"], temp)
+
+    days = sorted(daily_map.keys())
+    condition = (c.get("weather") or [{}])[0].get("main", "Clear")
+
+    return {
+        "current": {
+            "temperature_2m": c["main"]["temp"],
+            "apparent_temperature": c["main"].get("feels_like"),
+            "relative_humidity_2m": c["main"].get("humidity"),
+            "wind_speed_10m": (c.get("wind") or {}).get("speed"),
+            "wind_direction_10m": (c.get("wind") or {}).get("deg"),
+            "cloud_cover": (c.get("clouds") or {}).get("all"),
+            "pressure_msl": c["main"].get("pressure"),
+            "precipitation": (c.get("rain") or {}).get("1h", 0),
+            "weather_code": _OWM_TO_WMO.get(condition, 0),
+        },
+        "daily": {
+            "time": days,
+            "temperature_2m_max": [daily_map[d]["max"] for d in days],
+            "temperature_2m_min": [daily_map[d]["min"] for d in days],
+        },
+        "_source": "openweathermap",
+    }
+
+
+def fetch_weather(lat: float, lon: float) -> dict:
+    """Open-Meteo як основне джерело, OpenWeatherMap як фолбек, якщо Open-Meteo заблокований з хостингу."""
+    try:
+        return _fetch_weather_openmeteo(lat, lon)
+    except Exception as exc:
+        logger.warning("Open-Meteo weather failed, falling back to OWM: %s", exc)
+        api_key = os.getenv("OPENWEATHER_API_KEY", "").strip()
+        if not api_key:
+            raise
+        return _fetch_weather_owm(lat, lon, api_key)
 
 
 def get_weather(lat: float, lon: float) -> dict:
