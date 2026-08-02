@@ -137,19 +137,19 @@ async def db_status():
 @app.get("/api/weather")
 async def weather(lat: float = Query(DEFAULT_LAT), lon: float = Query(DEFAULT_LON)):
     """Поточна погода та 7-денний прогноз (Open-Meteo)"""
-    return get_weather(lat, lon)
+    return _safe(lambda: get_weather(lat, lon), {"source": "Open-Meteo", "current": {}, "daily": {}})
 
 
 @app.get("/api/marine")
 async def marine(lat: float = Query(DEFAULT_LAT), lon: float = Query(DEFAULT_LON)):
     """Температура поверхні океану та хвилі (Open-Meteo Marine)"""
-    return get_marine(lat, lon)
+    return _safe(lambda: get_marine(lat, lon), {"source": "Open-Meteo Marine", "hourly": {}})
 
 
 @app.get("/api/air-quality")
 async def air_quality(lat: float = Query(DEFAULT_LAT), lon: float = Query(DEFAULT_LON)):
     """Якість повітря: PM2.5, PM10, озон, індекс AQI (Open-Meteo)"""
-    return get_air_quality(lat, lon)
+    return _safe(lambda: get_air_quality(lat, lon), {"source": "Open-Meteo", "current": {}})
 
 
 @app.get("/api/gistemp")
@@ -220,17 +220,25 @@ async def fires(days: int = Query(1, ge=1, le=7)):
     return get_fires(days)
 
 
+def _safe(fetcher, default=None):
+    """Викликати fetcher() і повернути default при будь-якій помилці."""
+    try:
+        return fetcher()
+    except Exception:
+        return default
+
+
 @app.get("/api/overview")
 async def overview(lat: float = Query(DEFAULT_LAT), lon: float = Query(DEFAULT_LON)):
     """Агрегований знімок планети для головного дашборда"""
-    weather_data = get_weather(lat, lon)
-    marine_data = get_marine(lat, lon)
-    aq_data = get_air_quality(lat, lon)
-    gistemp_data = get_gistemp()
-    co2_data = get_co2()
-    ice_data = get_sea_ice()
-    storm_data = get_hurricanes()
-    fire_data = get_fires(1)
+    weather_data = _safe(lambda: get_weather(lat, lon), {})
+    marine_data = _safe(lambda: get_marine(lat, lon), {})
+    aq_data = _safe(lambda: get_air_quality(lat, lon), {})
+    gistemp_data = _safe(lambda: get_gistemp(), {})
+    co2_data = _safe(lambda: get_co2(), {})
+    ice_data = _safe(lambda: get_sea_ice(), {})
+    storm_data = _safe(lambda: get_hurricanes(), {})
+    fire_data = _safe(lambda: get_fires(1), {})
     current = weather_data.get("current", {})
     daily = weather_data.get("daily", {})
 
