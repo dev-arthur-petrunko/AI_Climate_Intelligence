@@ -1,3 +1,4 @@
+import asyncio
 import os
 from typing import List, Optional, Tuple
 
@@ -231,14 +232,18 @@ def _safe(fetcher, default=None):
 @app.get("/api/overview")
 async def overview(lat: float = Query(DEFAULT_LAT), lon: float = Query(DEFAULT_LON)):
     """Агрегований знімок планети для головного дашборда"""
-    weather_data = _safe(lambda: get_weather(lat, lon), {})
-    marine_data = _safe(lambda: get_marine(lat, lon), {})
-    aq_data = _safe(lambda: get_air_quality(lat, lon), {})
-    gistemp_data = _safe(lambda: get_gistemp(), {})
-    co2_data = _safe(lambda: get_co2(), {})
-    ice_data = _safe(lambda: get_sea_ice(), {})
-    storm_data = _safe(lambda: get_hurricanes(), {})
-    fire_data = _safe(lambda: get_fires(1), {})
+    weather_data, marine_data, aq_data, gistemp_data, co2_data, ice_data, storm_data, fire_data = (
+        await asyncio.gather(
+            asyncio.to_thread(lambda: _safe(lambda: get_weather(lat, lon), {})),
+            asyncio.to_thread(lambda: _safe(lambda: get_marine(lat, lon), {})),
+            asyncio.to_thread(lambda: _safe(lambda: get_air_quality(lat, lon), {})),
+            asyncio.to_thread(lambda: _safe(lambda: get_gistemp(), {})),
+            asyncio.to_thread(lambda: _safe(lambda: get_co2(), {})),
+            asyncio.to_thread(lambda: _safe(lambda: get_sea_ice(), {})),
+            asyncio.to_thread(lambda: _safe(lambda: get_hurricanes(), {})),
+            asyncio.to_thread(lambda: _safe(lambda: get_fires(1), {})),
+        )
+    )
     current = weather_data.get("current", {})
     daily = weather_data.get("daily", {})
 
@@ -261,6 +266,15 @@ async def overview(lat: float = Query(DEFAULT_LAT), lon: float = Query(DEFAULT_L
     latest_gistemp = (gistemp_data or {}).get("latest") or {}
     latest_co2 = (co2_data or {}).get("latest") or {}
     ice_latest = (ice_data or {}).get("latest") or {}
+
+    sea_level_data, ocean_heat_data, ocean_ph_data, antarctic_ice_data = (
+        await asyncio.gather(
+            asyncio.to_thread(lambda: _safe(lambda: get_sea_level(), {})),
+            asyncio.to_thread(lambda: _safe(lambda: get_ocean_heat(), {})),
+            asyncio.to_thread(lambda: _safe(lambda: get_ocean_ph(), {})),
+            asyncio.to_thread(lambda: _safe(lambda: get_sea_ice_south(), {})),
+        )
+    )
 
     return {
         "location": {"lat": lat, "lon": lon},
@@ -294,11 +308,11 @@ async def overview(lat: float = Query(DEFAULT_LAT), lon: float = Query(DEFAULT_L
             "wave_height": wave_current,
         },
         "ocean_climate": {
-            "sea_level": (_safe(lambda: get_sea_level(), {}) or {}).get("latest"),
-            "sea_level_trend": (_safe(lambda: get_sea_level(), {}) or {}).get("trend"),
-            "ocean_heat": (_safe(lambda: get_ocean_heat(), {}) or {}).get("latest"),
-            "ocean_ph": (_safe(lambda: get_ocean_ph(), {}) or {}).get("latest"),
-            "antarctic_ice": (_safe(lambda: get_sea_ice_south(), {}) or {}).get("latest"),
+            "sea_level": (sea_level_data or {}).get("latest"),
+            "sea_level_trend": (sea_level_data or {}).get("trend"),
+            "ocean_heat": (ocean_heat_data or {}).get("latest"),
+            "ocean_ph": (ocean_ph_data or {}).get("latest"),
+            "antarctic_ice": (antarctic_ice_data or {}).get("latest"),
         },
         "hurricanes": {
             "active": (storm_data or {}).get("active", False),

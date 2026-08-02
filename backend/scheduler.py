@@ -94,7 +94,6 @@ def start_scheduler() -> None:
         if scheduler.running:
             return
         scheduler.add_job(_refresh_job, "interval", hours=1, id="snapshot_hourly")
-        scheduler.add_job(_refresh_job, "cron", hour="0,6,12,18", minute="5", id="snapshot_cron")
         scheduler.add_job(_prewarm_cache, "interval", hours=6, id="prewarm_6h")
         scheduler.start()
         logger.info("Background scheduler started")
