@@ -1,0 +1,108 @@
+"""Аналітичний модуль: реальні статистичні розрахунки над кліматичними рядами.
+
+Використовує numpy/scipy для МНК-регресії, z-оцінок аномалій та
+year-over-year порівнянь. Функції приймають серії точок виду
+[{"year": ..., "value": ...}] або [{"date": ..., "value": ...}]
+і повертають окремі поля JSON, не ламаючи існуючу схему відповідей.
+"""
+from typing import Optional
+
+import numpy as np
+from scipy import stats
+
+
+def _x_values(series: list[dict], time_key: str = "year") -> Optional[np.ndarray]:
+    """Числова вісь часу: year/yield напряму, ISO-дати перетворює в fractional year."""
+    if not series:
+        return None
+    xs = []
+    for p in series:
+        raw = p.get(time_key)
+        if isinstance(raw, (int, float)):
+            xs.append(float(raw))
+            continue
+        s = str(raw)
+        try:
+            year = int(s[:4])
+            day = int(s[5:7]) if len(s) >= 7 else 0
+            frac = (day - 1) / 365.0 if day else 0.0
+            xs.append(year + frac)
+        except (ValueError, TypeError):
+            return None
+    return np.asarray(xs, dtype=float)
+
+
+def _y_values(series: list[dict], value_key: str = "value") -> Optional[np.ndarray]:
+    if not series:
+        return None
+    ys = []
+    for p in series:
+        v = p.get(value_key)
+        if isinstance(v, (int, float)):
+            ys.append(float(v))
+        else:
+            return None
+    return np.asarray(ys, dtype=float)
+
+
+def linear_trend(
+    series: list[dict], value_key: str = "value", time_key: str = "year"
+) -> Optional[dict]:
+    """МНК-регресія: нахил на рік, довірчий інтервал, R², p-value, прогноз."""
+    x = _x_values(series, time_key)
+    y = _y_values(series, value_key)
+    if x is None or y is None or len(x) < 3 or len(x) != len(y):
+        return None
+    try:
+        slope, intercept, r, p_value, std_err = stats.linregress(x, y)
+    except Exception:
+        return None
+    return {
+        "slope_per_year": round(float(slope), 4),
+        "intercept": round(float(intercept), 3),
+        "r_squared": round(float(r) ** 2, 4),
+        "p_value": round(float(p_value), 6),
+        "std_error": round(float(std_err), 4),
+        "projected_next_year": round(float(slope * (x[-1] + 1) + intercept), 3),
+        "n": int(len(x)),
+    }
+
+
+def z_score_anomaly(
+    series: list[dict], value_key: str = "value", time_key: str = "year"
+) -> Optional[float]:
+    """Наскільки остання точка аномальна відносно історії (в σ)."""
+    y = _y_values(series, value_key)
+    if y is None or len(y) < 3:
+        return None
+    std = y[:-1].std(ddof=1)
+    if std == 0 or not np.isfinite(std):
+        return None
+    return round(float((y[-1] - y[:-1].mean()) / std), 2)
+
+
+def year_over_year(
+    series: list[dict], value_key: str = "value", steps: int = 12
+) -> Optional[float]:
+    """Різниця останньої точки і точки steps кроків тому (None, якщо мало даних)."""
+    if len(series) < steps + 1:
+        return None
+    try:
+        return round(float(series[-1][value_key] - series[-steps - 1][value_key]), 3)
+    except (KeyError, TypeError, IndexError):
+        return None
+
+
+def describe(series: list[dict], value_key: str = "value", time_key: str = "year") -> dict:
+    """Зібрана аналітика для одного ряду — зручно підставляти в ендпоінти."""
+    trend = linear_trend(series, value_key, time_key)
+    anomaly = z_score_anomaly(series, value_key, time_key)
+    yoy = year_over_year(series, value_key)
+    result = {}
+    if trend:
+        result["trend_analysis"] = trend
+    if anomaly is not None:
+        result["z_score_anomaly"] = anomaly
+    if yoy is not None:
+        result["year_over_year"] = yoy
+    return result

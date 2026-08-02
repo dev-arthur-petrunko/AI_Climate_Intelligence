@@ -141,6 +141,7 @@ def _data_snapshot() -> Dict[str, Any]:
             get_hurricanes,
             get_fires,
         )
+        from analytics import describe as analyze
 
         weather = get_weather(50.45, 30.52)
         snapshot["weather"] = weather.get("current", {})
@@ -151,6 +152,21 @@ def _data_snapshot() -> Dict[str, Any]:
         snapshot["sea_level"] = (get_sea_level() or {}).get("latest")
         snapshot["ocean_heat"] = (get_ocean_heat() or {}).get("latest")
         snapshot["ocean_ph"] = (get_ocean_ph() or {}).get("latest")
+
+        # Обчислена аналітика (тренди, аномалії, YoY) — збагачений контекст для Groq
+        snapshot["temperature_analysis"] = analyze((get_gistemp() or {}).get("series", []))
+        snapshot["co2_analysis"] = analyze((get_co2() or {}).get("series", []))
+        snapshot["arctic_ice_analysis"] = analyze((get_sea_ice() or {}).get("annual_minimum", []))
+        snapshot["antarctic_ice_analysis"] = analyze(
+            (get_sea_ice_south() or {}).get("annual_minimum", [])
+        )
+        snapshot["sea_level_analysis"] = analyze(
+            (get_sea_level() or {}).get("series", []), time_key="date"
+        )
+        snapshot["ocean_heat_analysis"] = analyze((get_ocean_heat() or {}).get("series", []))
+        snapshot["ocean_ph_analysis"] = analyze(
+            (get_ocean_ph() or {}).get("series", []), time_key="date"
+        )
 
         storms = (get_hurricanes() or {}).get("storms", [])
         snapshot["storms"] = len(storms)
@@ -201,6 +217,39 @@ def _snapshot_text(snapshot: Dict[str, Any]) -> str:
             lines.append(f"- Ocean surface pH: {value:.3f}")
     lines.append(f"- Active fire hotspots: {snapshot.get('fires', 0)}")
     lines.append(f"- Active tropical cyclones: {snapshot.get('storms', 0)}")
+
+    # Обчислена статистика (тренди, аномалії) для точніших відповідей
+    def _trend_line(label: str, analysis: Optional[Dict[str, Any]]) -> Optional[str]:
+        if not analysis:
+            return None
+        trend = analysis.get("trend_analysis")
+        if not trend:
+            return None
+        slope = trend.get("slope_per_year")
+        r2 = trend.get("r_squared")
+        proj = trend.get("projected_next_year")
+        parts = [f"- {label} trend: {slope:+.2f}/year"]
+        if r2 is not None:
+            parts.append(f"R²={r2:.2f}")
+        if proj is not None:
+            parts.append(f"projected next point: {proj:.2f}")
+        anomaly = analysis.get("z_score_anomaly")
+        if anomaly is not None:
+            parts.append(f"last point {anomaly:+.1f}σ vs history")
+        return " ".join(parts)
+
+    for label, key in (
+        ("CO2", "co2_analysis"),
+        ("Global temperature anomaly", "temperature_analysis"),
+        ("Arctic sea ice annual minimum", "arctic_ice_analysis"),
+        ("Antarctic sea ice annual minimum", "antarctic_ice_analysis"),
+        ("Global sea level", "sea_level_analysis"),
+        ("Ocean heat content", "ocean_heat_analysis"),
+        ("Ocean surface pH", "ocean_ph_analysis"),
+    ):
+        line = _trend_line(label, snapshot.get(key))
+        if line:
+            lines.append(line)
 
     return "\n".join(lines) if lines else "No live data available at the moment."
 

@@ -31,7 +31,14 @@ climate-intelligence/
 ├── backend/                # FastAPI backend
 │   ├── main.py            # Main FastAPI application
 │   ├── ai_groq.py         # Groq AI analysis + predictions
+│   ├── analytics.py       # Statistical analytics (numpy/scipy): trends, z-scores, YoY
+│   ├── db.py              # SQLAlchemy async + PostgreSQL (Neon) ClimateSnapshot
+│   ├── scheduler.py       # APScheduler background jobs (hourly snapshots, cache prewarm)
+│   ├── data_sources.py    # Climate data adapters (Open-Meteo, NASA, NOAA, NSIDC)
+│   ├── migrations/        # Alembic migrations
+│   ├── alembic.ini
 │   └── requirements.txt
+├── render.yaml            # Render deployment config
 └── README.md
 ```
 
@@ -148,6 +155,11 @@ python main.py                        # Start server (http://localhost:8000)
 - `GET /api/ocean-ph` - Ocean acidification pH (NOAA/OWID)
 - `GET /api/hurricanes` - Tropical cyclones (NOAA NHC)
 - `GET /api/fires?days=1` - Fire hotspots (NASA FIRMS, needs key)
+- `GET /api/db-status` - Database connectivity + snapshot status
+
+## Data Endpoints (Enriched)
+- `GET /api/gistemp` / `co2` / `sea-level` / `ocean-heat` / `ocean-ph` — each returns an extra `analysis` field: `trend_analysis` (slope/year, R², p-value, projection), `z_score_anomaly`, `year_over_year`
+- `GET /api/sea-ice` / `sea-ice-south` — analysis computed over `annual_minimum` series
 
 ## Design Philosophy
 - Premium dark theme with futuristic appearance
@@ -207,16 +219,33 @@ python main.py                        # Start server (http://localhost:8000)
 ## Build Status
 - ✅ Frontend structure complete
 - ✅ Backend API basic implementation
-- ✅ 3D Earth globe with climate layers
+- ✅ 3D Earth globe with climate layers (real events only: FIRMS fires + NOAA cyclones + ocean indicators)
 - ✅ Dashboard with KPI cards
 - ✅ Analytics with interactive charts
 - ✅ AI predictions page
 - ✅ AI analysis panel (Groq, 09:00 & 17:00 Kyiv, per language)
 - ✅ Navigation with routing
 - ✅ Responsive design
+- ✅ Statistical analytics module (numpy/scipy): trends, z-scores, YoY on enriched endpoints
+- ✅ PostgreSQL (Neon) via SQLAlchemy async + Alembic migrations + APScheduler snapshots
+- ✅ Deployment config (render.yaml, PORT/CORS_ORIGINS from env)
 - ⏳ Real data integration
-- ⏳ Advanced analytics
 - ⏳ Report generation
+
+## Deployment (Render + Vercel)
+- Backend deployed to Render; port comes from `$PORT`, CORS from `CORS_ORIGINS`.
+- Frontend on Vercel uses `NEXT_PUBLIC_API_URL=https://<your-app>.onrender.com` env var (no code change needed).
+- Required env vars on Render: `GROQ_API_KEY`, `FIRMS_API_KEY`, `DATABASE_URL` (Neon), `CORS_ORIGINS`.
+- DB migration: `cd backend && alembic upgrade head` (requires `DATABASE_URL`).
+
+## Environment Variables
+- `PORT` — server port (Render sets it automatically; local default 8000)
+- `CORS_ORIGINS` — comma-separated allowed origins (default: localhost:3000)
+- `DATABASE_URL` — Neon Postgres connection string (optional locally)
+- `DATABASE_POOL_SIZE` — asyncpg pool size (default 5)
+- `GROQ_API_KEY` / `GROQ_MODEL` — Groq AI (model default llama-3.3-70b-versatile)
+- `FIRMS_API_KEY` — NASA FIRMS live fire hotspots
+- `NEXT_PUBLIC_API_URL` — frontend → backend base URL
 
 ## Notes for Future Development
 1. When adding new pages, update Navigation.tsx navItems array

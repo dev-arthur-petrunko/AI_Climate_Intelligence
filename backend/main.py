@@ -1,3 +1,4 @@
+import os
 from typing import List, Optional, Tuple
 
 from fastapi import FastAPI, Query
@@ -20,6 +21,8 @@ from data_sources import (
     get_fires,
 )
 from ai_groq import get_ai_analysis, get_ai_predictions
+from analytics import describe as analyze
+from scheduler import start_scheduler, stop_scheduler
 
 # Створення основного додатка FastAPI з описом та версією
 app = FastAPI(
@@ -28,13 +31,14 @@ app = FastAPI(
     version="2.0.0",
 )
 
-# Налаштування CORS для дозволу запитів з Next.js (localhost:3000)
+# Налаштування CORS — джерела з env (CORS_ORIGINS, через кому)
+_origins = os.getenv(
+    "CORS_ORIGINS",
+    "http://localhost:3000,http://127.0.0.1:3000",
+).split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
+    allow_origins=[o.strip() for o in _origins if o.strip()],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -99,6 +103,37 @@ async def health_check():
     return {"status": "healthy"}
 
 
+@app.on_event("startup")
+async def _startup():
+    """Створити таблиці (якщо є БД) та запустити фонові задачі."""
+    try:
+        from db import Base, _engine, db_available
+
+        if db_available() and _engine is not None:
+            async with _engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+    except Exception:
+        pass
+    start_scheduler()
+
+
+@app.on_event("shutdown")
+async def _shutdown():
+    stop_scheduler()
+
+
+@app.get("/api/db-status")
+async def db_status():
+    """Стан бази даних: чи підключена PostgreSQL та чи йдуть снапшоти."""
+    from db import db_available
+    from scheduler import last_store_time
+
+    return {
+        "configured": db_available(),
+        "last_snapshot_attempt": last_store_time(),
+    }
+
+
 @app.get("/api/weather")
 async def weather(lat: float = Query(DEFAULT_LAT), lon: float = Query(DEFAULT_LON)):
     """Поточна погода та 7-денний прогноз (Open-Meteo)"""
@@ -120,43 +155,57 @@ async def air_quality(lat: float = Query(DEFAULT_LAT), lon: float = Query(DEFAUL
 @app.get("/api/gistemp")
 async def gistemp():
     """Глобальна температурна аномалія з 1880 року (NASA GISTEMP)"""
-    return get_gistemp()
+    data = get_gistemp()
+    data["analysis"] = analyze(data.get("series", []))
+    return data
 
 
 @app.get("/api/co2")
 async def co2():
     """Глобальна концентрація CO2, щомісяця (NOAA GML)"""
-    return get_co2()
+    data = get_co2()
+    data["analysis"] = analyze(data.get("series", []))
+    return data
 
 
 @app.get("/api/sea-ice")
 async def sea_ice():
     """Протяжність арктичного морського льоду (NSIDC Sea Ice Index)"""
-    return get_sea_ice()
+    data = get_sea_ice()
+    data["analysis"] = analyze(data.get("annual_minimum", []))
+    return data
 
 
 @app.get("/api/sea-ice-south")
 async def sea_ice_south():
     """Протяжність антарктичного морського льоду (NSIDC Sea Ice Index)"""
-    return get_sea_ice_south()
+    data = get_sea_ice_south()
+    data["analysis"] = analyze(data.get("annual_minimum", []))
+    return data
 
 
 @app.get("/api/sea-level")
 async def sea_level():
     """Глобальний рівень моря (Church & White 2011 + UHSLC, через OWID)"""
-    return get_sea_level()
+    data = get_sea_level()
+    data["analysis"] = analyze(data.get("series", []), time_key="date")
+    return data
 
 
 @app.get("/api/ocean-heat")
 async def ocean_heat():
     """Вміст тепла в океані, верхні 2000 м (NOAA GML, через OWID)"""
-    return get_ocean_heat()
+    data = get_ocean_heat()
+    data["analysis"] = analyze(data.get("series", []))
+    return data
 
 
 @app.get("/api/ocean-ph")
 async def ocean_ph():
     """Закислення океану — pH поверхневої води, станція Гаваї (NOAA/OWID)"""
-    return get_ocean_ph()
+    data = get_ocean_ph()
+    data["analysis"] = analyze(data.get("series", []), time_key="date")
+    return data
 
 
 @app.get("/api/hurricanes")
@@ -562,5 +611,5 @@ async def get_ai_summary():
 
 
 if __name__ == "__main__":
-    # Запуск веб-сервера Uvicorn на порту 8000
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # Порт береться з $PORT (Render), інакше 8000 для локальної розробки
+    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
