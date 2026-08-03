@@ -141,6 +141,7 @@ export const en = {
       seaLevel: "Sea Level",
       oceanHeat: "Ocean Heat",
       ph: "Ocean pH",
+      asteroid: "Asteroids",
     },
   },
   events: {
@@ -273,6 +274,7 @@ export const en = {
     velocity: "Velocity",
     diameter: "Size",
     hazardous: "Hazardous",
+    approach: "Closest approach",
     noData: "No asteroid data available",
   },
 };
@@ -397,6 +399,7 @@ export const uk: TranslationDict = {
       seaLevel: "Рівень моря",
       oceanHeat: "Тепло океану",
       ph: "pH океану",
+      asteroid: "Астероїди",
     },
   },
   events: {
@@ -529,6 +532,7 @@ export const uk: TranslationDict = {
     velocity: "Швидкість",
     diameter: "Розмір",
     hazardous: "Небезпечний",
+    approach: "Максимальне зближення",
     noData: "Дані про астероїди недоступні",
   },
 };
@@ -653,6 +657,7 @@ export const de: TranslationDict = {
       seaLevel: "Meeresspiegel",
       oceanHeat: "Ozeanwärme",
       ph: "Ozean-pH",
+      asteroid: "Asteroiden",
     },
   },
   events: {
@@ -785,6 +790,7 @@ export const de: TranslationDict = {
     velocity: "Geschwindigkeit",
     diameter: "Größe",
     hazardous: "Gefährlich",
+    approach: "Nächster Vorbeiflug",
     noData: "Keine Asteroidendaten verfügbar",
   },
 };
@@ -909,6 +915,7 @@ export const pl: TranslationDict = {
       seaLevel: "Poziom morza",
       oceanHeat: "Ciepło oceanu",
       ph: "pH oceanu",
+      asteroid: "Asteroidy",
     },
   },
   events: {
@@ -1041,6 +1048,7 @@ export const pl: TranslationDict = {
     velocity: "Prędkość",
     diameter: "Rozmiar",
     hazardous: "Niebezpieczny",
+    approach: "Najbliższe zbliżenie",
     noData: "Brak danych o planetoidach",
   },
 };
@@ -1165,6 +1173,7 @@ export const fr: TranslationDict = {
       seaLevel: "Niveau de la mer",
       oceanHeat: "Chaleur océanique",
       ph: "pH océanique",
+      asteroid: "Astéroïdes",
     },
   },
   events: {
@@ -1297,6 +1306,7 @@ export const fr: TranslationDict = {
     velocity: "Vitesse",
     diameter: "Taille",
     hazardous: "Dangereux",
+    approach: "Approche la plus proche",
     noData: "Aucune donnée sur les astéroïdes",
   },
 };
@@ -1421,6 +1431,7 @@ export const it: TranslationDict = {
       seaLevel: "Livello del mare",
       oceanHeat: "Calore oceanico",
       ph: "pH oceanico",
+      asteroid: "Asteroidi",
     },
   },
   events: {
@@ -1553,6 +1564,7 @@ export const it: TranslationDict = {
     velocity: "Velocità",
     diameter: "Dimensioni",
     hazardous: "Pericoloso",
+    approach: "Avvicinamento più prossimo",
     noData: "Nessun dato sugli asteroidi",
   },
 };
@@ -1677,6 +1689,7 @@ export const ka: TranslationDict = {
       seaLevel: "ზღვის დონე",
       oceanHeat: "ოკეანის სითბო",
       ph: "ოკეანის pH",
+      asteroid: "ასტეროიდები",
     },
   },
   events: {
@@ -1809,6 +1822,7 @@ export const ka: TranslationDict = {
     velocity: "სიჩქარე",
     diameter: "ზომა",
     hazardous: "საშიში",
+    approach: "უახლოესი მიახლოება",
     noData: "ასტეროიდების მონაცემები მიუწვდომელია",
   },
 };

@@ -12,6 +12,8 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Stars } from "@react-three/drei";
 import * as THREE from "three";
 import { useI18n } from "@/lib/i18n";
+import AsteroidField from "./AsteroidField";
+import type { AsteroidObject } from "@/lib/api";
 
 /** Локальні текстури — гарантовано доступні, не залежать від CDN */
 const EARTH_TEXTURE = "/earth/earth-blue-marble.jpg";
@@ -116,17 +118,20 @@ const LEGEND: LegendItem[] = [
   { key: "oceanHeat", color: "#FF7043" },
   { key: "ph", color: "#00E5FF" },
   { key: "ice", color: "#C8D2E6" },
+  { key: "asteroid", color: "#36A3FF" },
 ];
 
-/** Земля: кольори Blue Marble + рельєф bump map + атмосфера + маркери */
+/** Земля: кольори Blue Marble + рельєф bump map + атмосфера + маркери + астероїди */
 function Earth({
   events,
+  asteroids,
   autoRotate,
   onHover,
 }: {
   events: EventPoint[];
+  asteroids: AsteroidObject[];
   autoRotate: boolean;
-  onHover: (ev: EventPoint | null) => void;
+  onHover: (ev: EventPoint | any | null) => void;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const atmosphereRef = useRef<THREE.MeshPhongMaterial>(null);
@@ -211,6 +216,9 @@ function Earth({
       {events.map((ev, i) => (
         <Marker key={i} ev={ev} onHover={onHover} index={i} />
       ))}
+
+      {/* Навколоземні астероїди — анімовані орбіти */}
+      <AsteroidField asteroids={asteroids} onHover={onHover} />
 
       {/* Атмосферне сяйво */}
       <mesh>
@@ -365,10 +373,12 @@ function Marker({
 /** Сцена: світло, зірки, Земля, керування камерою */
 function Scene({
   events,
+  asteroids,
   onHover,
 }: {
   events: EventPoint[];
-  onHover: (ev: EventPoint | null) => void;
+  asteroids: AsteroidObject[];
+  onHover: (ev: EventPoint | any | null) => void;
 }) {
   const [interacting, setInteracting] = useState(false);
   return (
@@ -379,7 +389,7 @@ function Scene({
       <pointLight position={[-10, -5, -5]} intensity={1.2} color="#7C4DFF" />
       <pointLight position={[0, 8, 0]} intensity={0.8} color="#2EE6A6" />
       <Stars radius={100} depth={50} count={4000} factor={4} fade speed={0.5} />
-      <Earth events={events} autoRotate={!interacting} onHover={onHover} />
+      <Earth events={events} asteroids={asteroids} autoRotate={!interacting} onHover={onHover} />
       <OrbitControls
         enableZoom={true}
         zoomSpeed={0.4}
@@ -400,7 +410,8 @@ function Scene({
  */
 export default function EarthGlobe() {
   const [events, setEvents] = useState<EventPoint[]>(fallbackEvents);
-  const [hovered, setHovered] = useState<EventPoint | null>(null);
+  const [asteroids, setAsteroids] = useState<AsteroidObject[]>([]);
+  const [hovered, setHovered] = useState<EventPoint | any | null>(null);
   const { t } = useI18n();
 
   /** Побудова океанічних кліматичних точок з API даних */
@@ -438,7 +449,7 @@ export default function EarthGlobe() {
           [-140, 0],  // Pacific
           [-30, 10],  // Atlantic
           [80, -10],  // Indian
-          [150, -30], // South Pacific
+          [-150, -30], // South Pacific (150E would sit on Australia)
         ];
         basins.forEach(([lon, lat]) => {
           points.push({
@@ -483,17 +494,22 @@ export default function EarthGlobe() {
     [t]
   );
 
-  /** Завантаження подій та океанічних даних з API бекенду */
+  /** Завантаження подій, астероїдів та океанічних даних з API бекенду */
   const load = useCallback(async () => {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
     try {
-      const [eventsRes, sl, oh, ph, south] = await Promise.all([
+      const [eventsRes, astRes, sl, oh, ph, south] = await Promise.all([
         fetch(`${apiUrl}/api/events`),
+        fetch(`${apiUrl}/api/asteroids?days=7`),
         fetch(`${apiUrl}/api/sea-level`).then((r) => (r.ok ? r.json() : null)),
         fetch(`${apiUrl}/api/ocean-heat`).then((r) => (r.ok ? r.json() : null)),
         fetch(`${apiUrl}/api/ocean-ph`).then((r) => (r.ok ? r.json() : null)),
         fetch(`${apiUrl}/api/sea-ice-south`).then((r) => (r.ok ? r.json() : null)),
       ]);
+      const astData = await astRes.json().catch(() => null);
+      if (astData && Array.isArray(astData.objects) && astData.objects.length > 0) {
+        setAsteroids(astData.objects);
+      }
       const data = await eventsRes.json();
       const points: EventPoint[] = [];
       if (Array.isArray(data) && data.length > 0) {
@@ -554,13 +570,16 @@ export default function EarthGlobe() {
   const legendLabel = (key: string) =>
     (t.globe.legend as any)[key] ?? key;
 
+  // Переклади для тултіпа астероїдів
+  const ast = t.asteroids as any;
+
   return (
     <div className="w-full h-full relative bg-[#070A16] overflow-hidden animate-fade-in">
       <Canvas
         camera={{ position: [0, 0, 13], fov: 45 }}
         gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.0 }}
       >
-        <Scene events={events} onHover={(ev) => setHovered(ev)} />
+        <Scene events={events} asteroids={asteroids} onHover={(ev) => setHovered(ev)} />
       </Canvas>
 
       {/* Легенда типів подій та кліматичних точок — над кнопкою прокрутки */}
@@ -600,10 +619,10 @@ export default function EarthGlobe() {
         </button>
       </div>
 
-      {/* Тултіп при наведенні на маркер */}
+      {/* Тултіп при наведенні на маркер або астероїд */}
       {hovered && screen && (
         <div
-          key={`${hovered.event_type}-${hovered.location}-${hovered.time}`}
+          key={hovered.kind === "asteroid" ? `ast-${hovered.name}` : `${hovered.event_type}-${hovered.location}-${hovered.time}`}
           className="absolute z-30 glass-strong rounded-xl px-3.5 py-2.5 max-w-[240px] pointer-events-none animate-tooltip-pop"
           style={{
             left: Math.min(screen.x + 14, window.innerWidth - 260),
@@ -611,30 +630,73 @@ export default function EarthGlobe() {
             boxShadow: "0 8px 40px rgba(0,0,0,0.6)",
           }}
         >
-          <div className="flex items-center space-x-2">
-            <span className="w-2 h-2 rounded-full" style={{ background: eventColor(hovered.event_type) }} />
-            <span className="text-sm font-semibold text-primary">
-              {eventLabel(hovered.event_type)}
-            </span>
-          </div>
-          {hovered.location && (
-            <div className="mt-1 text-[11px] text-secondary">{hovered.location}</div>
+          {hovered.kind === "asteroid" ? (
+            <>
+              {/* Заголовок астероїда */}
+              <div className="flex items-center space-x-2">
+                <span
+                  className="w-2 h-2 rounded-full"
+                  style={{ background: hovered.hazardous ? "#FF5C8A" : "#36A3FF" }}
+                />
+                <span className="text-sm font-semibold text-primary truncate">{hovered.name}</span>
+                {hovered.hazardous && (
+                  <span className="shrink-0 px-1.5 py-px rounded bg-[#FF5D6C]/15 border border-[#FF5D6C]/30 text-[8px] font-bold uppercase tracking-wider text-[#FF5D6C]">
+                    {ast.hazardous}
+                  </span>
+                )}
+              </div>
+              {/* Дані зближення */}
+              <div className="mt-1.5 text-[11px] text-secondary">
+                {ast.miss}:{" "}
+                <span className="text-primary font-medium">
+                  {hovered.miss_km != null ? `${(hovered.miss_km / 1e6).toFixed(1)}M km` : "—"}
+                </span>
+              </div>
+              <div className="mt-0.5 text-[11px] text-secondary">
+                {ast.velocity}:{" "}
+                <span className="text-primary font-medium">
+                  {hovered.velocity_kms != null ? `${hovered.velocity_kms.toFixed(1)} km/s` : "—"}
+                </span>
+              </div>
+              <div className="mt-0.5 text-[11px] text-secondary">
+                {ast.diameter}:{" "}
+                <span className="text-primary font-medium">
+                  {hovered.diameter_m_max != null ? `${Math.round(hovered.diameter_m_max)} m` : "—"}
+                </span>
+              </div>
+              <div className="mt-0.5 text-[10px] text-secondary">
+                {ast.approach}:{" "}
+                <span className="text-primary/80">{hovered.approach_date || "—"}</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center space-x-2">
+                <span className="w-2 h-2 rounded-full" style={{ background: eventColor(hovered.event_type) }} />
+                <span className="text-sm font-semibold text-primary">
+                  {eventLabel(hovered.event_type)}
+                </span>
+              </div>
+              {hovered.location && (
+                <div className="mt-1 text-[11px] text-secondary">{hovered.location}</div>
+              )}
+              <div className="mt-1.5 text-[10px] font-mono text-secondary">
+                {hovered.coordinates[0].toFixed(2)}°, {hovered.coordinates[1].toFixed(2)}°
+              </div>
+              {/* Актуальність даних: час + індикатор свіжості */}
+              <div className="mt-2 pt-1.5 border-t border-violet/15 flex items-center justify-between gap-2">
+                <div className="flex items-center space-x-1.5 min-w-0">
+                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: hoverFreshColor }} />
+                  <span className="text-[10px] text-secondary truncate">
+                    {t.globe.updatedAt}: {hovered.time || "—"}
+                  </span>
+                </div>
+                <span className="text-[10px] font-semibold shrink-0" style={{ color: hoverFreshColor }}>
+                  {hoverFreshLabel}
+                </span>
+              </div>
+            </>
           )}
-          <div className="mt-1.5 text-[10px] font-mono text-secondary">
-            {hovered.coordinates[0].toFixed(2)}°, {hovered.coordinates[1].toFixed(2)}°
-          </div>
-          {/* Актуальність даних: час + індикатор свіжості */}
-          <div className="mt-2 pt-1.5 border-t border-violet/15 flex items-center justify-between gap-2">
-            <div className="flex items-center space-x-1.5 min-w-0">
-              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: hoverFreshColor }} />
-              <span className="text-[10px] text-secondary truncate">
-                {t.globe.updatedAt}: {hovered.time || "—"}
-              </span>
-            </div>
-            <span className="text-[10px] font-semibold shrink-0" style={{ color: hoverFreshColor }}>
-              {hoverFreshLabel}
-            </span>
-          </div>
         </div>
       )}
 
