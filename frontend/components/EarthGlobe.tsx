@@ -13,7 +13,7 @@ import { OrbitControls, Stars } from "@react-three/drei";
 import * as THREE from "three";
 import { useI18n } from "@/lib/i18n";
 import { sunDirection } from "@/lib/solar";
-import AsteroidField from "./AsteroidField";
+import AsteroidField, { AsteroidEntry } from "./AsteroidField";
 import type { AsteroidObject } from "@/lib/api";
 
 /** Локальні текстури — гарантовано доступні, не залежать від CDN */
@@ -31,6 +31,20 @@ interface EventPoint {
   location?: string;
   frp?: number;
   time?: string;
+}
+
+/** Записи у реєстрах для hover-контролера (screen-space proximity) */
+interface MarkerEntry {
+  ev: EventPoint;
+  ref: { readonly current: THREE.Group | null };
+}
+
+/** Радіус (px), у якому маркер/астероїд «ловить» курсор для тултіпа */
+const HOVER_RADIUS = 40;
+
+/** Стабільний ідентифікатор маркера для hover-підсвітки та тултіпа */
+function markerId(ev: EventPoint): string {
+  return `m:${ev.event_type || ""}|${ev.location || ""}|${ev.time || ""}`;
 }
 
 /** Кешована перевірка "зменшеного руху" — вимикає пульсацію та дихання */
@@ -156,14 +170,18 @@ function Earth({
   events,
   asteroids,
   autoRotate,
-  onHover,
+  hovered,
   sunRef,
+  markerRegistry,
+  asteroidRegistry,
 }: {
   events: EventPoint[];
   asteroids: AsteroidObject[];
   autoRotate: boolean;
-  onHover: (ev: EventPoint | any | null) => void;
+  hovered: EventPoint | any | null;
   sunRef?: React.MutableRefObject<THREE.Vector3 | null>;
+  markerRegistry: React.MutableRefObject<MarkerEntry[]>;
+  asteroidRegistry: React.MutableRefObject<AsteroidEntry[]>;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const atmosphereRef = useRef<THREE.MeshPhongMaterial>(null);
@@ -256,11 +274,15 @@ function Earth({
 
       {/* Маркери подій */}
       {events.map((ev, i) => (
-        <Marker key={i} ev={ev} onHover={onHover} index={i} />
+        <Marker key={i} ev={ev} index={i} markerRegistry={markerRegistry} active={(hovered as any)?._id === markerId(ev)} />
       ))}
 
       {/* Навколоземні астероїди — анімовані орбіти */}
-      <AsteroidField asteroids={asteroids} onHover={onHover} />
+      <AsteroidField
+        asteroids={asteroids}
+        asteroidRegistry={asteroidRegistry}
+        activeId={(hovered as any)?._id}
+      />
 
       {/* Атмосферне сяйво */}
       <mesh raycast={() => null}>
@@ -283,15 +305,19 @@ function Earth({
  * Кругла 3D-сфера з сяйвом. Масштаб підтримується таким, щоб при
  * наближенні камери маркер зменшувався відносно планети — так він
  * точніше вказує точку на поверхні.
+ * Тултіп та підсвітка при наведенні обробляються через screen-space
+ * proximity (HoverController), а не через raycast R3F — це надійніше.
  */
 function Marker({
   ev,
-  onHover,
   index,
+  markerRegistry,
+  active,
 }: {
   ev: EventPoint;
-  onHover: (ev: EventPoint | null) => void;
   index: number;
+  markerRegistry: React.MutableRefObject<MarkerEntry[]>;
+  active: boolean;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const glowMatRef = useRef<THREE.MeshBasicMaterial>(null);
@@ -299,7 +325,16 @@ function Marker({
   const ringRef = useRef<THREE.Mesh>(null);
   const ringMatRef = useRef<THREE.MeshBasicMaterial>(null);
   const { camera } = useThree();
-  const [hovered, setHovered] = useState(false);
+
+  // Реєстрація маркера у спільному реєстрі для screen-space hover.
+  // Записи оновлюються при зміні ev (оновлення даних з API).
+  useEffect(() => {
+    const entry: MarkerEntry = { ev, ref: groupRef };
+    markerRegistry.current.push(entry);
+    return () => {
+      markerRegistry.current = markerRegistry.current.filter((x) => x !== entry);
+    };
+  }, [ev, markerRegistry]);
 
   const position = useMemo(
     () => latLonToVec3(ev.coordinates[1], ev.coordinates[0], EARTH_RADIUS * 1.002),
@@ -328,7 +363,7 @@ function Marker({
     if (!g.visible) return;
 
     // При наведенні маркер злегка збільшується; завжди — м'яке "дихання"
-    const hoverBoost = hovered ? 1.25 : 1;
+    const hoverBoost = active ? 1.25 : 1;
     const breathe = reducedMotion() ? 1 : 1 + 0.07 * Math.sin(t * 2.6 + position.x);
     // Менші маркери: базовий масштаб нижчий, щоб не закривати поверхню планети
     const scale = (dist / 16) * hoverBoost * (0.3 + 0.7 * easePop) * breathe;
@@ -336,10 +371,10 @@ function Marker({
 
     // Яскравіше сяйво та біле ядро при наведенні
     if (glowMatRef.current) {
-      glowMatRef.current.opacity = hovered ? 0.45 : 0.2;
+      glowMatRef.current.opacity = active ? 0.45 : 0.2;
     }
     if (coreMatRef.current) {
-      coreMatRef.current.color.set(hovered ? "#ffffff" : color);
+      coreMatRef.current.color.set(active ? "#ffffff" : color);
     }
 
     // Розширення "хвилі" навколо маркера — як сонер. Вимикається при reduced-motion.
@@ -347,7 +382,7 @@ function Marker({
       if (!reducedMotion() && pop > 0.5) {
         const cycle = (t * 0.55 + index * 0.37) % 1;
         ringRef.current.scale.setScalar(0.9 + cycle * 2.1);
-        ringMatRef.current.opacity = (1 - cycle) * (hovered ? 0.55 : 0.3);
+        ringMatRef.current.opacity = (1 - cycle) * (active ? 0.55 : 0.3);
         ringRef.current.visible = true;
       } else {
         ringRef.current.visible = false;
@@ -355,36 +390,8 @@ function Marker({
     }
   });
 
-  // Проєкція позиції маркера у екранні координати для тултіпа
-  const getScreenPos = () => {
-    if (!groupRef.current) return null;
-    const v = new THREE.Vector3();
-    groupRef.current.getWorldPosition(v);
-    v.project(camera);
-    return {
-      x: (v.x * 0.5 + 0.5) * window.innerWidth,
-      y: (-v.y * 0.5 + 0.5) * window.innerHeight,
-    };
-  };
-
-  const handleOver = (e: any) => {
-    e.stopPropagation();
-    setHovered(true);
-    onHover({ ...ev, _screen: getScreenPos() } as EventPoint);
-  };
-
-  const handleOut = () => {
-    setHovered(false);
-    onHover(null);
-  };
-
   return (
-    <group
-      ref={groupRef}
-      position={position}
-      onPointerOver={handleOver}
-      onPointerOut={handleOut}
-    >
+    <group ref={groupRef} position={position}>
       {/* Сяйво навколо маркера */}
       <mesh>
         <sphereGeometry args={[0.16, 12, 12]} />
@@ -400,11 +407,6 @@ function Marker({
       <mesh>
         <sphereGeometry args={[0.07, 10, 10]} />
         <meshBasicMaterial ref={coreMatRef} color={color} />
-      </mesh>
-      {/* Невидима, більша зона наведення — щоб маркер було легко навести */}
-      <mesh>
-        <sphereGeometry args={[0.34, 8, 8]} />
-        <meshBasicMaterial color={color} transparent opacity={0} depthWrite={false} />
       </mesh>
       {/* Хвиля-кільце — декоративне, не перехоплює наведення */}
       <mesh ref={ringRef} visible={false} raycast={() => null}>
@@ -423,15 +425,132 @@ function Marker({
   );
 }
 
+/** Screen-space proximity hover: детерміновано визначає, над яким маркером/астероїдом
+ *  перебуває курсор, проєктуючи світові позиції на екран (без raycast R3F).
+ *  Враховує видимість (лише передня півкуля планети) та обирає найближчий об'єкт
+ *  у радіусі HOVER_RADIUS px. Це гарантує роботу тултіпів незалежно від
+ *  внутрішньої системи подій R3F. */
+function HoverController({
+  markers,
+  asteroids,
+  onHover,
+}: {
+  markers: React.MutableRefObject<MarkerEntry[]>;
+  asteroids: React.MutableRefObject<AsteroidEntry[]>;
+  onHover: (ev: EventPoint | any | null) => void;
+}) {
+  const camera = useThree((s) => s.camera);
+  const gl = useThree((s) => s.gl);
+  const size = useThree((s) => s.size);
+  const onHoverRef = useRef(onHover);
+  onHoverRef.current = onHover;
+
+  // Остання позиція курсора у координатах канваса (null — курсор поза канвасом)
+  const pointer = useRef<{ x: number; y: number } | null>(null);
+  const lastEmit = useRef<{ key: string; x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    const el = gl.domElement;
+    const onMove = (e: PointerEvent) => {
+      const rect = el.getBoundingClientRect();
+      pointer.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    };
+    const onLeave = () => {
+      pointer.current = null;
+      lastEmit.current = null;
+      onHoverRef.current(null);
+    };
+    el.addEventListener("pointermove", onMove);
+    el.addEventListener("pointerleave", onLeave);
+    return () => {
+      el.removeEventListener("pointermove", onMove);
+      el.removeEventListener("pointerleave", onLeave);
+    };
+  }, [gl]);
+
+  useFrame(() => {
+    const p = pointer.current;
+    if (!p) return;
+    const w = size.width;
+    const h = size.height;
+    if (!w || !h) return;
+    camera.updateMatrixWorld();
+
+    let best: any = null;
+    let bestKey = "";
+    let bestDist = HOVER_RADIUS;
+    const v = new THREE.Vector3();
+    const pv = new THREE.Vector3();
+
+    // Маркери подій на поверхні планети
+    for (const m of markers.current) {
+      const g = m.ref.current;
+      if (!g || !g.visible) continue;
+      g.getWorldPosition(v);
+      // Ховаємо лише об'єкти, що позаду планети відносно камери
+      if (v.dot(camera.position) < 0) continue;
+      pv.copy(v).project(camera);
+      if (pv.z > 1) continue;
+      const sx = (pv.x * 0.5 + 0.5) * w;
+      const sy = (-pv.y * 0.5 + 0.5) * h;
+      const d = Math.hypot(sx - p.x, sy - p.y);
+      if (d < bestDist) {
+        bestDist = d;
+        bestKey = markerId(m.ev);
+        best = { ...m.ev, _id: bestKey, _screen: { x: sx, y: sy } };
+      }
+    }
+
+    // Астероїди навколо планети
+    for (const a of asteroids.current) {
+      const g = a.ref.current;
+      if (!g || !g.visible) continue;
+      g.getWorldPosition(v);
+      if (v.dot(camera.position) < 0) continue;
+      pv.copy(v).project(camera);
+      if (pv.z > 1) continue;
+      const sx = (pv.x * 0.5 + 0.5) * w;
+      const sy = (-pv.y * 0.5 + 0.5) * h;
+      const d = Math.hypot(sx - p.x, sy - p.y);
+      if (d < bestDist) {
+        bestDist = d;
+        bestKey = `a:${a.obj.name}`;
+        best = { ...a.obj, kind: "asteroid", _id: bestKey, _screen: { x: sx, y: sy } };
+      }
+    }
+
+    if (best) {
+      const s = best._screen;
+      const prev = lastEmit.current;
+      // Пере-емітимо лише при зміні об'єкта або помітному русі тултіпа
+      if (!prev || prev.key !== bestKey || Math.abs(prev.x - s.x) > 4 || Math.abs(prev.y - s.y) > 4) {
+        lastEmit.current = { key: bestKey, x: s.x, y: s.y };
+        onHoverRef.current(best);
+      }
+    } else if (lastEmit.current) {
+      lastEmit.current = null;
+      onHoverRef.current(null);
+    }
+  });
+
+  return null;
+}
+
 /** Сцена: світло, зірки, Земля, керування камерою */
 function Scene({
   events,
   asteroids,
   onHover,
+  hovered,
+  markerRegistry,
+  asteroidRegistry,
 }: {
   events: EventPoint[];
   asteroids: AsteroidObject[];
   onHover: (ev: EventPoint | any | null) => void;
+  hovered: EventPoint | any | null;
+  markerRegistry: React.MutableRefObject<MarkerEntry[]>;
+  asteroidRegistry: React.MutableRefObject<AsteroidEntry[]>;
 }) {
   const [interacting, setInteracting] = useState(false);
   const sunRef = useRef<THREE.Vector3 | null>(null);
@@ -444,7 +563,22 @@ function Scene({
       <pointLight position={[-10, -5, -5]} intensity={0.6} color="#7C4DFF" />
       <pointLight position={[0, 8, 0]} intensity={0.4} color="#2EE6A6" />
       <Stars radius={100} depth={50} count={4000} factor={4} fade speed={0.5} />
-      <Earth events={events} asteroids={asteroids} autoRotate={!interacting} onHover={onHover} sunRef={sunRef} />
+      <Earth
+        events={events}
+        asteroids={asteroids}
+        autoRotate={!interacting}
+        hovered={hovered}
+        sunRef={sunRef}
+        markerRegistry={markerRegistry}
+        asteroidRegistry={asteroidRegistry}
+      />
+      {/* Screen-space hover: проєктує маркери/астероїди на екран і обирає найближчий
+          до курсора — детерміновано, незалежно від raycast R3F. */}
+      <HoverController
+        markers={markerRegistry}
+        asteroids={asteroidRegistry}
+        onHover={onHover}
+      />
       <OrbitControls
         enableZoom={true}
         zoomSpeed={0.4}
@@ -536,6 +670,8 @@ export default function EarthGlobe() {
   const [events, setEvents] = useState<EventPoint[]>(fallbackEvents);
   const [asteroids, setAsteroids] = useState<AsteroidObject[]>(fallbackAsteroids);
   const [hovered, setHovered] = useState<EventPoint | any | null>(null);
+  const markerRegistry = useRef<MarkerEntry[]>([]);
+  const asteroidRegistry = useRef<AsteroidEntry[]>([]);
   const { t } = useI18n();
 
   /** Побудова океанічних кліматичних точок з API даних */
@@ -727,7 +863,14 @@ export default function EarthGlobe() {
         camera={{ position: [0, 0, 13], fov: 45 }}
         gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.0 }}
       >
-        <Scene events={events} asteroids={asteroids} onHover={(ev) => setHovered(ev)} />
+        <Scene
+          events={events}
+          asteroids={asteroids}
+          hovered={hovered}
+          onHover={(ev) => setHovered(ev)}
+          markerRegistry={markerRegistry}
+          asteroidRegistry={asteroidRegistry}
+        />
       </Canvas>
 
       {/* Легенда типів подій та кліматичних точок — над кнопкою прокрутки */}

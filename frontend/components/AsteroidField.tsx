@@ -9,11 +9,17 @@
  * При наведенні показує тултіп із даними NASA NeoWs.
  */
 
-import { useMemo, useRef, useState } from "react";
-import { useFrame, useThree } from "@react-three/fiber";
+import { useMemo, useRef, useEffect } from "react";
+import { useFrame } from "@react-three/fiber";
 import { Line } from "@react-three/drei";
 import * as THREE from "three";
 import type { AsteroidObject } from "@/lib/api";
+
+/** Реєстрація астероїда для screen-space hover (HoverController в EarthGlobe) */
+export interface AsteroidEntry {
+  obj: AsteroidObject;
+  ref: { readonly current: THREE.Group | null };
+}
 
 /** Мінімальна/максимальна дистанція зближення у даних (км) — для нормування орбіт */
 const MISS_MIN_KM = 4.5e6;
@@ -58,11 +64,13 @@ function orbitParams(obj: AsteroidObject, index: number): OrbitParams {
 function Asteroid({
   obj,
   index,
-  onHover,
+  asteroidRegistry,
+  active,
 }: {
   obj: AsteroidObject;
   index: number;
-  onHover: (info: any) => void;
+  asteroidRegistry: React.MutableRefObject<AsteroidEntry[]>;
+  active: boolean;
 }) {
   const orbit = useMemo(() => orbitParams(obj, index), [obj, index]);
   const orbitRef = useRef<THREE.Group>(null);
@@ -71,8 +79,16 @@ function Asteroid({
   const glowMatRef = useRef<THREE.MeshBasicMaterial>(null);
   const tailRefs = useRef<(THREE.Mesh | null)[]>([]);
   const tailMats = useRef<(THREE.MeshBasicMaterial | null)[]>([]);
-  const { camera } = useThree();
-  const [hovered, setHovered] = useState(false);
+
+  // Реєстрація позиції астероїда (moverRef) для screen-space hover.
+  // Записи оновлюються при зміні obj (оновлення даних з API).
+  useEffect(() => {
+    const entry: AsteroidEntry = { obj, ref: moverRef };
+    asteroidRegistry.current.push(entry);
+    return () => {
+      asteroidRegistry.current = asteroidRegistry.current.filter((x) => x !== entry);
+    };
+  }, [obj, asteroidRegistry]);
 
   const color = obj.hazardous ? HAZARD_COLOR : SAFE_COLOR;
 
@@ -102,7 +118,7 @@ function Asteroid({
     }
     if (glowMatRef.current) {
       const pulse = 0.5 + 0.5 * Math.sin(t * 1.7 + index * 0.9);
-      glowMatRef.current.opacity = (hovered ? 0.5 : 0.22) + pulse * (hovered ? 0.2 : 0.1);
+      glowMatRef.current.opacity = (active ? 0.5 : 0.22) + pulse * (active ? 0.2 : 0.1);
     }
 
     // Кометний хвіст — ланки позаду астероїда вздовж напрямку руху
@@ -124,39 +140,16 @@ function Asteroid({
         m.scale.setScalar(s);
         const mat = tailMats.current[i];
         if (mat) {
-          mat.opacity = Math.max(0, (hovered ? 0.4 : 0.22) - k * 0.04);
+          mat.opacity = Math.max(0, (active ? 0.4 : 0.22) - k * 0.04);
         }
       }
     }
   });
 
-  const getScreenPos = () => {
-    if (!moverRef.current) return null;
-    const v = new THREE.Vector3();
-    moverRef.current.getWorldPosition(v);
-    v.project(camera);
-    return {
-      x: (v.x * 0.5 + 0.5) * window.innerWidth,
-      y: (-v.y * 0.5 + 0.5) * window.innerHeight,
-    };
-  };
-
-  const handleOver = (e: any) => {
-    e.stopPropagation();
-    setHovered(true);
-    onHover({ ...obj, kind: "asteroid", _screen: getScreenPos() });
-  };
-  const handleOut = () => {
-    setHovered(false);
-    onHover(null);
-  };
-
   return (
     <group
       ref={orbitRef}
       rotation={[orbit.inclination, orbit.node, 0]}
-      onPointerOver={handleOver}
-      onPointerOut={handleOut}
     >
       {/* Орбіта — ТОНКА ПУНКТИРНА ЛІНІЯ у площині руху */}
       <Line
@@ -168,7 +161,7 @@ function Asteroid({
         dashSize={0.8}
         gapSize={0.6}
         transparent
-        opacity={hovered ? 0.35 : 0.12}
+        opacity={active ? 0.35 : 0.12}
         depthWrite={false}
       />
 
@@ -192,7 +185,7 @@ function Asteroid({
           <meshStandardMaterial
             color={obj.hazardous ? "#5a3340" : "#3a4a63"}
             emissive={color}
-            emissiveIntensity={hovered ? 0.55 : 0.22}
+            emissiveIntensity={active ? 0.55 : 0.22}
             roughness={0.9}
             metalness={0.1}
           />
@@ -220,15 +213,23 @@ function Asteroid({
 /** Поле астероїдів навколо глобуса */
 export default function AsteroidField({
   asteroids,
-  onHover,
+  asteroidRegistry,
+  activeId,
 }: {
   asteroids: AsteroidObject[];
-  onHover: (info: any) => void;
+  asteroidRegistry: React.MutableRefObject<AsteroidEntry[]>;
+  activeId?: string | null;
 }) {
   return (
     <>
       {asteroids.map((obj, i) => (
-        <Asteroid key={`${obj.name}-${i}`} obj={obj} index={i} onHover={onHover} />
+        <Asteroid
+          key={`${obj.name}-${i}`}
+          obj={obj}
+          index={i}
+          asteroidRegistry={asteroidRegistry}
+          active={activeId === `a:${obj.name}`}
+        />
       ))}
     </>
   );
