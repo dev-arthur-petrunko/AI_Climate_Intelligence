@@ -31,7 +31,7 @@ const SAFE_COLOR = "#36A3FF";
 
 /** Кількість сегментів у пунктирній орбіті та ланок кометного хвоста */
 const ORBIT_SEGMENTS = 128;
-const TAIL_LINKS = 9;
+const TAIL_LINKS = 5;
 
 interface OrbitParams {
   radius: number;
@@ -49,7 +49,7 @@ function orbitParams(obj: AsteroidObject, index: number): OrbitParams {
   const inclination = ((index * 0.61) % 1) * 0.6 - 0.3;
   const node = (index * 2.39996) % (Math.PI * 2);
   const phase = (index * 1.618) % (Math.PI * 2);
-  const speed = (0.045 + ((index % 7) / 7) * 0.05) * (7.4 / radius);
+  const speed = (0.018 + ((index % 7) / 7) * 0.022) * (7.4 / radius);
   const size = diameterToSize(obj.diameter_m_max);
   return { radius, inclination, node, phase, speed, size };
 }
@@ -102,7 +102,7 @@ function Asteroid({
     }
     if (glowMatRef.current) {
       const pulse = 0.5 + 0.5 * Math.sin(t * 1.7 + index * 0.9);
-      glowMatRef.current.opacity = (hovered ? 0.6 : 0.3) + pulse * (hovered ? 0.25 : 0.12);
+      glowMatRef.current.opacity = (hovered ? 0.5 : 0.22) + pulse * (hovered ? 0.2 : 0.1);
     }
 
     // Кометний хвіст — ланки позаду астероїда вздовж напрямку руху
@@ -114,17 +114,17 @@ function Asteroid({
         const m = tailRefs.current[i];
         if (!m) continue;
         const k = i + 1;
-        const dist = orbit.size * (2.6 + k * 1.7);
+        const dist = orbit.size * (1.8 + k * 1.1);
         m.position.set(
           moverRef.current.position.x + bx * dist,
           moverRef.current.position.y + by * dist,
           0
         );
-        const s = Math.max(0.02, orbit.size * (1.5 - k * 0.13));
+        const s = Math.max(0.02, orbit.size * (1.3 - k * 0.2));
         m.scale.setScalar(s);
         const mat = tailMats.current[i];
         if (mat) {
-          mat.opacity = Math.max(0, (hovered ? 0.55 : 0.34) - k * 0.045);
+          mat.opacity = Math.max(0, (hovered ? 0.4 : 0.22) - k * 0.04);
         }
       }
     }
@@ -162,13 +162,13 @@ function Asteroid({
       <Line
         points={orbitCircle}
         color={color}
-        lineWidth={0.6}
+        lineWidth={0.4}
         dashed
         dashScale={2}
         dashSize={0.8}
         gapSize={0.6}
         transparent
-        opacity={hovered ? 0.4 : 0.16}
+        opacity={hovered ? 0.35 : 0.12}
         depthWrite={false}
       />
 
@@ -176,7 +176,7 @@ function Asteroid({
       <group ref={moverRef}>
         {/* Сяйво навколо астероїда */}
         <mesh>
-          <sphereGeometry args={[orbit.size * 2.2, 12, 12]} />
+          <sphereGeometry args={[orbit.size * 1.6, 12, 12]} />
           <meshBasicMaterial
             ref={glowMatRef}
             color={color}

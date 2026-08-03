@@ -328,9 +328,10 @@ function Marker({
     if (!g.visible) return;
 
     // При наведенні маркер злегка збільшується; завжди — м'яке "дихання"
-    const hoverBoost = hovered ? 1.4 : 1;
-    const breathe = reducedMotion() ? 1 : 1 + 0.09 * Math.sin(t * 2.6 + position.x);
-    const scale = (dist / 13) * hoverBoost * (0.15 + 0.85 * easePop) * breathe;
+    const hoverBoost = hovered ? 1.25 : 1;
+    const breathe = reducedMotion() ? 1 : 1 + 0.07 * Math.sin(t * 2.6 + position.x);
+    // Менші маркери: базовий масштаб нижчий, щоб не закривати поверхню планети
+    const scale = (dist / 16) * hoverBoost * (0.3 + 0.7 * easePop) * breathe;
     g.scale.setScalar(scale);
 
     // Яскравіше сяйво та біле ядро при наведенні
@@ -381,7 +382,7 @@ function Marker({
     <group ref={groupRef} position={position}>
       {/* Сяйво навколо маркера */}
       <mesh onPointerOver={handleOver} onPointerOut={handleOut}>
-        <sphereGeometry args={[0.3, 12, 12]} />
+        <sphereGeometry args={[0.16, 12, 12]} />
         <meshBasicMaterial
           ref={glowMatRef}
           color={color}
@@ -392,12 +393,12 @@ function Marker({
       </mesh>
       {/* Ядро маркера */}
       <mesh onPointerOver={handleOver} onPointerOut={handleOut}>
-        <sphereGeometry args={[0.12, 10, 10]} />
+        <sphereGeometry args={[0.07, 10, 10]} />
         <meshBasicMaterial ref={coreMatRef} color={color} />
       </mesh>
       {/* Хвиля-кільце — декоративне, не перехоплює наведення */}
       <mesh ref={ringRef} visible={false}>
-        <sphereGeometry args={[0.5, 20, 20]} />
+        <sphereGeometry args={[0.28, 20, 20]} />
         <meshBasicMaterial
           ref={ringMatRef}
           color={color}
