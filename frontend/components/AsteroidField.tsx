@@ -3,13 +3,15 @@
 /**
  * AsteroidField — анімовані навколоземні астероїди навколо глобуса.
  * Кожен астероїд рухається власною орбітою (нахил + висхідний вузол),
- * обертається навколо осі, має сяйво та орбітальне кільце.
+ * обертається навколо осі, має сяйво та кометний хвіст.
+ * Орбіти промальовані ТОНКИМИ ПУНКТИРНИМИ ЛІНІЯМИ (не суцільні тори).
  * Небезпечні (PHO) — рожеві, решта — блакитні. Розмір ~ діаметру.
  * При наведенні показує тултіп із даними NASA NeoWs.
  */
 
 import { useMemo, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
+import { Line } from "@react-three/drei";
 import * as THREE from "three";
 import type { AsteroidObject } from "@/lib/api";
 
@@ -26,6 +28,10 @@ function diameterToSize(diamMax: number | null): number {
 /** Кольори: небезпечний — рожевий (danger), безпечний — блакитний (accent) */
 const HAZARD_COLOR = "#FF5C8A";
 const SAFE_COLOR = "#36A3FF";
+
+/** Кількість сегментів у пунктирній орбіті та ланок кометного хвоста */
+const ORBIT_SEGMENTS = 128;
+const TAIL_LINKS = 9;
 
 interface OrbitParams {
   radius: number;
@@ -48,7 +54,7 @@ function orbitParams(obj: AsteroidObject, index: number): OrbitParams {
   return { radius, inclination, node, phase, speed, size };
 }
 
-/** Один астероїд з орбітою, обертанням і сяйвом */
+/** Один астероїд з орбітою, кометним хвостом і сяйвом */
 function Asteroid({
   obj,
   index,
@@ -60,22 +66,35 @@ function Asteroid({
 }) {
   const orbit = useMemo(() => orbitParams(obj, index), [obj, index]);
   const orbitRef = useRef<THREE.Group>(null);
+  const moverRef = useRef<THREE.Group>(null);
   const rockRef = useRef<THREE.Mesh>(null);
   const glowMatRef = useRef<THREE.MeshBasicMaterial>(null);
-  const ringMatRef = useRef<THREE.MeshBasicMaterial>(null);
+  const tailRefs = useRef<(THREE.Mesh | null)[]>([]);
+  const tailMats = useRef<(THREE.MeshBasicMaterial | null)[]>([]);
   const { camera } = useThree();
   const [hovered, setHovered] = useState(false);
 
   const color = obj.hazardous ? HAZARD_COLOR : SAFE_COLOR;
+
+  /** Точки пунктирної орбіти (у площині XY до нахилу групи) */
+  const orbitCircle = useMemo(() => {
+    const pts: [number, number, number][] = [];
+    for (let i = 0; i <= ORBIT_SEGMENTS; i++) {
+      const a = (i / ORBIT_SEGMENTS) * Math.PI * 2;
+      pts.push([orbit.radius * Math.cos(a), orbit.radius * Math.sin(a), 0]);
+    }
+    return pts;
+  }, [orbit.radius]);
 
   useFrame((state, delta) => {
     const g = orbitRef.current;
     if (!g) return;
     const t = state.clock.elapsedTime;
     const a = orbit.phase + t * orbit.speed;
-    const child = g.children[0] as THREE.Group | undefined;
-    if (child) {
-      child.position.set(orbit.radius * Math.cos(a), orbit.radius * Math.sin(a), 0);
+
+    // Позиція астероїда на орбіті
+    if (moverRef.current) {
+      moverRef.current.position.set(orbit.radius * Math.cos(a), orbit.radius * Math.sin(a), 0);
     }
     if (rockRef.current) {
       rockRef.current.rotation.x += delta * 0.35;
@@ -83,17 +102,38 @@ function Asteroid({
     }
     if (glowMatRef.current) {
       const pulse = 0.5 + 0.5 * Math.sin(t * 1.7 + index * 0.9);
-      glowMatRef.current.opacity = (hovered ? 0.55 : 0.28) + pulse * (hovered ? 0.3 : 0.14);
+      glowMatRef.current.opacity = (hovered ? 0.6 : 0.3) + pulse * (hovered ? 0.25 : 0.12);
     }
-    if (ringMatRef.current) {
-      ringMatRef.current.opacity = hovered ? 0.5 : 0.16;
+
+    // Кометний хвіст — ланки позаду астероїда вздовж напрямку руху
+    if (moverRef.current) {
+      // Тангенс напрямку руху (зростання кута): (-sin, cos). Хвіст — протилежний напрямок
+      const bx = Math.sin(a);
+      const by = -Math.cos(a);
+      for (let i = 0; i < TAIL_LINKS; i++) {
+        const m = tailRefs.current[i];
+        if (!m) continue;
+        const k = i + 1;
+        const dist = orbit.size * (2.6 + k * 1.7);
+        m.position.set(
+          moverRef.current.position.x + bx * dist,
+          moverRef.current.position.y + by * dist,
+          0
+        );
+        const s = Math.max(0.02, orbit.size * (1.5 - k * 0.13));
+        m.scale.setScalar(s);
+        const mat = tailMats.current[i];
+        if (mat) {
+          mat.opacity = Math.max(0, (hovered ? 0.55 : 0.34) - k * 0.045);
+        }
+      }
     }
   });
 
   const getScreenPos = () => {
-    if (!orbitRef.current) return null;
+    if (!moverRef.current) return null;
     const v = new THREE.Vector3();
-    orbitRef.current.getWorldPosition(v);
+    moverRef.current.getWorldPosition(v);
     v.project(camera);
     return {
       x: (v.x * 0.5 + 0.5) * window.innerWidth,
@@ -118,23 +158,25 @@ function Asteroid({
       onPointerOver={handleOver}
       onPointerOut={handleOut}
     >
-      {/* Орбітальне кільце — лежить у площині руху астероїда */}
-      <mesh>
-        <torusGeometry args={[orbit.radius, 0.004, 4, 96]} />
-        <meshBasicMaterial
-          ref={ringMatRef}
-          color={color}
-          transparent
-          opacity={0.16}
-          depthWrite={false}
-        />
-      </mesh>
+      {/* Орбіта — ТОНКА ПУНКТИРНА ЛІНІЯ у площині руху */}
+      <Line
+        points={orbitCircle}
+        color={color}
+        lineWidth={0.6}
+        dashed
+        dashScale={2}
+        dashSize={0.8}
+        gapSize={0.6}
+        transparent
+        opacity={hovered ? 0.4 : 0.16}
+        depthWrite={false}
+      />
 
       {/* Позиція астероїда на орбіті (обертається через useFrame) */}
-      <group>
+      <group ref={moverRef}>
         {/* Сяйво навколо астероїда */}
         <mesh>
-          <sphereGeometry args={[orbit.size * 2.4, 12, 12]} />
+          <sphereGeometry args={[orbit.size * 2.2, 12, 12]} />
           <meshBasicMaterial
             ref={glowMatRef}
             color={color}
@@ -156,6 +198,21 @@ function Asteroid({
           />
         </mesh>
       </group>
+
+      {/* Кометний хвіст — послідовні сяйливі ланки, що гаснуть */}
+      {Array.from({ length: TAIL_LINKS }).map((_, i) => (
+        <mesh key={`tail-${i}`} ref={(el) => { tailRefs.current[i] = el; }}>
+          <sphereGeometry args={[1, 8, 8]} />
+          <meshBasicMaterial
+            ref={(el) => { tailMats.current[i] = el; }}
+            color={color}
+            transparent
+            opacity={0}
+            blending={THREE.AdditiveBlending}
+            depthWrite={false}
+          />
+        </mesh>
+      ))}
     </group>
   );
 }

@@ -78,6 +78,21 @@ const fallbackEvents: EventPoint[] = [
   { coordinates: [145.0, -19.0], event_type: "Wildfire", severity: "medium", location: "Queensland, Australia" },
 ];
 
+/** Резервні астероїди — коли API без NASA_API_KEY повертає порожній список.
+ *  Всі типи/розміри реалістичні (типові навколоземні об'єкти). */
+const fallbackAsteroids: AsteroidObject[] = [
+  { name: "2024 CA1", hazardous: false, approach_date: "today", miss_km: 3.2e7, velocity_kms: 14.2, diameter_m_min: 45, diameter_m_max: 110 },
+  { name: "2024 RB2", hazardous: true, approach_date: "today", miss_km: 7.8e6, velocity_kms: 19.6, diameter_m_min: 180, diameter_m_max: 420 },
+  { name: "2024 JF3", hazardous: false, approach_date: "today", miss_km: 5.6e7, velocity_kms: 9.8, diameter_m_min: 30, diameter_m_max: 75 },
+  { name: "2024 XT7", hazardous: false, approach_date: "tomorrow", miss_km: 4.1e7, velocity_kms: 16.1, diameter_m_min: 60, diameter_m_max: 140 },
+  { name: "2024 MN9", hazardous: true, approach_date: "tomorrow", miss_km: 1.2e7, velocity_kms: 22.4, diameter_m_min: 240, diameter_m_max: 540 },
+  { name: "2024 QH2", hazardous: false, approach_date: "in 2 days", miss_km: 6.4e7, velocity_kms: 11.5, diameter_m_min: 25, diameter_m_max: 60 },
+  { name: "2024 LW5", hazardous: false, approach_date: "in 3 days", miss_km: 3.9e7, velocity_kms: 13.7, diameter_m_min: 55, diameter_m_max: 130 },
+  { name: "2024 KZ8", hazardous: true, approach_date: "in 4 days", miss_km: 9.4e6, velocity_kms: 21.8, diameter_m_min: 200, diameter_m_max: 460 },
+  { name: "2024 HE6", hazardous: false, approach_date: "in 5 days", miss_km: 5.1e7, velocity_kms: 12.9, diameter_m_min: 40, diameter_m_max: 95 },
+  { name: "2024 GQ4", hazardous: false, approach_date: "in 6 days", miss_km: 4.7e7, velocity_kms: 15.3, diameter_m_min: 70, diameter_m_max: 160 },
+];
+
 /** Перетворення широти/довготи у 3D-позицію на сфері */
 function latLonToVec3(lat: number, lon: number, radius: number): THREE.Vector3 {
   const phi = (90 - lat) * (Math.PI / 180);
@@ -508,7 +523,7 @@ function SunLight({ sunRef }: { sunRef: React.MutableRefObject<THREE.Vector3 | n
  */
 export default function EarthGlobe() {
   const [events, setEvents] = useState<EventPoint[]>(fallbackEvents);
-  const [asteroids, setAsteroids] = useState<AsteroidObject[]>([]);
+  const [asteroids, setAsteroids] = useState<AsteroidObject[]>(fallbackAsteroids);
   const [hovered, setHovered] = useState<EventPoint | any | null>(null);
   const { t } = useI18n();
 
@@ -606,9 +621,12 @@ export default function EarthGlobe() {
         fetch(`${apiUrl}/api/sea-ice-south`).then((r) => (r.ok ? r.json() : null)),
       ]);
       const astData = await astRes.json().catch(() => null);
-      if (astData && Array.isArray(astData.objects) && astData.objects.length > 0) {
-        setAsteroids(astData.objects);
-      }
+      // Реальні астероїди (NASA NeoWs) або резервний набір, якщо API порожній
+      setAsteroids(
+        astData && Array.isArray(astData.objects) && astData.objects.length > 0
+          ? astData.objects
+          : fallbackAsteroids
+      );
       const points: EventPoint[] = [];
 
       // Поточні події з FIRMS/NOAA (пожежі, циклони)
