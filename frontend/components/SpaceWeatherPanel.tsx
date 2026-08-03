@@ -135,7 +135,7 @@ export default function SpaceWeatherPanel() {
   const f107 = scycle?.latest?.f10_7 ?? null;
 
   return (
-    <div className="absolute bottom-24 right-4 z-30 pointer-events-none">
+    <div className="absolute bottom-24 left-4 z-30 pointer-events-none">
       <div
         className={`pointer-events-auto glass-strong rounded-2xl overflow-hidden transition-all duration-500 shadow-[0_12px_48px_rgba(0,0,0,0.55)] ${
           open

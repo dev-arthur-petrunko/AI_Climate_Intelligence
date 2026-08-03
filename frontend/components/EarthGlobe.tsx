@@ -429,14 +429,17 @@ function Marker({
  *  перебуває курсор, проєктуючи світові позиції на екран (без raycast R3F).
  *  Враховує видимість (лише передня півкуля планети) та обирає найближчий об'єкт
  *  у радіусі HOVER_RADIUS px. Це гарантує роботу тултіпів незалежно від
- *  внутрішньої системи подій R3F. */
+ *  внутрішньої системи подій R3F.
+ *  Фолбэк: якщо реестр маркерів порожній — проециуємо безпосередньо з масиву events. */
 function HoverController({
   markers,
   asteroids,
+  events,
   onHover,
 }: {
   markers: React.MutableRefObject<MarkerEntry[]>;
   asteroids: React.MutableRefObject<AsteroidEntry[]>;
+  events: EventPoint[];
   onHover: (ev: EventPoint | any | null) => void;
 }) {
   const camera = useThree((s) => s.camera);
@@ -498,6 +501,25 @@ function HoverController({
         bestDist = d;
         bestKey = markerId(m.ev);
         best = { ...m.ev, _id: bestKey, _screen: { x: sx, y: sy } };
+      }
+    }
+
+    // Фолбэк: якщо реестр порожній (mount timing) — проецируємо безпосередньо з events
+    if (bestDist === HOVER_RADIUS && markers.current.length === 0) {
+      for (const ev of events) {
+        const pos = latLonToVec3(ev.coordinates[1], ev.coordinates[0], EARTH_RADIUS * 1.002);
+        v.copy(pos);
+        if (v.dot(camera.position) < 0) continue;
+        pv.copy(v).project(camera);
+        if (pv.z > 1) continue;
+        const sx = (pv.x * 0.5 + 0.5) * w;
+        const sy = (-pv.y * 0.5 + 0.5) * h;
+        const d = Math.hypot(sx - p.x, sy - p.y);
+        if (d < bestDist) {
+          bestDist = d;
+          bestKey = markerId(ev);
+          best = { ...ev, _id: bestKey, _screen: { x: sx, y: sy } };
+        }
       }
     }
 
@@ -577,6 +599,7 @@ function Scene({
       <HoverController
         markers={markerRegistry}
         asteroids={asteroidRegistry}
+        events={events}
         onHover={onHover}
       />
       <OrbitControls
