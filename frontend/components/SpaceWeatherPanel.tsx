@@ -8,8 +8,15 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import { Sun, X, RefreshCw, Cloud, Wind, Gauge, Droplets, Magnet, Flame, Radio } from "lucide-react";
-import { api, GeomagneticData, SpaceWeatherData } from "@/lib/api";
+import { Sun, X, RefreshCw, Cloud, Wind, Gauge, Droplets, Magnet, Flame, Radio, TrendingUp } from "lucide-react";
+import {
+  api,
+  GeomagneticData,
+  SpaceWeatherData,
+  KpForecastData,
+  GoesXrayData,
+  SolarCycleData,
+} from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 
 /** Рівень геомагнітної бурі за шкалою NOAA G */
@@ -43,6 +50,9 @@ export default function SpaceWeatherPanel() {
   const [loading, setLoading] = useState(true);
   const [geo, setGeo] = useState<GeomagneticData | null>(null);
   const [swd, setSwd] = useState<SpaceWeatherData | null>(null);
+  const [kpFc, setKpFc] = useState<KpForecastData | null>(null);
+  const [xray, setXray] = useState<GoesXrayData | null>(null);
+  const [scycle, setScycle] = useState<SolarCycleData | null>(null);
   const [weather, setWeather] = useState<LocalWeather | null>(null);
   const [collapsed, setCollapsed] = useState(false);
 
@@ -69,9 +79,18 @@ export default function SpaceWeatherPanel() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [geoRes, swRes] = await Promise.allSettled([api.geomagnetic(), api.spaceWeather(7)]);
+      const [geoRes, swRes, kpRes, xrayRes, scycleRes] = await Promise.allSettled([
+        api.geomagnetic(),
+        api.spaceWeather(7),
+        api.kpForecast(),
+        api.solarFlares(),
+        api.solarCycle(),
+      ]);
       setGeo(geoRes.status === "fulfilled" ? geoRes.value : null);
       setSwd(swRes.status === "fulfilled" ? swRes.value : null);
+      setKpFc(kpRes.status === "fulfilled" ? kpRes.value : null);
+      setXray(xrayRes.status === "fulfilled" ? xrayRes.value : null);
+      setScycle(scycleRes.status === "fulfilled" ? scycleRes.value : null);
       await loadLocalWeather();
     } catch {
       /* ігноруємо */
@@ -88,13 +107,18 @@ export default function SpaceWeatherPanel() {
 
   // Автоматичне відкриття за 4.2с, якщо є реальні дані
   useEffect(() => {
-    if (!loading && (geo || swd) && !open) {
+    if (!loading && (geo || swd || kpFc || xray || scycle) && !open) {
       const id = setTimeout(() => setOpen(true), 4200);
       return () => clearTimeout(id);
     }
-  }, [loading, geo, swd, open]);
+  }, [loading, geo, swd, kpFc, xray, scycle, open]);
 
-  const hasData = !!(geo && geo.current_kp != null) || !!(swd && swd.events.length > 0);
+  const hasData =
+    !!(geo && geo.current_kp != null) ||
+    !!(swd && swd.events.length > 0) ||
+    !!(kpFc && (kpFc.forecast || []).length > 0) ||
+    !!(xray && xray.flare_class) ||
+    !!(scycle && scycle.latest);
   if (loading) return null;
   if (!hasData && !weather) return null;
 
@@ -103,6 +127,12 @@ export default function SpaceWeatherPanel() {
 
   const flareEvents = (swd?.events || []).filter((e) => (e.type || "").toLowerCase().includes("flr")).slice(0, 3);
   const cmeEvents = (swd?.events || []).filter((e) => (e.type || "").toLowerCase().includes("cme")).slice(0, 3);
+
+  const kpForecast = (kpFc?.forecast || []).filter((s) => s.status !== "observed").slice(0, 6);
+  const flareClass = xray?.flare_class ?? null;
+  const flareFlux = xray?.max_flux ?? null;
+  const ssn = scycle?.latest?.ssn ?? null;
+  const f107 = scycle?.latest?.f10_7 ?? null;
 
   return (
     <div className="absolute bottom-24 right-4 z-30 pointer-events-none">
@@ -208,6 +238,69 @@ export default function SpaceWeatherPanel() {
                     </li>
                   ))}
                 </ul>
+              </div>
+            )}
+
+            {/* Поточний рентгенівський клас спалаху (GOES) */}
+            {flareClass && (
+              <div
+                className="rounded-xl border px-3 py-2.5"
+                style={{ borderColor: "#FF8A3D44", background: "#FF8A3D0d" }}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-1.5 text-[10px] uppercase tracking-[0.15em] text-secondary">
+                    <Flame className="w-3 h-3 text-[#FF8A3D]" />
+                    <span>{sw.flareClass}</span>
+                  </div>
+                  <span className="text-sm font-bold font-mono text-[#FF8A3D]">{flareClass}</span>
+                </div>
+                {flareFlux != null && (
+                  <div className="mt-1 text-[9px] text-secondary">max {flareFlux.toExponential(1)} W/m²</div>
+                )}
+              </div>
+            )}
+
+            {/* Прогноз Kp на 3 дні (NOAA SWPC) */}
+            {kpForecast.length > 0 && (
+              <div>
+                <div className="flex items-center space-x-1.5 text-[10px] uppercase tracking-[0.15em] text-secondary mb-1.5">
+                  <TrendingUp className="w-3 h-3 text-[#29F2FF]" />
+                  <span>{sw.kpForecast}</span>
+                </div>
+                <div className="flex items-end gap-1.5">
+                  {kpForecast.map((p, i) => {
+                    const c = p.kp >= 5 ? "#FF5D6C" : p.kp >= 4 ? "#FFC24D" : "#2EE6A6";
+                    return (
+                      <div key={`kp-${i}`} className="flex-1 flex flex-col items-center gap-1">
+                        <span className="text-[9px] font-mono" style={{ color: c }}>{p.kp.toFixed(0)}</span>
+                        <div
+                          className="w-full rounded-sm"
+                          style={{ height: `${Math.max(4, Math.min(100, (p.kp / 9) * 100) * 0.7)}px`, background: c }}
+                          title={p.time_tag}
+                        />
+                        <span className="text-[8px] text-secondary">{(p.time_tag || "").slice(5, 16)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Сонячний цикл: SSN + F10.7 */}
+            {(ssn != null || f107 != null) && (
+              <div className="grid grid-cols-2 gap-1.5">
+                {ssn != null && (
+                  <div className="px-2.5 py-1.5 rounded-lg bg-white/[0.03] border border-white/5">
+                    <div className="text-[9px] text-secondary uppercase tracking-wider">{sw.sunspot}</div>
+                    <div className="text-sm font-semibold text-primary">{Math.round(ssn)}</div>
+                  </div>
+                )}
+                {f107 != null && (
+                  <div className="px-2.5 py-1.5 rounded-lg bg-white/[0.03] border border-white/5">
+                    <div className="text-[9px] text-secondary uppercase tracking-wider">{sw.f107}</div>
+                    <div className="text-sm font-semibold text-primary">{Math.round(f107)}</div>
+                  </div>
+                )}
               </div>
             )}
 

@@ -11,6 +11,7 @@ import SideNavigation from "@/components/SideNavigation";
 import EarthGlobe from "@/components/EarthGlobe";
 import MissionHeader from "@/components/MissionHeader";
 import { KPICards, LiveEventFeed, AIClimateSummary } from "@/components/DashboardSections";
+import CityWeatherWidget from "@/components/CityWeatherWidget";
 import AIAnalysisPanel from "@/components/AIAnalysisPanel";
 import AsteroidsPanel from "@/components/AsteroidsPanel";
 import SpaceWeatherPanel from "@/components/SpaceWeatherPanel";
@@ -48,6 +49,10 @@ export default function Home() {
             <p className="text-secondary">{t.dashboard.sectionSubtitle}</p>
           </div>
           <KPICards />
+
+          <div className="mt-10">
+            <CityWeatherWidget />
+          </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-10">
             <AIClimateSummary />

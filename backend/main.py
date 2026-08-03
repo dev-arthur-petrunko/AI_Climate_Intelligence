@@ -24,6 +24,10 @@ from data_sources import (
     get_geomagnetic,
     get_solar_events,
     get_eonet,
+    get_geocode,
+    get_kp_forecast,
+    get_goes_xray,
+    get_solar_cycle,
 )
 from ai_groq import get_ai_analysis, get_ai_predictions
 from analytics import describe as analyze
@@ -250,6 +254,32 @@ async def eonet(days: int = Query(10, ge=1, le=30)):
     return _safe(lambda: get_eonet(days), {"events": [], "source": "fallback", "error": True})
 
 
+@app.get("/api/geocode")
+async def geocode(q: str = Query(..., min_length=2), count: int = Query(8, ge=1, le=20)):
+    """Пошук міст/країн за назвою (Open-Meteo Geocoding, без ключа).
+    Повертає назву, країну, широту/довготу для вибору міста в погоді."""
+    return _safe(lambda: get_geocode(q, count), {"results": [], "source": "fallback", "error": True})
+
+
+@app.get("/api/kp-forecast")
+async def kp_forecast():
+    """3-денний прогноз Kp-індексу (NOAA SWPC, без ключа)."""
+    return _safe(get_kp_forecast, {"forecast": [], "source": "fallback", "error": True})
+
+
+@app.get("/api/solar-flares")
+async def solar_flares():
+    """Рентгенівський потік Сонця в реальному часі (GOES-18, без ключа).
+    Дозволяє визначати поточний клас сонячного спалаху A/B/C/M/X."""
+    return _safe(get_goes_xray, {"series": [], "current": None, "source": "fallback", "error": True})
+
+
+@app.get("/api/solar-cycle")
+async def solar_cycle():
+    """Сонячний цикл: число Вольфа (SSN) та радіо-потік F10.7 (NOAA SWPC, без ключа)."""
+    return _safe(get_solar_cycle, {"latest": None, "source": "fallback", "error": True})
+
+
 def _safe(fetcher, default=None):
     """Викликати fetcher() і повернути default при будь-якій помилці."""
     try:
@@ -433,6 +463,21 @@ async def get_kpi_metrics():
             "insight": "NOAA National Hurricane Center",
         }
     )
+
+    # Геомагнітна буря — Kp-індекс у реальному часі (NOAA SWPC, без ключа)
+    geomag = _safe(get_geomagnetic, {"current_kp": None, "storm_level": "G0", "source": "fallback"})
+    current_kp = geomag.get("current_kp")
+    if current_kp is not None:
+        storm_level = geomag.get("storm_level", "G0")
+        kpis.append(
+            {
+                "name": "Geomagnetic Storm",
+                "value": f"Kp {current_kp:.1f}",
+                "trend": f"{storm_level} · live",
+                "trend_up": current_kp >= 5,
+                "insight": f"NOAA SWPC planetary Kp index · {geomag.get('source', '')}",
+            }
+        )
 
     # --- Океанічний клімат: рівень моря, тепло океану, закислення, південний лід ---
     ocean_climate = (overview_data or {}).get("ocean_climate") or {}

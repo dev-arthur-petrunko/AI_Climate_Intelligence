@@ -184,24 +184,19 @@ function Earth({
   }, []);
 
   // Автообертання планети, реальна позиція Сонця та "дихання" атмосферного сяйва.
-  // Сонце обчислюється за фактичним UTC-часом (субсолярна точка) і повертається
-  // разом із глобусом — тому термінатор день/ніч лишається географічно коректним
-  // навіть при швидкому декоративному обертанні.
+  // Сонце обчислюється за фактичним UTC-часом (субсолярна точка) і лишається
+  // нерухомим у світових координатах (далеко, на своїй реальній позиції).
+  // Земля повільно обертається декоративно — термінатор день/ніч плавно ковзає,
+  // як прискорений добовий цикл, а саме Сонце не «крутиться» навколо планети.
   useFrame((_, delta) => {
     const g = groupRef.current;
     if (g && autoRotate) {
-      g.rotation.y += delta * 0.06;
+      g.rotation.y += delta * 0.012;
     }
-    // Напрямок на Сонце у локальній системі глобуса (необерненому)…
-    const sub = sunDirection(new Date(), 1);
-    // …а потім повертаємо разом із глобусом, щоб реальна сторона планети дивилася на Сонце.
-    if (g && sunRef) {
-      const rot = g.rotation.y;
-      const cos = Math.cos(rot);
-      const sin = Math.sin(rot);
-      const x = sub[0] * cos - sub[2] * sin;
-      const z = sub[0] * sin + sub[2] * cos;
-      sunRef.current = new THREE.Vector3(x, sub[1], z);
+    // Напрямок на Сонце у світових координатах — фіксований за реальним часом (UTC).
+    if (sunRef) {
+      const sub = sunDirection(new Date(), 1);
+      sunRef.current = new THREE.Vector3(sub[0], sub[1], sub[2]);
     }
     // М'яка пульсація сяйва — вимкнена при reduced-motion
     if (reducedMotion()) return;
@@ -439,7 +434,8 @@ function Scene({
 }
 
 /** Видиме Сонце + спрямоване світло з реальної субсолярної точки.
- *  Позиція світла читається з sunRef (обновлюється Землею кожен кадр).
+ *  Позиція читається з sunRef (фіксована у світових координатах, оновлюється Землею).
+ *  Сонце знаходиться далеко — як справжнє джерело світла, а не орбітальний супутник.
  */
 function SunLight({ sunRef }: { sunRef: React.MutableRefObject<THREE.Vector3 | null> }) {
   const lightRef = useRef<THREE.DirectionalLight>(null);
@@ -453,12 +449,12 @@ function SunLight({ sunRef }: { sunRef: React.MutableRefObject<THREE.Vector3 | n
     const d = dir.clone().normalize();
     // Спрямоване світло з боку Сонця
     if (lightRef.current) {
-      lightRef.current.position.copy(d.multiplyScalar(20));
+      lightRef.current.position.copy(d.multiplyScalar(100));
       lightRef.current.target.position.set(0, 0, 0);
     }
-    // Видиме Сонце далеко на орбіті, але ближче за межі камери
+    // Видиме Сонце — далеко, щоб виглядало як реальне джерело світла
     if (sunGroupRef.current) {
-      sunGroupRef.current.position.copy(dir.clone().normalize().multiplyScalar(16));
+      sunGroupRef.current.position.copy(dir.clone().normalize().multiplyScalar(60));
       sunGroupRef.current.lookAt(0, 0, 0);
     }
     // Пульсація сонячної корони
@@ -466,31 +462,40 @@ function SunLight({ sunRef }: { sunRef: React.MutableRefObject<THREE.Vector3 | n
       sunMatRef.current.opacity = 0.9 + 0.1 * Math.sin(performance.now() / 800);
     }
     if (haloMatRef.current && !reducedMotion()) {
-      haloMatRef.current.opacity = 0.18 + 0.08 * Math.sin(performance.now() / 1200);
+      haloMatRef.current.opacity = 0.14 + 0.06 * Math.sin(performance.now() / 1200);
     }
   });
 
   return (
     <>
-      <directionalLight ref={lightRef} intensity={4.2} color="#FFF4D6" />
+      <directionalLight ref={lightRef} intensity={3.6} color="#FFF4D6" />
       {/* Яскраве ядро Сонця */}
       <group ref={sunGroupRef}>
         <mesh>
-          <sphereGeometry args={[0.45, 16, 16]} />
+          <sphereGeometry args={[1.1, 16, 16]} />
           <meshBasicMaterial ref={sunMatRef} color="#FFF9E6" toneMapped={false} />
         </mesh>
         {/* Гало/корона Сонця */}
         <mesh>
-          <sphereGeometry args={[1.3, 24, 24]} />
+          <sphereGeometry args={[3.2, 24, 24]} />
           <meshBasicMaterial
             ref={haloMatRef}
             color="#FFD98A"
             transparent
-            opacity={0.18}
+            opacity={0.14}
             depthWrite={false}
             blending={THREE.AdditiveBlending}
             toneMapped={false}
           />
+        </mesh>
+        {/* Промені сонця — тонкі діагональні смуги */}
+        <mesh rotation={[0, 0, Math.PI / 4]}>
+          <boxGeometry args={[7, 0.02, 0.02]} />
+          <meshBasicMaterial color="#FFE9A8" transparent opacity={0.12} depthWrite={false} toneMapped={false} />
+        </mesh>
+        <mesh rotation={[0, 0, -Math.PI / 4]}>
+          <boxGeometry args={[7, 0.02, 0.02]} />
+          <meshBasicMaterial color="#FFE9A8" transparent opacity={0.12} depthWrite={false} toneMapped={false} />
         </mesh>
       </group>
     </>

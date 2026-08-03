@@ -20,6 +20,13 @@ export interface WeatherForecast {
   wind_speed_10m_max?: number[];
 }
 
+export interface WeatherData {
+  current?: WeatherCurrent;
+  daily?: WeatherForecast;
+  timezone?: string;
+  _source?: string;
+}
+
 export interface OverviewData {
   location: { lat: number; lon: number };
   weather: {
@@ -200,6 +207,43 @@ export interface SpaceWeatherData {
   error?: boolean;
 }
 
+export interface GeocodeResult {
+  name: string;
+  latitude: number;
+  longitude: number;
+  country?: string | null;
+  admin1?: string | null;
+  timezone?: string | null;
+}
+
+export interface GeocodeData {
+  results: GeocodeResult[];
+  source: string;
+  error?: boolean;
+}
+
+export interface KpForecastData {
+  source: string;
+  forecast?: { time_tag?: string; kp: number; status?: string }[];
+  error?: boolean;
+}
+
+export interface GoesXrayData {
+  source: string;
+  current?: { time_tag: string; flux: number } | null;
+  flare_class?: string | null;
+  max_flux?: number | null;
+  series?: { time_tag: string; flux: number }[];
+  error?: boolean;
+}
+
+export interface SolarCycleData {
+  source: string;
+  latest?: { time_tag: string; ssn: number; f10_7: number } | null;
+  series?: { time_tag: string; ssn: number; f10_7: number }[];
+  error?: boolean;
+}
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 async function getJSON<T>(path: string, params?: Record<string, string | number>): Promise<T> {
@@ -217,6 +261,8 @@ async function getJSON<T>(path: string, params?: Record<string, string | number>
 export const api = {
   overview: (lat?: number, lon?: number) =>
     getJSON<OverviewData>("/api/overview", { lat: lat ?? 50.45, lon: lon ?? 30.52 }),
+  weather: (lat?: number, lon?: number) =>
+    getJSON<WeatherData>("/api/weather", { lat: lat ?? 50.45, lon: lon ?? 30.52 }),
   kpi: () => getJSON<KPIItem[]>("/api/kpi"),
   events: () => getJSON<ClimateEvent[]>("/api/events"),
   gistemp: () => getJSON<GISTEMPSeries>("/api/gistemp"),
@@ -235,4 +281,8 @@ export const api = {
   eonet: (days = 10) => getJSON<EonetData>("/api/eonet", { days }),
   geomagnetic: () => getJSON<GeomagneticData>("/api/geomagnetic"),
   spaceWeather: (days = 7) => getJSON<SpaceWeatherData>("/api/space-weather", { days }),
+  geocode: (q: string, count = 8) => getJSON<GeocodeData>("/api/geocode", { q, count }),
+  kpForecast: () => getJSON<KpForecastData>("/api/kp-forecast"),
+  solarFlares: () => getJSON<GoesXrayData>("/api/solar-flares"),
+  solarCycle: () => getJSON<SolarCycleData>("/api/solar-cycle"),
 };

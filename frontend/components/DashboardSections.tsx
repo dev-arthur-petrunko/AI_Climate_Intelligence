@@ -20,6 +20,7 @@ import {
   Mountain,
   CloudRain,
   Waves,
+  Magnet,
 } from "lucide-react";
 import { api, KPIItem, ClimateEvent } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
@@ -38,6 +39,7 @@ const iconMap: Record<string, any> = {
   "Antarctic Sea Ice Extent": Snowflake,
   "Active Fire Hotspots": Flame,
   "Active Cyclones": Wind,
+  "Geomagnetic Storm": Magnet,
   "Global Sea Level": Waves,
   "Ocean Heat Content": Activity,
   "Ocean pH": Gauge,
@@ -53,6 +55,7 @@ function colorFor(name: string, trendUp: boolean) {
   if (name.includes("Sea Level")) return "text-violet";
   if (name.includes("Ocean Heat")) return "text-pink";
   if (name.includes("Ocean pH")) return "text-emerald";
+  if (name.includes("Geomagnetic") || name.includes("Storm")) return "text-violet";
   return trendUp ? "text-emerald" : "text-violet";
 }
 
@@ -62,7 +65,8 @@ function TrendIcon({ name, trendUp }: { name: string; trendUp: boolean }) {
     name.includes("Fire") ||
     name.includes("CO₂") ||
     name.includes("Anomaly") ||
-    name.includes("Cyclone");
+    name.includes("Cyclone") ||
+    name.includes("Geomagnetic");
   const positive = badWhenUp ? !trendUp : trendUp;
   return (
     <span className={`text-sm ${positive ? "text-emerald" : "text-pink"}`}>

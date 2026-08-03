@@ -1054,3 +1054,167 @@ def fetch_eonet(days: int = 10) -> dict:
 
 def get_eonet(days: int = 10) -> dict:
     return _cached(f"eonet:{days}", 30 * 60, lambda: fetch_eonet(days))
+
+
+# ---------------------------------------------------------------------------
+# Open-Meteo geocoding: city/country search (no API key)
+# ---------------------------------------------------------------------------
+
+def fetch_geocode(query: str, count: int = 8, language: str = "en") -> dict:
+    """Search cities by name/country via Open-Meteo Geocoding (free, no key)."""
+    if not query or not query.strip():
+        return {"results": [], "source": "Open-Meteo Geocoding"}
+    try:
+        r = httpx.get(
+            "https://geocoding-api.open-meteo.com/v1/search",
+            params={
+                "name": query.strip(),
+                "count": max(1, min(int(count), 20)),
+                "language": language,
+                "format": "json",
+            },
+            timeout=httpx.Timeout(15.0),
+            headers=_HEADERS,
+        )
+        r.raise_for_status()
+        payload = r.json()
+    except Exception as exc:
+        logger.warning("Geocoding request failed: %s", exc)
+        return {"results": [], "source": "fallback", "error": True}
+
+    results = []
+    for item in payload.get("results") or []:
+        results.append(
+            {
+                "name": item.get("name"),
+                "country": item.get("country"),
+                "country_code": item.get("country_code"),
+                "admin1": item.get("admin1"),
+                "admin2": item.get("admin2"),
+                "latitude": item.get("latitude"),
+                "longitude": item.get("longitude"),
+                "timezone": item.get("timezone"),
+            }
+        )
+    return {"results": results, "source": "Open-Meteo Geocoding"}
+
+
+def get_geocode(query: str, count: int = 8, language: str = "en") -> dict:
+    key = f"geocode:{query.strip().lower()}:{count}:{language}"
+    return _cached(key, 7 * 24 * 3600, lambda: fetch_geocode(query, count, language))
+
+
+# ---------------------------------------------------------------------------
+# NOAA SWPC: free real-time space weather (no API key)
+# ---------------------------------------------------------------------------
+
+def fetch_kp_forecast() -> dict:
+    """NOAA SWPC 3-day planetary Kp forecast (observed + predicted), free."""
+    try:
+        r = httpx.get(
+            "https://services.swpc.noaa.gov/products/noaa-planetary-k-index-forecast.json",
+            timeout=httpx.Timeout(15.0),
+            headers=_HEADERS,
+        )
+        r.raise_for_status()
+        rows = r.json()
+    except Exception as exc:
+        logger.warning("SWPC Kp forecast failed: %s", exc)
+        return {"forecast": [], "source": "fallback", "error": True}
+
+    forecast = []
+    for row in rows or []:
+        try:
+            forecast.append(
+                {
+                    "time_tag": row.get("time_tag"),
+                    "kp": float(row.get("kp")),
+                    "status": row.get("observed") or row.get("status") or "",
+                }
+            )
+        except (TypeError, ValueError):
+            continue
+    return {"forecast": forecast, "source": "NOAA SWPC"}
+
+
+def get_kp_forecast() -> dict:
+    return _cached("kp_forecast", 30 * 60, fetch_kp_forecast)
+
+
+def fetch_goes_xray(days: int = 1) -> dict:
+    """GOES-18 X-ray flux (0.1-0.8 nm) — real-time solar flare detection, free."""
+    try:
+        r = httpx.get(
+            "https://services.swpc.noaa.gov/json/goes/primary/xrays-6-hour.json",
+            timeout=httpx.Timeout(15.0),
+            headers=_HEADERS,
+        )
+        r.raise_for_status()
+        rows = r.json()
+    except Exception as exc:
+        logger.warning("GOES X-ray failed: %s", exc)
+        return {"series": [], "current": None, "source": "fallback", "error": True}
+
+    # Long-wavelength band (0.1-0.8nm) drives flare classification
+    band = [row for row in rows or [] if row.get("energy") == "0.1-0.8nm"]
+    band.sort(key=lambda r: r.get("time_tag") or "")
+    series = [
+        {
+            "time_tag": row.get("time_tag"),
+            "flux": row.get("flux"),
+        }
+        for row in band
+    ]
+    current = series[-1] if series else None
+
+    # NOAА flare class from max flux in the window (A/B/C/M/X)
+    max_flux = max((s.get("flux") or 0) for s in series) if series else None
+    flare_class = None
+    if max_flux is not None:
+        for boundary, letter in ((1e-4, "X"), (1e-5, "M"), (1e-6, "C"), (1e-7, "B"), (1e-8, "A")):
+            if max_flux >= boundary:
+                flare_class = f"{letter}{max_flux / boundary:.1f}"
+                break
+
+    return {
+        "series": series[-180:],
+        "current": {"time_tag": current["time_tag"], "flux": current["flux"]} if current else None,
+        "max_flux": max_flux,
+        "flare_class": flare_class,
+        "source": "NOAA GOES",
+    }
+
+
+def get_goes_xray() -> dict:
+    return _cached("goes_xray", 10 * 60, lambda: fetch_goes_xray(1))
+
+
+def fetch_solar_cycle() -> dict:
+    """NOAA SWPC observed solar cycle indices: sunspot number (SSN) + F10.7, free."""
+    try:
+        r = httpx.get(
+            "https://services.swpc.noaa.gov/json/solar-cycle/observed-solar-cycle-indices.json",
+            timeout=httpx.Timeout(15.0),
+            headers=_HEADERS,
+        )
+        r.raise_for_status()
+        rows = r.json()
+    except Exception as exc:
+        logger.warning("Solar cycle indices failed: %s", exc)
+        return {"latest": None, "source": "fallback", "error": True}
+
+    latest = None
+    for row in reversed(rows or []):
+        tag = row.get("time-tag")
+        if tag and tag >= "2020-01":
+            latest = {
+                "time_tag": tag,
+                "ssn": row.get("observed_swpc_ssn"),
+                "f10_7": row.get("f10.7"),
+            }
+            break
+    return {"latest": latest, "source": "NOAA SWPC"}
+
+
+def get_solar_cycle() -> dict:
+    return _cached("solar_cycle", 6 * 3600, fetch_solar_cycle)
