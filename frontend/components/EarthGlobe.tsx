@@ -12,6 +12,7 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Stars } from "@react-three/drei";
 import * as THREE from "three";
 import { useI18n } from "@/lib/i18n";
+import { sunDirection } from "@/lib/solar";
 import AsteroidField from "./AsteroidField";
 import type { AsteroidObject } from "@/lib/api";
 
@@ -93,7 +94,14 @@ function eventColor(type?: string): string {
   switch ((type || "").toLowerCase()) {
     case "wildfire": return "#FF5C8A";
     case "cyclone": return "#7C4DFF";
+    case "severe storm": return "#29F2FF";
     case "volcano": return "#FFC24D";
+    case "flood": return "#36A3FF";
+    case "drought": return "#FF7043";
+    case "dust storm": return "#D9A066";
+    case "earthquake": return "#FF8A3D";
+    case "landslide": return "#A1887F";
+    case "ice": return "#C8D2E6";
     case "extreme rainfall": return "#36A3FF";
     case "arctic ice loss": return "#C8D2E6";
     case "coastal flood": return "#2EE6A6";
@@ -114,10 +122,17 @@ interface LegendItem {
 const LEGEND: LegendItem[] = [
   { key: "fire", color: "#FF5C8A" },
   { key: "cyclone", color: "#7C4DFF" },
+  { key: "storm", color: "#29F2FF" },
+  { key: "volcano", color: "#FFC24D" },
+  { key: "flood", color: "#36A3FF" },
+  { key: "drought", color: "#FF7043" },
+  { key: "dust", color: "#D9A066" },
+  { key: "earthquake", color: "#FF8A3D" },
+  { key: "landslide", color: "#A1887F" },
+  { key: "ice", color: "#C8D2E6" },
   { key: "seaLevel", color: "#FFC24D" },
   { key: "oceanHeat", color: "#FF7043" },
   { key: "ph", color: "#00E5FF" },
-  { key: "ice", color: "#C8D2E6" },
   { key: "asteroid", color: "#36A3FF" },
 ];
 
@@ -127,11 +142,13 @@ function Earth({
   asteroids,
   autoRotate,
   onHover,
+  sunRef,
 }: {
   events: EventPoint[];
   asteroids: AsteroidObject[];
   autoRotate: boolean;
   onHover: (ev: EventPoint | any | null) => void;
+  sunRef?: React.MutableRefObject<THREE.Vector3 | null>;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const atmosphereRef = useRef<THREE.MeshPhongMaterial>(null);
@@ -166,10 +183,25 @@ function Earth({
     return () => { cancelled = true; };
   }, []);
 
-  // Автообертання планети та "дихання" атмосферного сяйва
+  // Автообертання планети, реальна позиція Сонця та "дихання" атмосферного сяйва.
+  // Сонце обчислюється за фактичним UTC-часом (субсолярна точка) і повертається
+  // разом із глобусом — тому термінатор день/ніч лишається географічно коректним
+  // навіть при швидкому декоративному обертанні.
   useFrame((_, delta) => {
-    if (groupRef.current && autoRotate) {
-      groupRef.current.rotation.y += delta * 0.06;
+    const g = groupRef.current;
+    if (g && autoRotate) {
+      g.rotation.y += delta * 0.06;
+    }
+    // Напрямок на Сонце у локальній системі глобуса (необерненому)…
+    const sub = sunDirection(new Date(), 1);
+    // …а потім повертаємо разом із глобусом, щоб реальна сторона планети дивилася на Сонце.
+    if (g && sunRef) {
+      const rot = g.rotation.y;
+      const cos = Math.cos(rot);
+      const sin = Math.sin(rot);
+      const x = sub[0] * cos - sub[2] * sin;
+      const z = sub[0] * sin + sub[2] * cos;
+      sunRef.current = new THREE.Vector3(x, sub[1], z);
     }
     // М'яка пульсація сяйва — вимкнена при reduced-motion
     if (reducedMotion()) return;
@@ -381,15 +413,17 @@ function Scene({
   onHover: (ev: EventPoint | any | null) => void;
 }) {
   const [interacting, setInteracting] = useState(false);
+  const sunRef = useRef<THREE.Vector3 | null>(null);
   return (
     <>
-      <ambientLight intensity={2.2} />
-      <directionalLight position={[8, 4, 5]} intensity={3.2} color="#ffffff" />
+      <ambientLight intensity={0.35} />
+      {/* Реальне Сонце: напрямок = субсолярна точка (UTC), освітлює денний бік */}
+      <SunLight sunRef={sunRef} />
       <directionalLight position={[-8, -3, -6]} intensity={0.8} color="#8B9AB5" />
-      <pointLight position={[-10, -5, -5]} intensity={1.2} color="#7C4DFF" />
-      <pointLight position={[0, 8, 0]} intensity={0.8} color="#2EE6A6" />
+      <pointLight position={[-10, -5, -5]} intensity={0.6} color="#7C4DFF" />
+      <pointLight position={[0, 8, 0]} intensity={0.4} color="#2EE6A6" />
       <Stars radius={100} depth={50} count={4000} factor={4} fade speed={0.5} />
-      <Earth events={events} asteroids={asteroids} autoRotate={!interacting} onHover={onHover} />
+      <Earth events={events} asteroids={asteroids} autoRotate={!interacting} onHover={onHover} sunRef={sunRef} />
       <OrbitControls
         enableZoom={true}
         zoomSpeed={0.4}
@@ -400,6 +434,65 @@ function Scene({
         onStart={() => setInteracting(true)}
         onEnd={() => setInteracting(false)}
       />
+    </>
+  );
+}
+
+/** Видиме Сонце + спрямоване світло з реальної субсолярної точки.
+ *  Позиція світла читається з sunRef (обновлюється Землею кожен кадр).
+ */
+function SunLight({ sunRef }: { sunRef: React.MutableRefObject<THREE.Vector3 | null> }) {
+  const lightRef = useRef<THREE.DirectionalLight>(null);
+  const sunGroupRef = useRef<THREE.Group>(null);
+  const sunMatRef = useRef<THREE.MeshBasicMaterial>(null);
+  const haloMatRef = useRef<THREE.MeshBasicMaterial>(null);
+
+  useFrame(() => {
+    const dir = sunRef.current;
+    if (!dir) return;
+    const d = dir.clone().normalize();
+    // Спрямоване світло з боку Сонця
+    if (lightRef.current) {
+      lightRef.current.position.copy(d.multiplyScalar(20));
+      lightRef.current.target.position.set(0, 0, 0);
+    }
+    // Видиме Сонце далеко на орбіті, але ближче за межі камери
+    if (sunGroupRef.current) {
+      sunGroupRef.current.position.copy(dir.clone().normalize().multiplyScalar(16));
+      sunGroupRef.current.lookAt(0, 0, 0);
+    }
+    // Пульсація сонячної корони
+    if (sunMatRef.current && !reducedMotion()) {
+      sunMatRef.current.opacity = 0.9 + 0.1 * Math.sin(performance.now() / 800);
+    }
+    if (haloMatRef.current && !reducedMotion()) {
+      haloMatRef.current.opacity = 0.18 + 0.08 * Math.sin(performance.now() / 1200);
+    }
+  });
+
+  return (
+    <>
+      <directionalLight ref={lightRef} intensity={4.2} color="#FFF4D6" />
+      {/* Яскраве ядро Сонця */}
+      <group ref={sunGroupRef}>
+        <mesh>
+          <sphereGeometry args={[0.45, 16, 16]} />
+          <meshBasicMaterial ref={sunMatRef} color="#FFF9E6" toneMapped={false} />
+        </mesh>
+        {/* Гало/корона Сонця */}
+        <mesh>
+          <sphereGeometry args={[1.3, 24, 24]} />
+          <meshBasicMaterial
+            ref={haloMatRef}
+            color="#FFD98A"
+            transparent
+            opacity={0.18}
+            depthWrite={false}
+            blending={THREE.AdditiveBlending}
+            toneMapped={false}
+          />
+        </mesh>
+      </group>
     </>
   );
 }
@@ -494,12 +587,13 @@ export default function EarthGlobe() {
     [t]
   );
 
-  /** Завантаження подій, астероїдів та океанічних даних з API бекенду */
+  /** Завантаження подій, EONET, астероїдів та океанічних даних з API бекенду */
   const load = useCallback(async () => {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
     try {
-      const [eventsRes, astRes, sl, oh, ph, south] = await Promise.all([
+      const [eventsRes, eonetRes, astRes, sl, oh, ph, south] = await Promise.all([
         fetch(`${apiUrl}/api/events`),
+        fetch(`${apiUrl}/api/eonet?days=14`).catch(() => null),
         fetch(`${apiUrl}/api/asteroids?days=7`),
         fetch(`${apiUrl}/api/sea-level`).then((r) => (r.ok ? r.json() : null)),
         fetch(`${apiUrl}/api/ocean-heat`).then((r) => (r.ok ? r.json() : null)),
@@ -510,11 +604,13 @@ export default function EarthGlobe() {
       if (astData && Array.isArray(astData.objects) && astData.objects.length > 0) {
         setAsteroids(astData.objects);
       }
-      const data = await eventsRes.json();
       const points: EventPoint[] = [];
+
+      // Поточні події з FIRMS/NOAA (пожежі, циклони)
+      const data = await eventsRes.json().catch(() => null);
       if (Array.isArray(data) && data.length > 0) {
         points.push(
-          ...data.slice(0, 200).map((ev: any) => ({
+          ...data.slice(0, 160).map((ev: any) => ({
             coordinates: ev.coordinates as [number, number],
             event_type: ev.event_type,
             severity: ev.severity,
@@ -523,6 +619,24 @@ export default function EarthGlobe() {
           }))
         );
       }
+
+      // Події NASA EONET (природні катастрофи без ключа) — без Wildfire,
+      // щоб не дублювати пожежі FIRMS на глобусі
+      const eonet = eonetRes ? await eonetRes.json().catch(() => null) : null;
+      if (eonet && Array.isArray(eonet.events)) {
+        const eonetPoints: EventPoint[] = eonet.events
+          .filter((e: any) => e.coordinates && e.event_type && e.event_type !== "Wildfire")
+          .slice(0, 90)
+          .map((e: any) => ({
+            coordinates: e.coordinates as [number, number],
+            event_type: e.event_type,
+            severity: e.severity || "medium",
+            location: e.title || e.location,
+            time: e.time,
+          }));
+        points.push(...eonetPoints);
+      }
+
       points.push(...buildOceanPoints(sl, oh, ph, south));
       if (points.length > 0) {
         setEvents(points);

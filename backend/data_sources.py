@@ -968,3 +968,89 @@ def _num(value) -> float | None:
         return round(float(value), 3)
     except (TypeError, ValueError):
         return None
+
+
+# ---------------------------------------------------------------------------
+# NASA EONET: unified global natural events feed (no API key)
+# ---------------------------------------------------------------------------
+
+# Маппінг категорій EONET -> наші типи подій для глобуса/легенди
+_EONET_CATEGORY_MAP = {
+    "wildfires": "Wildfire",
+    "volcanoes": "Volcano",
+    "severeStorms": "Severe Storm",
+    "floods": "Flood",
+    "seaLakeIce": "Ice",
+    "snow": "Ice",
+    "drought": "Drought",
+    "dustHaze": "Dust Storm",
+    "earthquakes": "Earthquake",
+    "landslides": "Landslide",
+    "tempExtremes": "Other",
+    "manmade": "Other",
+    "waterColor": "Other",
+}
+
+
+def fetch_eonet(days: int = 10) -> dict:
+    """NASA EONET v3 events feed — всі природні події на планеті в одному форматі.
+
+    Категорії: пожежі, вулкани, повені, шторми, лід/сніг, посухи, пилові бурі,
+    тропічні циклони тощо. Координати [lon, lat] і дата — готові для 3D-глобуса.
+    Не потребує API-ключа.
+    """
+    days = max(1, min(int(days), 30))
+    events = []
+    try:
+        r = httpx.get(
+            "https://eonet.gsfc.nasa.gov/api/v3/events",
+            params={"status": "ongoing", "days": days},
+            timeout=httpx.Timeout(20.0),
+            headers=_HEADERS,
+        )
+        r.raise_for_status()
+        payload = r.json()
+    except Exception as exc:
+        logger.warning("EONET request failed: %s", exc)
+        return {"events": [], "source": "fallback", "error": True}
+
+    for item in payload.get("events") or []:
+        categories = item.get("categories") or []
+        cat_title = (categories[0].get("title") or "") if categories else ""
+        event_type = "Other"
+        for cat in categories:
+            key = (cat.get("id") or "")
+            event_type = _EONET_CATEGORY_MAP.get(key, "Other")
+            if event_type != "Other":
+                break
+        # Беремо першу (останню) геометрію події — Point з координатами
+        geom = (item.get("geometry") or [{}])[0]
+        coords = geom.get("coordinates")
+        if not coords or len(coords) < 2:
+            continue
+        lon, lat = float(coords[0]), float(coords[1])
+        date = (item.get("geometry") or [{}])[0].get("date") or item.get("sources", [{}])[0].get("id") or ""
+        events.append(
+            {
+                "id": item.get("id"),
+                "event_type": event_type,
+                "title": item.get("title"),
+                "location": item.get("title"),
+                "time": (geom.get("date") or "").strip(),
+                "severity": "high" if event_type in ("Wildfire", "Cyclone", "Earthquake") else "medium",
+                "coordinates": [lon, lat],
+                "status": item.get("status", "ongoing"),
+            }
+        )
+
+    events.sort(key=lambda e: e.get("time") or "", reverse=True)
+    return {
+        "source": "NASA EONET",
+        "range_days": days,
+        "count": len(events),
+        "events": events[:60],
+    }
+
+
+def get_eonet(days: int = 10) -> dict:
+    return _cached(f"eonet:{days}", 30 * 60, lambda: fetch_eonet(days))

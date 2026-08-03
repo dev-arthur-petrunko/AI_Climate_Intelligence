@@ -23,6 +23,7 @@ from data_sources import (
     get_neo,
     get_geomagnetic,
     get_solar_events,
+    get_eonet,
 )
 from ai_groq import get_ai_analysis, get_ai_predictions
 from analytics import describe as analyze
@@ -240,6 +241,13 @@ async def geomagnetic():
 async def space_weather(days: int = Query(7, ge=1, le=30)):
     """Космічна погода: сонячні спалахи, CME, геомагнітні бурі (NASA DONKI)"""
     return _safe(lambda: get_solar_events(days), {"events": [], "source": "fallback", "error": True})
+
+
+@app.get("/api/eonet")
+async def eonet(days: int = Query(10, ge=1, le=30)):
+    """Єдина лента природних подій на Землі (NASA EONET v3, без ключа).
+    Пожежі, вулкани, повені, шторми, лід/сніг, посухи, пилові бурі, циклони."""
+    return _safe(lambda: get_eonet(days), {"events": [], "source": "fallback", "error": True})
 
 
 def _safe(fetcher, default=None):

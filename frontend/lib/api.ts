@@ -158,6 +158,48 @@ export interface AsteroidsData {
   error?: boolean;
 }
 
+export interface EonetEvent {
+  id?: string;
+  event_type: string;
+  title?: string;
+  location?: string;
+  time?: string;
+  severity?: string;
+  coordinates?: [number, number] | null;
+  status?: string;
+}
+
+export interface EonetData {
+  source: string;
+  range_days?: number;
+  count?: number;
+  events: EonetEvent[];
+  error?: boolean;
+}
+
+export interface GeomagneticData {
+  source: string;
+  current_kp: number | null;
+  storm_level: string;
+  series?: { time_tag: string; kp: number }[];
+  error?: boolean;
+}
+
+export interface SolarEvent {
+  type: string;
+  start_time: string;
+  class_?: string | null;
+  source_location?: string | null;
+}
+
+export interface SpaceWeatherData {
+  source: string;
+  range?: { start: string; end: string };
+  count?: number;
+  events: SolarEvent[];
+  error?: boolean;
+}
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 async function getJSON<T>(path: string, params?: Record<string, string | number>): Promise<T> {
@@ -190,4 +232,7 @@ export const api = {
   predictions: (lang?: string) =>
     getJSON<AIPrediction[]>("/api/predictions", lang ? { lang } : undefined),
   asteroids: (days = 7) => getJSON<AsteroidsData>("/api/asteroids", { days }),
+  eonet: (days = 10) => getJSON<EonetData>("/api/eonet", { days }),
+  geomagnetic: () => getJSON<GeomagneticData>("/api/geomagnetic"),
+  spaceWeather: (days = 7) => getJSON<SpaceWeatherData>("/api/space-weather", { days }),
 };
