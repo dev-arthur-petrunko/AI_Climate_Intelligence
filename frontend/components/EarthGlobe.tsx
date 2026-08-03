@@ -47,8 +47,14 @@ function freshnessOf(time?: string): Freshness {
   const t = Date.parse(time);
   if (Number.isNaN(t)) return "live";
   const days = (Date.now() - t) / 86400000;
-  if (days <= 30) return "fresh";
-  if (days <= 365) return "stale";
+  // Кліматичні індикатори (ocean heat/pH/sea level) оновлюються рідко —
+  // найсвіжіше значення може мати дату попереднього року. Точку з датою
+  // у поточному або минулому році вважаємо актуальною, а не "outdated".
+  const years = new Date(t).getFullYear();
+  const currentYear = new Date().getFullYear();
+  if (years < currentYear - 1) return "outdated";
+  if (days <= 400) return "fresh";
+  if (days <= 800) return "stale";
   return "outdated";
 }
 
@@ -90,8 +96,8 @@ function eventColor(type?: string): string {
     case "arctic ice loss": return "#C8D2E6";
     case "coastal flood": return "#2EE6A6";
     case "sea level": return "#FFC24D";
-    case "ocean heat": return "#FF5C8A";
-    case "ocean ph": return "#7C4DFF";
+    case "ocean heat": return "#FF7043";
+    case "ocean ph": return "#00E5FF";
     case "antarctic ice": return "#29F2FF";
     default: return "#2EE6A6";
   }
@@ -107,8 +113,8 @@ const LEGEND: LegendItem[] = [
   { key: "fire", color: "#FF5C8A" },
   { key: "cyclone", color: "#7C4DFF" },
   { key: "seaLevel", color: "#FFC24D" },
-  { key: "oceanHeat", color: "#FF5C8A" },
-  { key: "ph", color: "#7C4DFF" },
+  { key: "oceanHeat", color: "#FF7043" },
+  { key: "ph", color: "#00E5FF" },
   { key: "ice", color: "#C8D2E6" },
 ];
 
@@ -413,12 +419,14 @@ export default function EarthGlobe() {
           [-43.21, -22.9], // Rio de Janeiro
         ];
         coasts.forEach(([lon, lat]) => {
+          const slDate = sl?.latest?.date;
           points.push({
             coordinates: [lon, lat],
             event_type: "Sea Level",
             severity: "medium",
-            location: `${slValue >= 0 ? "+" : ""}${slValue.toFixed(1)} mm · ${t.globe.legend.seaLevel}`,
-            time: sl?.latest?.date,
+            location: `${slValue >= 0 ? "+" : ""}${slValue.toFixed(1)} mm · ${t.globe.legend.seaLevel}${
+              slDate ? ` · ${String(slDate).slice(0, 4)}` : ""
+            }`,
           });
         });
       }
@@ -437,8 +445,9 @@ export default function EarthGlobe() {
             coordinates: [lon, lat],
             event_type: "Ocean Heat",
             severity: "high",
-            location: `${ohValue.toFixed(0)} ZJ · ${t.globe.legend.oceanHeat}`,
-            time: oh?.latest?.year != null ? String(oh.latest.year) : undefined,
+            location: `${ohValue.toFixed(0)} ZJ · ${t.globe.legend.oceanHeat}${
+              oh?.latest?.year != null ? ` · ${oh.latest.year}` : ""
+            }`,
           });
         });
       }
@@ -446,12 +455,14 @@ export default function EarthGlobe() {
       // Закислення океану — станція Гаваї (джерело даних)
       const phValue = ph?.latest?.value;
       if (typeof phValue === "number") {
+        const phDate = ph?.latest?.date;
         points.push({
           coordinates: [-155.28, 19.42],
           event_type: "Ocean pH",
           severity: "medium",
-          location: `pH ${phValue.toFixed(3)} · ${t.globe.legend.ph}`,
-          time: ph?.latest?.date,
+          location: `pH ${phValue.toFixed(3)} · ${t.globe.legend.ph}${
+            phDate ? ` · ${String(phDate).slice(0, 4)}` : ""
+          }`,
         });
       }
 

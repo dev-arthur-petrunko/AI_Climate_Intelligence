@@ -743,3 +743,228 @@ def _fallback_fires_data() -> dict:
 
 def get_fires(days: int = 1) -> dict:
     return _cached(f"fires:{days}", 600, lambda: fetch_fires(days))
+
+
+# ---------------------------------------------------------------------------
+# NASA NeoWs: near-Earth asteroids (requires NASA_API_KEY)
+# ---------------------------------------------------------------------------
+
+def fetch_neo(days: int = 7) -> dict:
+    """Near-Earth objects approaching Earth from NASA NeoWs.
+
+    The API allows a max range of 7 days per request. Returns a flat list of
+    approach events normalized to a compact shape for the 3D globe.
+    """
+    api_key = os.getenv("NASA_API_KEY", "").strip()
+    if not api_key:
+        logger.warning("NASA_API_KEY not set, returning empty NEO fallback")
+        return {"objects": [], "source": "fallback", "error": True}
+
+    days = max(1, min(int(days), 7))
+    today = datetime.now(timezone.utc).date()
+    start_date = today.isoformat()
+    end_date = (today + timedelta(days=days - 1)).isoformat()
+
+    try:
+        r = httpx.get(
+            "https://api.nasa.gov/neo/rest/v1/feed",
+            params={"start_date": start_date, "end_date": end_date, "api_key": api_key},
+            timeout=httpx.Timeout(15.0),
+        )
+        r.raise_for_status()
+        payload = r.json()
+    except Exception as exc:
+        logger.warning("NeoWs request failed: %s", exc)
+        return {"objects": [], "source": "fallback", "error": True}
+
+    objects = []
+    for day_objects in (payload.get("near_earth_objects") or {}).values():
+        for neo in day_objects or []:
+            approach = (neo.get("close_approach_data") or [{}])[0]
+            diameter = (neo.get("estimated_diameter") or {}).get("meters") or {}
+            objects.append(
+                {
+                    "name": neo.get("name"),
+                    "hazardous": bool(neo.get("is_potentially_hazardous_asteroid")),
+                    "approach_date": (approach.get("close_approach_date_full") or "").strip(),
+                    "miss_km": _num(approach.get("miss_distance", {}).get("kilometers")),
+                    "velocity_kms": _num(
+                        approach.get("relative_velocity", {}).get("kilometers_per_second")
+                    ),
+                    "diameter_m_min": _num(diameter.get("estimated_diameter_min")),
+                    "diameter_m_max": _num(diameter.get("estimated_diameter_max")),
+                }
+            )
+
+    return {
+        "source": "NASA NeoWs",
+        "range": {"start": start_date, "end": end_date},
+        "count": len(objects),
+        "objects": objects,
+    }
+
+
+def get_neo(days: int = 7) -> dict:
+    return _cached(f"neo:{days}", 6 * 3600, lambda: fetch_neo(days))
+
+
+# ---------------------------------------------------------------------------
+# NOAA SWPC: geomagnetic activity (Kp index, real time)
+# ---------------------------------------------------------------------------
+
+def fetch_geomagnetic() -> dict:
+    """Planetary Kp index from NOAA SWPC, latest values + derived G-scale storm level."""
+    try:
+        r = httpx.get(
+            "https://services.swpc.noaa.gov/json/planetary_k_index_1m.json",
+            timeout=httpx.Timeout(15.0),
+        )
+        r.raise_for_status()
+        rows = r.json()
+    except Exception as exc:
+        logger.warning("SWPC Kp request failed: %s", exc)
+        return {"current_kp": None, "series": [], "storm_level": "G0", "source": "fallback", "error": True}
+
+    series = []
+    for row in rows or []:
+        try:
+            value = float(row.get("kp_index"))
+        except (TypeError, ValueError):
+            continue
+        series.append(
+            {
+                "time_tag": (row.get("time_tag") or "").strip(),
+                "kp": round(value, 1),
+            }
+        )
+
+    current_kp = series[-1]["kp"] if series else None
+    storm_level = _gscale_from_kp(current_kp)
+
+    return {
+        "source": "NOAA SWPC",
+        "current_kp": current_kp,
+        "storm_level": storm_level,
+        "series": series[-96:],  # останні ~24 години (5-хв крок)
+    }
+
+
+def get_geomagnetic() -> dict:
+    return _cached("geomagnetic", 15 * 60, fetch_geomagnetic)
+
+
+def _gscale_from_kp(kp: float | None) -> str:
+    """NOAA G-scale storm level derived from planetary Kp."""
+    if kp is None:
+        return "G0"
+    if kp >= 9:
+        return "G5"
+    if kp >= 8:
+        return "G4"
+    if kp >= 7:
+        return "G3"
+    if kp >= 6:
+        return "G2"
+    if kp >= 5:
+        return "G1"
+    return "G0"
+
+
+# ---------------------------------------------------------------------------
+# NASA DONKI: solar events (flares, CME, geomagnetic storms)
+# ---------------------------------------------------------------------------
+
+def fetch_solar_events(days: int = 7) -> dict:
+    """Combine DONKI GST (geomagnetic storms), FLR (solar flares) and CME
+    (coronal mass ejections) into one normalized event list."""
+    api_key = os.getenv("NASA_API_KEY", "").strip()
+    if not api_key:
+        logger.warning("NASA_API_KEY not set, returning empty solar events fallback")
+        return {"events": [], "source": "fallback", "error": True}
+
+    days = max(1, min(int(days), 30))
+    start = (datetime.now(timezone.utc) - timedelta(days=days)).date().isoformat()
+    end = datetime.now(timezone.utc).date().isoformat()
+
+    events = []
+    for kind, url, params in (
+        (
+            "GST",
+            "https://api.nasa.gov/DONKI/GST",
+            {"startDate": start, "endDate": end, "api_key": api_key},
+        ),
+        (
+            "FLR",
+            "https://api.nasa.gov/DONKI/FLR",
+            {"startDate": start, "endDate": end, "api_key": api_key},
+        ),
+        (
+            "CME",
+            "https://api.nasa.gov/DONKI/CME",
+            {"startDate": start, "endDate": end, "api_key": api_key},
+        ),
+    ):
+        try:
+            resp = httpx.get(url, params=params, timeout=httpx.Timeout(15.0))
+            resp.raise_for_status()
+            rows = resp.json()
+        except Exception as exc:
+            logger.warning("DONKI %s request failed: %s", kind, exc)
+            continue
+
+        for item in rows or []:
+            event = _normalize_solar_event(kind, item)
+            if event:
+                events.append(event)
+
+    events.sort(key=lambda e: e.get("start_time") or "")
+    return {
+        "source": "NASA DONKI",
+        "range": {"start": start, "end": end},
+        "count": len(events),
+        "events": events,
+    }
+
+
+def get_solar_events(days: int = 7) -> dict:
+    return _cached(f"solar_events:{days}", 6 * 3600, lambda: fetch_solar_events(days))
+
+
+def _normalize_solar_event(kind: str, item: dict) -> dict | None:
+    """Flatten a single DONKI event into a compact shape."""
+    try:
+        if kind == "GST":
+            return {
+                "type": "GST",
+                "start_time": (item.get("startTime") or "").strip(),
+                "class_": item.get("gstKpIndex"),
+                "source_location": None,
+            }
+        if kind == "FLR":
+            return {
+                "type": "FLR",
+                "start_time": (item.get("beginTime") or "").strip(),
+                "class_": item.get("classType"),
+                "source_location": item.get("sourceLocation"),
+            }
+        if kind == "CME":
+            linked = (item.get("linkedEvents") or [{}])[0] or {}
+            return {
+                "type": "CME",
+                "start_time": (item.get("startTime") or "").strip(),
+                "class_": (item.get("cmeAnalyses") or [{}])[0].get("type") if item.get("cmeAnalyses") else None,
+                "source_location": linked.get("activityID"),
+            }
+    except Exception as exc:  # pragma: no cover
+        logger.warning("Failed to normalize DONKI %s event: %s", kind, exc)
+    return None
+
+
+def _num(value) -> float | None:
+    """Safe numeric conversion that returns None on empty/invalid input."""
+    if value in (None, ""):
+        return None
+    try:
+        return round(float(value), 3)
+    except (TypeError, ValueError):
+        return None

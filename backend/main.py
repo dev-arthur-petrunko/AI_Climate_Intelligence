@@ -20,6 +20,9 @@ from data_sources import (
     get_ocean_ph,
     get_hurricanes,
     get_fires,
+    get_neo,
+    get_geomagnetic,
+    get_solar_events,
 )
 from ai_groq import get_ai_analysis, get_ai_predictions
 from analytics import describe as analyze
@@ -219,6 +222,24 @@ async def hurricanes():
 async def fires(days: int = Query(1, ge=1, le=7)):
     """Активні осередки пожеж (NASA FIRMS, потрібен FIRMS_API_KEY)"""
     return get_fires(days)
+
+
+@app.get("/api/asteroids")
+async def asteroids(days: int = Query(7, ge=1, le=7)):
+    """Навколоземні астероїди (NASA NeoWs, потрібен NASA_API_KEY)"""
+    return _safe(lambda: get_neo(days), {"objects": [], "source": "fallback", "error": True})
+
+
+@app.get("/api/geomagnetic")
+async def geomagnetic():
+    """Геомагнітна активність Kp-індекс в реальному часі (NOAA SWPC)"""
+    return _safe(get_geomagnetic, {"current_kp": None, "series": [], "storm_level": "G0", "source": "fallback", "error": True})
+
+
+@app.get("/api/space-weather")
+async def space_weather(days: int = Query(7, ge=1, le=30)):
+    """Космічна погода: сонячні спалахи, CME, геомагнітні бурі (NASA DONKI)"""
+    return _safe(lambda: get_solar_events(days), {"events": [], "source": "fallback", "error": True})
 
 
 def _safe(fetcher, default=None):
@@ -494,7 +515,15 @@ async def get_climate_events():
     # --- Реальні дані: пожежі (NASA FIRMS) ---
     try:
         fires_data = get_fires(1)
-        for fire in fires_data.get("fires", [])[:21]:
+        fires = fires_data.get("fires", [])
+        # Беремо рівномірну вибірку по всій планеті, а не перші рядки CSV
+        # (CSV відсортований, перші записи можуть бути скупчені в одному регіоні).
+        if len(fires) > 24:
+            step = max(1, len(fires) // 24)
+            sampled = fires[::step][:24]
+        else:
+            sampled = fires
+        for fire in sampled:
             coords = fire.get("coordinates")
             if coords:
                 events.append(
