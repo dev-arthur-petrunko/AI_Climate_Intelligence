@@ -40,7 +40,7 @@ interface MarkerEntry {
 }
 
 /** Радіус (px), у якому маркер/астероїд «ловить» курсор для тултіпа */
-const HOVER_RADIUS = 40;
+const HOVER_RADIUS = 60;
 
 /** Стабільний ідентифікатор маркера для hover-підсвітки та тултіпа */
 function markerId(ev: EventPoint): string {

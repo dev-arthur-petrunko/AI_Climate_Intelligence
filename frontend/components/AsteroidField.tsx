@@ -55,7 +55,9 @@ function orbitParams(obj: AsteroidObject, index: number): OrbitParams {
   const inclination = ((index * 0.61) % 1) * 0.6 - 0.3;
   const node = (index * 2.39996) % (Math.PI * 2);
   const phase = (index * 1.618) % (Math.PI * 2);
-  const speed = (0.018 + ((index % 7) / 7) * 0.022) * (7.4 / radius);
+  // Реалістична кутова швидкість: реальні NEO на зближенні рухаються ~1–10°/год
+  // = 5e-6 – 5e-5 rad/frame (при 60 fps). Масштабуємо за радіусом орбіти.
+  const speed = (5e-6 + ((index % 7) / 7) * 4.5e-5) * (7.4 / radius);
   const size = diameterToSize(obj.diameter_m_max);
   return { radius, inclination, node, phase, speed, size };
 }
