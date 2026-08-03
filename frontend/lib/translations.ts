@@ -262,6 +262,19 @@ export const en = {
     viewPredictions: "View AI predictions",
     offline: "Offline model",
   },
+  asteroids: {
+    title: "Near-Earth Asteroids",
+    subtitle: "NASA NeoWs · next 7 days",
+    close: "Close",
+    refresh: "Refresh",
+    open: "Open asteroids",
+    toggle: "Toggle panel",
+    miss: "Miss distance",
+    velocity: "Velocity",
+    diameter: "Size",
+    hazardous: "Hazardous",
+    noData: "No asteroid data available",
+  },
 };
 
 export const uk: TranslationDict = {
@@ -504,6 +517,19 @@ export const uk: TranslationDict = {
     toggle: "Згорнути панель",
     viewPredictions: "Переглянути AI прогнози",
     offline: "Офлайн модель",
+  },
+  asteroids: {
+    title: "Навколоземні астероїди",
+    subtitle: "NASA NeoWs · наступні 7 днів",
+    close: "Закрити",
+    refresh: "Оновити",
+    open: "Відкрити астероїди",
+    toggle: "Згорнути панель",
+    miss: "Відстань прольоту",
+    velocity: "Швидкість",
+    diameter: "Розмір",
+    hazardous: "Небезпечний",
+    noData: "Дані про астероїди недоступні",
   },
 };
 
@@ -748,6 +774,19 @@ export const de: TranslationDict = {
     viewPredictions: "KI-Prognosen ansehen",
     offline: "Offline-Modell",
   },
+  asteroids: {
+    title: "Erdnahe Asteroiden",
+    subtitle: "NASA NeoWs · nächste 7 Tage",
+    close: "Schließen",
+    refresh: "Aktualisieren",
+    open: "Asteroiden öffnen",
+    toggle: "Panel umschalten",
+    miss: "Vorbeiflug-Distanz",
+    velocity: "Geschwindigkeit",
+    diameter: "Größe",
+    hazardous: "Gefährlich",
+    noData: "Keine Asteroidendaten verfügbar",
+  },
 };
 
 export const pl: TranslationDict = {
@@ -990,6 +1029,19 @@ export const pl: TranslationDict = {
     toggle: "Przełącz panel",
     viewPredictions: "Zobacz prognozy AI",
     offline: "Model offline",
+  },
+  asteroids: {
+    title: "Planetoidy bliskie Ziemi",
+    subtitle: "NASA NeoWs · następne 7 dni",
+    close: "Zamknij",
+    refresh: "Odśwież",
+    open: "Otwórz planetoidy",
+    toggle: "Przełącz panel",
+    miss: "Odległość przelotu",
+    velocity: "Prędkość",
+    diameter: "Rozmiar",
+    hazardous: "Niebezpieczny",
+    noData: "Brak danych o planetoidach",
   },
 };
 
@@ -1234,6 +1286,19 @@ export const fr: TranslationDict = {
     viewPredictions: "Voir les prévisions IA",
     offline: "Modèle hors ligne",
   },
+  asteroids: {
+    title: "Astéroïdes géocroiseurs",
+    subtitle: "NASA NeoWs · 7 prochains jours",
+    close: "Fermer",
+    refresh: "Actualiser",
+    open: "Ouvrir les astéroïdes",
+    toggle: "Basculer le panneau",
+    miss: "Distance de survol",
+    velocity: "Vitesse",
+    diameter: "Taille",
+    hazardous: "Dangereux",
+    noData: "Aucune donnée sur les astéroïdes",
+  },
 };
 
 export const it: TranslationDict = {
@@ -1477,6 +1542,19 @@ export const it: TranslationDict = {
     viewPredictions: "Vedi le previsioni IA",
     offline: "Modello offline",
   },
+  asteroids: {
+    title: "Asteroidi vicini alla Terra",
+    subtitle: "NASA NeoWs · prossimi 7 giorni",
+    close: "Chiudi",
+    refresh: "Aggiorna",
+    open: "Apri gli asteroidi",
+    toggle: "Attiva/disattiva pannello",
+    miss: "Distanza di passaggio",
+    velocity: "Velocità",
+    diameter: "Dimensioni",
+    hazardous: "Pericoloso",
+    noData: "Nessun dato sugli asteroidi",
+  },
 };
 
 export const ka: TranslationDict = {
@@ -1719,6 +1797,19 @@ export const ka: TranslationDict = {
     toggle: "პანელის გადართვა",
     viewPredictions: "AI პროგნოზების ნახვა",
     offline: "ოფლაინ მოდელი",
+  },
+  asteroids: {
+    title: "დედამიწასთან ახლოს ასტეროიდები",
+    subtitle: "NASA NeoWs · შემდეგი 7 დღე",
+    close: "დახურვა",
+    refresh: "განახლება",
+    open: "ასტეროიდების გახსნა",
+    toggle: "პანელის გადართვა",
+    miss: "გავლის მანძილი",
+    velocity: "სიჩქარე",
+    diameter: "ზომა",
+    hazardous: "საშიში",
+    noData: "ასტეროიდების მონაცემები მიუწვდომელია",
   },
 };
 

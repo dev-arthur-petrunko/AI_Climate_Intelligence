@@ -12,6 +12,7 @@ import EarthGlobe from "@/components/EarthGlobe";
 import MissionHeader from "@/components/MissionHeader";
 import { KPICards, LiveEventFeed, AIClimateSummary } from "@/components/DashboardSections";
 import AIAnalysisPanel from "@/components/AIAnalysisPanel";
+import AsteroidsPanel from "@/components/AsteroidsPanel";
 import { useI18n } from "@/lib/i18n";
 
 export default function Home() {
@@ -26,6 +27,9 @@ export default function Home() {
 
         {/* AI-аналіз — окреме вікно, спливає справа на глобусі */}
         <AIAnalysisPanel />
+
+        {/* Навколоземні астероїди — панель зліва на глобусі */}
+        <AsteroidsPanel />
 
         {/* Плавний градієнтний перехід до дашборду */}
         <div className="absolute bottom-0 left-0 right-0 h-56 bg-gradient-to-b from-transparent via-background/30 to-background pointer-events-none z-10" />

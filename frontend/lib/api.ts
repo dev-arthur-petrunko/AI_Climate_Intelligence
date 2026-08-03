@@ -140,6 +140,24 @@ export interface AIPrediction {
   timeframe?: string;
 }
 
+export interface AsteroidObject {
+  name: string;
+  hazardous: boolean;
+  approach_date: string;
+  miss_km: number | null;
+  velocity_kms: number | null;
+  diameter_m_min: number | null;
+  diameter_m_max: number | null;
+}
+
+export interface AsteroidsData {
+  source: string;
+  range?: { start: string; end: string };
+  count?: number;
+  objects: AsteroidObject[];
+  error?: boolean;
+}
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 async function getJSON<T>(path: string, params?: Record<string, string | number>): Promise<T> {
@@ -171,4 +189,5 @@ export const api = {
     getJSON<AIAnalysis>("/api/ai-analysis", lang ? { lang } : undefined),
   predictions: (lang?: string) =>
     getJSON<AIPrediction[]>("/api/predictions", lang ? { lang } : undefined),
+  asteroids: (days = 7) => getJSON<AsteroidsData>("/api/asteroids", { days }),
 };

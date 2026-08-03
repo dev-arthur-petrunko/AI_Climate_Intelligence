@@ -310,6 +310,7 @@ async def overview(lat: float = Query(DEFAULT_LAT), lon: float = Query(DEFAULT_L
             "precipitation": current.get("precipitation"),
             "weather_code": current.get("weather_code"),
             "forecast": daily,
+            "source": weather_data.get("_source", "open-meteo"),
         },
         "air_quality": {
             "us_aqi": aqi,
@@ -362,7 +363,7 @@ async def get_kpi_metrics():
                     "value": f"{temp:.1f}°C",
                     "trend": f"feels like {overview_data['weather'].get('apparent_temperature', temp):.1f}°C",
                     "trend_up": (overview_data["weather"].get("apparent_temperature", temp) or 0) > temp,
-                    "insight": "Live weather station data (Open-Meteo)",
+                    "insight": "Live weather station data (Open-Meteo)" if overview_data.get("weather", {}).get("source", "open-meteo") != "openweathermap" else "Live weather station data (OpenWeatherMap fallback)",
                 }
             )
 
