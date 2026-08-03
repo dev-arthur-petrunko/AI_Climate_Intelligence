@@ -243,7 +243,7 @@ function Earth({
       </mesh>
 
       {/* Тонке ореол підсвічування континентів (емісія за текстурою) */}
-      <mesh>
+      <mesh raycast={() => null}>
         <sphereGeometry args={[EARTH_RADIUS * 1.005, 64, 64]} />
         <meshBasicMaterial
           ref={glowShellRef}
@@ -263,7 +263,7 @@ function Earth({
       <AsteroidField asteroids={asteroids} onHover={onHover} />
 
       {/* Атмосферне сяйво */}
-      <mesh>
+      <mesh raycast={() => null}>
         <sphereGeometry args={[EARTH_RADIUS * 1.035, 64, 64]} />
         <meshPhongMaterial
           ref={atmosphereRef}
@@ -379,9 +379,14 @@ function Marker({
   };
 
   return (
-    <group ref={groupRef} position={position}>
+    <group
+      ref={groupRef}
+      position={position}
+      onPointerOver={handleOver}
+      onPointerOut={handleOut}
+    >
       {/* Сяйво навколо маркера */}
-      <mesh onPointerOver={handleOver} onPointerOut={handleOut}>
+      <mesh>
         <sphereGeometry args={[0.16, 12, 12]} />
         <meshBasicMaterial
           ref={glowMatRef}
@@ -392,12 +397,17 @@ function Marker({
         />
       </mesh>
       {/* Ядро маркера */}
-      <mesh onPointerOver={handleOver} onPointerOut={handleOut}>
+      <mesh>
         <sphereGeometry args={[0.07, 10, 10]} />
         <meshBasicMaterial ref={coreMatRef} color={color} />
       </mesh>
+      {/* Невидима, більша зона наведення — щоб маркер було легко навести */}
+      <mesh>
+        <sphereGeometry args={[0.34, 8, 8]} />
+        <meshBasicMaterial color={color} transparent opacity={0} depthWrite={false} />
+      </mesh>
       {/* Хвиля-кільце — декоративне, не перехоплює наведення */}
-      <mesh ref={ringRef} visible={false}>
+      <mesh ref={ringRef} visible={false} raycast={() => null}>
         <sphereGeometry args={[0.28, 20, 20]} />
         <meshBasicMaterial
           ref={ringMatRef}
