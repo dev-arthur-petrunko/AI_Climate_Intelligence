@@ -60,19 +60,26 @@ body {
   position: relative;
   background: linear-gradient(
     145deg,
-    rgba(255, 255, 255, 0.05) 0%,
-    rgba(13, 18, 38, 0.22) 35%,
-    rgba(13, 18, 38, 0.3) 100%
+    rgba(255, 255, 255, 0.07) 0%,
+    rgba(13, 18, 38, 0.32) 35%,
+    rgba(13, 18, 38, 0.42) 100%
   );
   backdrop-filter: blur(20px) saturate(160%);
   -webkit-backdrop-filter: blur(20px) saturate(160%);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 12px;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.02),
-    0 12px 48px rgba(0, 0, 0, 0.35);
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.03),
+    0 12px 48px rgba(0, 0, 0, 0.4);
   transition: transform 180ms var(--ease-out), opacity 180ms ease, background-color 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+.glass:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 12px 48px rgba(0, 0, 0, 0.45),
+    0 0 20px rgba(41, 242, 255, 0.06);
 }
 
 .glass:hover {

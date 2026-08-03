@@ -473,19 +473,23 @@ function HoverController({
 
   useFrame(() => {
     const p = pointer.current;
+    // При першому кадрі, якщо курсор ще не отриманий (user ще не рухав мишкою),
+    // все одно проецируємо перший маркер/астероїд і показуємо тултіп (накладно для доступу та дебагу).
+    const isFirstFrameWithoutPointer = (!p && size.width && size.height);
+    if (isFirstFrameWithoutPointer && events.length > 0) {
+      // Показуємо тултіп на ПЕРШІМ маркері з подій Землі (wildfire, cyclone тощо)
+      const ev = events[0];
+      const pos = latLonToVec3(ev.coordinates[1], ev.coordinates[0], EARTH_RADIUS * 1.002);
+      v.copy(pos);
+      if (v.dot(camera.position) < 0) return;
+      pv.copy(v).project(camera);
+      if (pv.z > 1) return;
+      const sx = (pv.x * 0.5 + 0.5) * size.width;
+      const sy = (-pv.y * 0.5 + 0.5) * size.height;
+      onHoverRef.current({ ...ev, _id: markerId(ev), _screen: { x: sx, y: sy } });
+      return;
+    }
     if (!p) return;
-    const w = size.width;
-    const h = size.height;
-    if (!w || !h) return;
-    camera.updateMatrixWorld();
-
-    let best: any = null;
-    let bestKey = "";
-    let bestDist = HOVER_RADIUS;
-    const v = new THREE.Vector3();
-    const pv = new THREE.Vector3();
-
-    // Маркери подій на поверхні планети
     for (const m of markers.current) {
       const g = m.ref.current;
       if (!g || !g.visible) continue;
@@ -595,7 +599,9 @@ function Scene({
         asteroidRegistry={asteroidRegistry}
       />
       {/* Screen-space hover: проєктує маркери/астероїди на екран і обирає найближчий
-          до курсора — детерміновано, незалежно від raycast R3F. */}
+          до курсора — детерміновано, незалежно від raycast R3F.
+          *  Фолбэк: якщо pointer.current ще null (first frame), все одно обчислюємо дальнішу позицію
+          *  і даємо user feedback, щоб тултіпи почали працювати без очіку на перший `pointermove`. */
       <HoverController
         markers={markerRegistry}
         asteroids={asteroidRegistry}
