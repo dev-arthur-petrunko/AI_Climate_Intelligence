@@ -572,7 +572,7 @@ async def get_climate_events():
         # покриття планети. days=1 часто повертає лише кілька точок,
         # скупчених в одному регіоні (напр., вулкани Гаваїв), що виглядає
         # як "пожежі в океані" на глобусі.
-        fires_data = get_fires(2)
+        fires_data = await asyncio.to_thread(get_fires, 2)
         fires = fires_data.get("fires", [])
         # Беремо рівномірну вибірку по всій планеті, а не перші рядки CSV
         # (CSV відсортований, перші записи можуть бути скупчені в одному регіоні).
@@ -598,7 +598,7 @@ async def get_climate_events():
 
     # --- Реальні дані: циклони (NOAA NHC) ---
     try:
-        storms = get_hurricanes().get("storms", [])
+        storms = (await asyncio.to_thread(get_hurricanes)).get("storms", [])
         for storm in storms[:6]:
             coords = storm.get("coordinates")
             if coords:

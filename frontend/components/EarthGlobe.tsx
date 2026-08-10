@@ -473,6 +473,14 @@ function HoverController({
 
   useFrame(() => {
     const p = pointer.current;
+    // Робочі вектори та стан найкращого кандидата для hover (screen-space проекція)
+    const v = new THREE.Vector3();
+    const pv = new THREE.Vector3();
+    const w = size.width;
+    const h = size.height;
+    let bestDist = HOVER_RADIUS;
+    let bestKey = "";
+    let best: any = null;
     // При першому кадрі, якщо курсор ще не отриманий (user ще не рухав мишкою),
     // все одно проецируємо перший маркер/астероїд і показуємо тултіп (накладно для доступу та дебагу).
     const isFirstFrameWithoutPointer = (!p && size.width && size.height);
@@ -601,7 +609,7 @@ function Scene({
       {/* Screen-space hover: проєктує маркери/астероїди на екран і обирає найближчий
           до курсора — детерміновано, незалежно від raycast R3F.
           *  Фолбэк: якщо pointer.current ще null (first frame), все одно обчислюємо дальнішу позицію
-          *  і даємо user feedback, щоб тултіпи почали працювати без очіку на перший `pointermove`. */
+          *  і даємо user feedback, щоб тултіпи почали працювати без очіку на перший `pointermove`. */}
       <HoverController
         markers={markerRegistry}
         asteroids={asteroidRegistry}
@@ -907,7 +915,7 @@ export default function EarthGlobe() {
         {LEGEND.map((item, i) => (
           <span
             key={item.key}
-            className="flex items-center space-x-1.5 text-[10px] text-secondary animate-fade-up"
+            className="flex items-center space-x-1.5 text-[10px] font-medium text-primary/90 animate-fade-up"
             style={{ animationDelay: `${350 + i * 55}ms` }}
           >
             <span className="w-2 h-2 rounded-full inline-block" style={{ background: item.color }} />
@@ -1022,7 +1030,7 @@ export default function EarthGlobe() {
 
       {/* Підказка про взаємодію */}
       <div className="absolute top-5 left-1/2 -translate-x-1/2 flex items-center space-x-1.5 text-[9px] text-secondary/60 uppercase tracking-[0.2em]">
-        <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald ping-dot text-emerald" />
+        <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald animate-pulse" />
         <span>{t.globe.hover}</span>
       </div>
     </div>

@@ -22,6 +22,7 @@ import time
 import csv
 import io
 import logging
+import random
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 
@@ -36,18 +37,19 @@ _TIMEOUT = httpx.Timeout(25.0)
 _HEADERS = {
     "User-Agent": "Climate-Intelligence-Dashboard/1.0 (climate monitoring demo)",
     "Accept": "application/json, text/csv, text/plain, application/xml",
+    "X-API-Source": "climate-intelligence",
 }
 
-_cache: dict = {}
+_CACHE: dict = {}
 
 
 def _cached(key: str, ttl_seconds: int, fetcher):
     now = time.time()
-    hit = _cache.get(key)
+    hit = _CACHE.get(key)
     if hit and now - hit["ts"] < ttl_seconds:
         return hit["data"]
     data = fetcher()
-    _cache[key] = {"ts": now, "data": data}
+    _CACHE[key] = {"ts": now, "data": data}
     return data
 
 
@@ -71,12 +73,25 @@ def _fetch_weather_openmeteo(lat: float, lon: float) -> dict:
         "forecast_days": 7,
         "timezone": "auto",
     }
-    r = httpx.get(
-        "https://api.open-meteo.com/v1/forecast", params=params,
-        timeout=httpx.Timeout(8.0), headers=_HEADERS,
-    )
-    r.raise_for_status()
-    return r.json()
+    max_retries = 2
+    for attempt in range(max_retries + 1):
+        try:
+            r = httpx.get(
+                "https://api.open-meteo.com/v1/forecast", params=params,
+                timeout=httpx.Timeout(8.0), headers=_HEADERS,
+            )
+            r.raise_for_status()
+            return r.json()
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 429:
+                if attempt < max_retries:
+                    delay = (2 ** attempt) + random.uniform(0, 1)
+                    logger.warning("Open-Meteo 429, retrying in %.1f seconds...", delay)
+                    time.sleep(delay)
+                    continue
+            raise
+        except Exception:
+            raise
 
 
 # Грубе співставлення коду погоди OpenWeatherMap -> WMO (сумісно з фронтендом)
@@ -138,15 +153,19 @@ def _fetch_weather_owm(lat: float, lon: float, api_key: str) -> dict:
 
 
 def fetch_weather(lat: float, lon: float) -> dict:
-    """Open-Meteo як основне джерело, OpenWeatherMap як фолбек, якщо Open-Meteo заблокований з хостингу."""
+    """Open-Meteo як основне джерело, OpenWeatherMap як фолбек, якщо Open-Meteo недоступний з IP хостингу."""
     try:
         return _fetch_weather_openmeteo(lat, lon)
     except Exception as exc:
-        logger.warning("Open-Meteo weather failed, falling back to OWM: %s", exc)
+        logger.warning("Open-Meteo weather failed (429 or other), falling back to OWM: %s", exc)
         api_key = os.getenv("OPENWEATHER_API_KEY", "").strip()
         if not api_key:
-            raise
-        return _fetch_weather_owm(lat, lon, api_key)
+            raise exc
+        try:
+            return _fetch_weather_owm(lat, lon, api_key)
+        except Exception as owm_exc:
+            logger.warning("OpenWeatherMap fallback also failed: %s", owm_exc)
+            raise owm_exc
 
 
 def get_weather(lat: float, lon: float) -> dict:
@@ -469,17 +488,17 @@ def fetch_sea_level() -> dict:
     for row in reader:
         if (row.get("Entity") or "").lower() != "world":
             continue
-        day = (row.get("Day") or "").strip()
+        month = (row.get("Month") or row.get("Day") or "").strip()
         raw = (row.get("Average of Church and White (2011) and UHSLC") or "").strip()
         if not raw:
             raw = (row.get("Church and White (2011)") or "").strip()
-        if not day or not raw:
+        if not month or not raw:
             continue
         try:
             value = float(raw)
         except ValueError:
             continue
-        series.append({"date": day, "value": round(value, 2)})
+        series.append({"date": month, "value": round(value, 2)})
 
     if not series:
         raise RuntimeError("No sea level data parsed")
@@ -568,17 +587,17 @@ def fetch_ocean_ph() -> dict:
     for row in reader:
         if (row.get("Entity") or "").lower() != "hawaii":
             continue
-        day = (row.get("Day") or "").strip()
+        month = (row.get("Month") or row.get("Day") or "").strip()
         raw = (row.get("Annual average") or "").strip()
         if not raw:
             raw = (row.get("Monthly average") or "").strip()
-        if not day or not raw:
+        if not month or not raw:
             continue
         try:
             value = float(raw)
         except ValueError:
             continue
-        series.append({"date": day, "value": round(value, 4)})
+        series.append({"date": month, "value": round(value, 4)})
 
     if not series:
         raise RuntimeError("No ocean pH data parsed")

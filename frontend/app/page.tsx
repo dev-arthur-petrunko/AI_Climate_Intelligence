@@ -13,8 +13,7 @@ import MissionHeader from "@/components/MissionHeader";
 import { KPICards, LiveEventFeed, AIClimateSummary } from "@/components/DashboardSections";
 import CityWeatherWidget from "@/components/CityWeatherWidget";
 import AIAnalysisPanel from "@/components/AIAnalysisPanel";
-import AsteroidsPanel from "@/components/AsteroidsPanel";
-import SpaceWeatherPanel from "@/components/SpaceWeatherPanel";
+import SpaceDataPanel from "@/components/SpaceDataPanel";
 import { useI18n } from "@/lib/i18n";
 
 export default function Home() {
@@ -30,11 +29,8 @@ export default function Home() {
         {/* AI-аналіз — окреме вікно, спливає справа на глобусі */}
         <AIAnalysisPanel />
 
-        {/* Навколоземні астероїди — панель зліва на глобусі */}
-        <AsteroidsPanel />
-
-        {/* Космічна погода — панель справа на глобусі */}
-        <SpaceWeatherPanel />
+        {/* Космічна погода + астероїди — об'єднана панель, виїжджає зліва */}
+        <SpaceDataPanel />
 
         {/* Плавний градієнтний перехід до дашборду */}
         <div className="absolute bottom-0 left-0 right-0 h-56 bg-gradient-to-b from-transparent via-background/30 to-background pointer-events-none z-10" />
