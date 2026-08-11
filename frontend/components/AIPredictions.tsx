@@ -20,13 +20,14 @@ import {
   Activity,
   Gauge,
   Mountain,
+  type LucideIcon,
 } from "lucide-react";
 import { api, AIPrediction } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 
 interface PredictionCard {
   category: string;
-  icon: any;
+  icon: LucideIcon;
   prediction: string;
   probability: number;
   confidenceInterval: [number, number];

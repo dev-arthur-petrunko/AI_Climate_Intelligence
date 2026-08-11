@@ -28,7 +28,7 @@ const MISS_MAX_KM = 7.5e7;
 /** Нормалізація діаметра (м) у розмір моделі на сцені */
 function diameterToSize(diamMax: number | null): number {
   const d = diamMax && diamMax > 0 ? diamMax : 100;
-  return 0.045 + Math.min(1, d / 1200) * 0.16;
+  return 0.09 + Math.min(1, d / 1200) * 0.32;
 }
 
 /** Кольори: небезпечний — рожевий (danger), безпечний — блакитний (accent) */
@@ -57,7 +57,8 @@ function orbitParams(obj: AsteroidObject, index: number): OrbitParams {
   const phase = (index * 1.618) % (Math.PI * 2);
   // Реалістична кутова швидкість: реальні NEO на зближенні рухаються ~1–10°/год
   // = 5e-6 – 5e-5 rad/frame (при 60 fps). Масштабуємо за радіусом орбіти.
-  const speed = (5e-6 + ((index % 7) / 7) * 4.5e-5) * (7.4 / radius);
+  // Трохи прискорено для наочності на глобусі.
+  const speed = (3e-5 + ((index % 7) / 7) * 1.2e-4) * (7.4 / radius);
   const size = diameterToSize(obj.diameter_m_max);
   return { radius, inclination, node, phase, speed, size };
 }
@@ -120,7 +121,7 @@ function Asteroid({
     }
     if (glowMatRef.current) {
       const pulse = 0.5 + 0.5 * Math.sin(t * 1.7 + index * 0.9);
-      glowMatRef.current.opacity = (active ? 0.5 : 0.22) + pulse * (active ? 0.2 : 0.1);
+      glowMatRef.current.opacity = (active ? 0.7 : 0.4) + pulse * (active ? 0.2 : 0.12);
     }
 
     // Кометний хвіст — ланки позаду астероїда вздовж напрямку руху
@@ -157,13 +158,13 @@ function Asteroid({
       <Line
         points={orbitCircle}
         color={color}
-        lineWidth={0.4}
+        lineWidth={0.8}
         dashed
         dashScale={2}
         dashSize={0.8}
         gapSize={0.6}
         transparent
-        opacity={active ? 0.35 : 0.12}
+        opacity={active ? 0.55 : 0.25}
         depthWrite={false}
       />
 
@@ -171,12 +172,12 @@ function Asteroid({
       <group ref={moverRef}>
         {/* Сяйво навколо астероїда */}
         <mesh>
-          <sphereGeometry args={[orbit.size * 1.6, 12, 12]} />
+          <sphereGeometry args={[orbit.size * 2.0, 12, 12]} />
           <meshBasicMaterial
             ref={glowMatRef}
             color={color}
             transparent
-            opacity={0.3}
+            opacity={0.4}
             blending={THREE.AdditiveBlending}
             depthWrite={false}
           />
@@ -187,7 +188,7 @@ function Asteroid({
           <meshStandardMaterial
             color={obj.hazardous ? "#5a3340" : "#3a4a63"}
             emissive={color}
-            emissiveIntensity={active ? 0.55 : 0.22}
+            emissiveIntensity={active ? 0.8 : 0.45}
             roughness={0.9}
             metalness={0.1}
           />

@@ -6,14 +6,13 @@
  * скрывается, когда курсор покидает зону панели. Мобильные: bottom-sheet по тапу.
  */
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Sparkles,
   X,
   RefreshCw,
   BrainCircuit,
   ChevronRight,
-  ChevronUp,
 } from "lucide-react";
 import { api, AIAnalysis } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
@@ -23,7 +22,17 @@ export default function AIAnalysisPanel() {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [analysis, setAnalysis] = useState<AIAnalysis | null>(null);
-  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /** На десктопі/ноутбуці вікно AI відкрите зразу (справа);
+   *  при зменшенні екрана до планшета/телефона закривається. */
+  useEffect(() => {
+    const onResize = () => {
+      if (window.innerWidth < 1024) setOpen(false);
+    };
+    if (window.innerWidth >= 1024) setOpen(true);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   /** Загрузка AI-анализа из API (на языке интерфейса) */
   const load = useCallback(async () => {
@@ -43,28 +52,6 @@ export default function AIAnalysisPanel() {
     const id = setInterval(load, 30 * 60 * 1000);
     return () => clearInterval(id);
   }, [load]);
-
-  /** Открыть панель (сразу, отменяя запланированное закрытие) */
-  const openPanel = useCallback(() => {
-    if (closeTimer.current) {
-      clearTimeout(closeTimer.current);
-      closeTimer.current = null;
-    }
-    setOpen(true);
-  }, []);
-
-  /** Запланировать закрытие, когда курсор покинул зону панели */
-  const scheduleClose = useCallback(() => {
-    if (closeTimer.current) clearTimeout(closeTimer.current);
-    closeTimer.current = setTimeout(() => setOpen(false), 260);
-  }, []);
-
-  useEffect(
-    () => () => {
-      if (closeTimer.current) clearTimeout(closeTimer.current);
-    },
-    []
-  );
 
   /** Форматирование времени генерации */
   const formatTime = (iso?: string) => {
@@ -157,25 +144,16 @@ export default function AIAnalysisPanel() {
 
   return (
     <>
-      {/* Десктоп: справа, выезжает справа налево при наведении.
-          Hover-зона охватывает триггер и панель: когда панель скрыта — это узкая
-          полоска на правом краю, когда открыта — вся область панели. */}
-      <div
-        className="hidden md:block absolute right-0 top-1/2 -translate-y-1/2 z-30"
-        style={{
-          width: open ? 376 : 56,
-          height: "min(72vh, 640px)",
-          transition: "width 500ms var(--ease-out)",
-        }}
-        onMouseEnter={openPanel}
-        onMouseLeave={scheduleClose}
-      >
+      {/* Десктоп/ноутбук: постійне вікно праворуч.
+          Закривається хрестиком; знову відкривається кнопкою-вкладкою на краю. */}
+      <div className="hidden md:block absolute right-0 top-1/2 -translate-y-1/2 z-30 pointer-events-none">
         {/* Триггер-вкладка на правом краю (скрыта, когда панель открыта) */}
         {!open && (
           <button
             type="button"
-            onClick={openPanel}
-            className="absolute right-3 top-1/2 -translate-y-1/2 flex flex-col items-center gap-1.5 px-2 py-3 glass-strong rounded-xl text-emerald hover:bg-violet/10 transition-colors"
+            onClick={() => setOpen(true)}
+            data-ai-trigger
+            className="pointer-events-auto absolute right-3 top-1/2 -translate-y-1/2 flex flex-col items-center gap-1.5 px-2 py-3 glass-strong rounded-xl text-emerald hover:bg-violet/10 transition-colors"
             aria-label={t.analysis.open}
           >
             <BrainCircuit className="w-4 h-4" />
@@ -185,7 +163,8 @@ export default function AIAnalysisPanel() {
 
         {/* Сама панель */}
         <div
-          className={`pointer-events-auto absolute right-3 top-1/2 -translate-y-1/2 w-[340px] max-w-[calc(100vw-40px)] glass-strong rounded-2xl overflow-hidden flex flex-col shadow-[0_16px_56px_rgba(0,0,0,0.55)] transition-all duration-500 ${
+          data-ai-panel
+          className={`pointer-events-auto absolute right-3 top-1/2 -translate-y-1/2 w-[280px] lg:w-[320px] xl:w-[340px] max-w-[calc(100vw-40px)] glass-strong rounded-2xl overflow-hidden flex flex-col shadow-[0_16px_56px_rgba(0,0,0,0.55)] transition-all duration-500 ${
             open
               ? "translate-x-0 opacity-100"
               : "translate-x-[calc(100%+24px)] opacity-0 pointer-events-none"
@@ -203,6 +182,7 @@ export default function AIAnalysisPanel() {
           <button
             type="button"
             onClick={() => setOpen(true)}
+            data-ai-trigger-mobile
             className="pointer-events-auto fixed top-24 right-3 flex items-center gap-2 px-3.5 py-2.5 glass-strong rounded-xl text-emerald text-xs font-medium hover:bg-violet/10 transition-colors shadow-[0_12px_48px_rgba(0,0,0,0.5)]"
             aria-label={t.analysis.open}
           >
@@ -212,6 +192,7 @@ export default function AIAnalysisPanel() {
           </button>
         )}
         <div
+          data-ai-panel-mobile
           className={`pointer-events-auto glass-strong rounded-2xl overflow-hidden flex flex-col shadow-[0_16px_56px_rgba(0,0,0,0.55)] transition-all duration-500 ${
             open
               ? "translate-y-0 opacity-100"

@@ -5,36 +5,14 @@
 :root {
   /* Aurora / Magnetosphere palette */
   --bg-page: #070A16;
-  --bg-panel: #0D1226;
-  --bg-panel-2: #121A38;
-  --bg-panel-hover: #16204A;
-
-  --border: rgba(124, 77, 255, 0.14);
-  --border-strong: rgba(46, 230, 166, 0.35);
-
-  --emerald: #2EE6A6;
-  --violet: #7C4DFF;
-  --pink: #FF5C8A;
-  --amber: #FFC24D;
 
   --text-primary: #E8EAF6;
-  --text-secondary: #8B93B8;
-  --text-muted: #4A5178;
 
-  /* Legacy aliases for Tailwind */
-  --background: #070A16;
-  --surface: #0D1226;
-  --primary: #E8EAF6;
-  --secondary: #8B93B8;
   --accent-blue: #7C4DFF;
   --accent-cyan: #2EE6A6;
-  --success: #2EE6A6;
-  --warning: #FFC24D;
-  --danger: #FF5C8A;
 
-  /* Emil Kowalski Custom Easings */
+  /* Emil Kowalski Custom Easing */
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
 }
 
 * {
@@ -55,90 +33,86 @@ body {
 }
 
 /* Aurora glassmorphism — справжнє "скло":
-   вища прозорість, сильніше блюр + saturate, верхнє світлове відблисковання */
-.glass {
-  position: relative;
-  background: linear-gradient(
-    145deg,
-    rgba(255, 255, 255, 0.07) 0%,
-    rgba(13, 18, 38, 0.32) 35%,
-    rgba(13, 18, 38, 0.42) 100%
-  );
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 12px;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.1),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.03),
-    0 12px 48px rgba(0, 0, 0, 0.4);
-  transition: transform 180ms var(--ease-out), opacity 180ms ease, background-color 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
-}
-.glass:hover {
-  border-color: rgba(255, 255, 255, 0.22);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.16),
-    0 12px 48px rgba(0, 0, 0, 0.45),
-    0 0 20px rgba(41, 242, 255, 0.06);
-}
+   вища прозорість, сильніше блюр + saturate, верхнє світлове відблисковання.
+   Розміщено у @layer components, щоб Tailwind-утиліти (absolute, fixed, relative)
+   могли перевизначати position для елементів із .glass/.glass-strong. */
+@layer components {
+  .glass {
+    position: relative;
+    background: linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.07) 0%,
+      rgba(13, 18, 38, 0.32) 35%,
+      rgba(13, 18, 38, 0.42) 100%
+    );
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 12px;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.1),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.03),
+      0 12px 48px rgba(0, 0, 0, 0.4);
+    transition: transform 180ms var(--ease-out), opacity 180ms ease, background-color 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+  }
+  .glass:hover {
+    border-color: rgba(255, 255, 255, 0.22);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.16),
+      0 12px 48px rgba(0, 0, 0, 0.45),
+      0 0 20px rgba(41, 242, 255, 0.06);
+  }
 
-.glass:hover {
-  border-color: rgba(255, 255, 255, 0.22);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.14),
-    0 12px 48px rgba(0, 0, 0, 0.45),
-    0 0 24px rgba(41, 242, 255, 0.06);
-}
+  /* Для елементів із власним псевдо-елементом верхнього відблиску */
+  .glass::before,
+  .glass-strong::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.09) 0%,
+      rgba(255, 255, 255, 0) 40%
+    );
+    opacity: 0.6;
+  }
 
-/* Для елементів із власним псевдо-елементом верхнього відблиску */
-.glass::before,
-.glass-strong::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  background: linear-gradient(
-    to bottom,
-    rgba(255, 255, 255, 0.09) 0%,
-    rgba(255, 255, 255, 0) 40%
-  );
-  opacity: 0.6;
-}
+  .glass-strong {
+    position: relative;
+    background: linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.06) 0%,
+      rgba(13, 18, 38, 0.3) 40%,
+      rgba(13, 18, 38, 0.38) 100%
+    );
+    backdrop-filter: blur(28px) saturate(170%);
+    -webkit-backdrop-filter: blur(28px) saturate(170%);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.02),
+      0 16px 56px rgba(0, 0, 0, 0.45);
+    transition: transform 180ms var(--ease-out), opacity 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+  }
 
-.glass-strong {
-  position: relative;
-  background: linear-gradient(
-    145deg,
-    rgba(255, 255, 255, 0.06) 0%,
-    rgba(13, 18, 38, 0.3) 40%,
-    rgba(13, 18, 38, 0.38) 100%
-  );
-  backdrop-filter: blur(28px) saturate(170%);
-  -webkit-backdrop-filter: blur(28px) saturate(170%);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.02),
-    0 16px 56px rgba(0, 0, 0, 0.45);
-  transition: transform 180ms var(--ease-out), opacity 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
-}
-
-.glass-strong:hover {
-  border-color: rgba(255, 255, 255, 0.24);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.16),
-    0 16px 56px rgba(0, 0, 0, 0.55),
-    0 0 28px rgba(41, 242, 255, 0.08);
+  .glass-strong:hover {
+    border-color: rgba(255, 255, 255, 0.24);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.16),
+      0 16px 56px rgba(0, 0, 0, 0.55),
+      0 0 28px rgba(41, 242, 255, 0.08);
+  }
 }
 
 /* Emil Kowalski: Button active scale feedback */
-button, .btn-touch {
+button {
   transition: transform 160ms var(--ease-out), opacity 160ms ease, background-color 160ms ease;
 }
 
-button:active, .btn-touch:active {
+button:active {
   transform: scale(0.96) !important;
 }
 
@@ -147,48 +121,6 @@ button:active, .btn-touch:active {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-}
-
-.btn-primary {
-  background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
-  color: #070A16;
-  padding: 12px 24px;
-  border-radius: 8px;
-  font-weight: 600;
-  border: none;
-  cursor: pointer;
-  transition: transform 160ms var(--ease-out), box-shadow 160ms ease;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .btn-primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 32px rgba(46, 230, 166, 0.25);
-  }
-}
-
-.btn-secondary {
-  background: rgba(124, 77, 255, 0.08);
-  color: var(--text-primary);
-  padding: 12px 24px;
-  border-radius: 8px;
-  font-weight: 600;
-  border: 1px solid var(--border);
-  cursor: pointer;
-  transition: transform 160ms var(--ease-out), background-color 160ms ease, border-color 160ms ease;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .btn-secondary:hover {
-    background: rgba(124, 77, 255, 0.15);
-    border-color: var(--accent-blue);
-  }
-}
-
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
 }
 
 /* Scrollbar styling */
@@ -243,35 +175,12 @@ button:active, .btn-touch:active {
   }
 }
 
-@keyframes drift {
-  from {
-    transform: translateY(0);
-  }
-  to {
-    transform: translateY(-4px);
-  }
-}
-
-@keyframes twinkle {
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 1; }
-}
-
-@keyframes twinkle-alt {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 0.2; }
-}
-
 .animate-fade-up {
   animation: fade-up 600ms var(--ease-out) both;
 }
 
 .animate-fade-in {
   animation: fade-in 800ms ease both;
-}
-
-.animate-drift {
-  animation: drift 4s ease-in-out infinite alternate;
 }
 
 /* Pop-in для тултіпа — вилітає з точки наведення */
@@ -338,41 +247,10 @@ button:active, .btn-touch:active {
   animation: ping-soft 1.8s var(--ease-out) infinite;
 }
 
-/* Мерехтіння зірок */
-.stars-twinkle {
-  background-image:
-    radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,0.9), transparent),
-    radial-gradient(1.5px 1.5px at 60% 10%, rgba(255,255,255,0.7), transparent),
-    radial-gradient(1px 1px at 85% 45%, rgba(255,255,255,0.8), transparent),
-    radial-gradient(1px 1px at 40% 80%, rgba(255,255,255,0.6), transparent),
-    radial-gradient(1.5px 1.5px at 75% 75%, rgba(255,255,255,0.7), transparent),
-    radial-gradient(1px 1px at 10% 60%, rgba(255,255,255,0.5), transparent),
-    radial-gradient(1px 1px at 95% 20%, rgba(255,255,255,0.6), transparent);
-  animation: twinkle 4s ease-in-out infinite;
-}
-
-.stars-twinkle::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background-image:
-    radial-gradient(1px 1px at 30% 50%, rgba(255,255,255,0.7), transparent),
-    radial-gradient(1.5px 1.5px at 55% 25%, rgba(255,255,255,0.6), transparent),
-    radial-gradient(1px 1px at 80% 70%, rgba(255,255,255,0.8), transparent),
-    radial-gradient(1px 1px at 15% 15%, rgba(255,255,255,0.5), transparent),
-    radial-gradient(1.5px 1.5px at 65% 55%, rgba(255,255,255,0.7), transparent);
-  animation: twinkle-alt 6s ease-in-out infinite;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .animate-fade-up,
   .animate-fade-in,
-  .animate-drift,
   .animate-tooltip-pop {
-    animation: none;
-  }
-  .stars-twinkle,
-  .stars-twinkle::after {
     animation: none;
   }
   .skeleton::after,

@@ -21,6 +21,7 @@ import {
   CloudRain,
   Waves,
   Magnet,
+  type LucideIcon,
 } from "lucide-react";
 import { api, KPIItem, ClimateEvent } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
@@ -30,7 +31,7 @@ import { useI18n } from "@/lib/i18n";
 // ---------------------------------------------------------------------------
 
 /** Маппінг назв показників на іконки */
-const iconMap: Record<string, any> = {
+const iconMap: Record<string, LucideIcon> = {
   "Global Temperature": Thermometer,
   "Global Temperature Anomaly": Thermometer,
   "Local Temperature": Thermometer,
@@ -215,7 +216,7 @@ export function AIClimateSummary() {
 // ---------------------------------------------------------------------------
 
 /** Маппінг типів подій на іконки */
-const eventIconMap: Record<string, any> = {
+const eventIconMap: Record<string, LucideIcon> = {
   Wildfire: Flame,
   Cyclone: CloudLightning,
   Volcano: Mountain,

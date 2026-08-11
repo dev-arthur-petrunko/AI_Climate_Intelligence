@@ -14,7 +14,7 @@ import * as THREE from "three";
 import { useI18n } from "@/lib/i18n";
 import { sunDirection } from "@/lib/solar";
 import AsteroidField, { AsteroidEntry } from "./AsteroidField";
-import type { AsteroidObject } from "@/lib/api";
+import type { AsteroidObject, ClimateEvent, OceanHeatData, OceanPhData, SeaIceData, SeaLevelData } from "@/lib/api";
 
 /** Локальні текстури — гарантовано доступні, не залежать від CDN */
 const EARTH_TEXTURE = "/earth/earth-blue-marble.jpg";
@@ -31,6 +31,43 @@ interface EventPoint {
   location?: string;
   frp?: number;
   time?: string;
+  confidence?: string;
+  satellite?: string;
+}
+
+/** Службовий об'єкт під курсором — подія Землі або астероїд (для тултіпа).
+ *  `_id` та `_screen` додає HoverController під час screen-space проекції. */
+interface HoveredPoint {
+  kind?: "asteroid";
+  // Поля події Землі
+  event_type?: string;
+  severity?: string;
+  location?: string;
+  time?: string;
+  coordinates?: [number, number];
+  frp?: number;
+  confidence?: string;
+  satellite?: string;
+  // Поля астероїда
+  name?: string;
+  hazardous?: boolean;
+  miss_km?: number | null;
+  velocity_kms?: number | null;
+  diameter_m_max?: number | null;
+  approach_date?: string;
+  // Службові поля hover-контролера
+  _id: string;
+  _screen: { x: number; y: number };
+}
+
+/** Подія NASA EONET у сирому вигляді з відповіді бекенду */
+interface RawEonetEvent {
+  coordinates?: [number, number] | null;
+  event_type?: string;
+  severity?: string;
+  title?: string;
+  location?: string;
+  time?: string;
 }
 
 /** Записи у реєстрах для hover-контролера (screen-space proximity) */
@@ -42,9 +79,14 @@ interface MarkerEntry {
 /** Радіус (px), у якому маркер/астероїд «ловить» курсор для тултіпа */
 const HOVER_RADIUS = 60;
 
-/** Стабільний ідентифікатор маркера для hover-підсвітки та тултіпа */
+/** Стабільний ідентифікатор маркера для hover-підсвітки та тултіпа.
+ *  Координати включені, бо пожежі можуть мати однакові type/location/time
+ *  (напр. кілька hotspot-ів у межах одного міста за одну добу). */
 function markerId(ev: EventPoint): string {
-  return `m:${ev.event_type || ""}|${ev.location || ""}|${ev.time || ""}`;
+  const c = ev.coordinates
+    ? `${ev.coordinates[0].toFixed(3)}|${ev.coordinates[1].toFixed(3)}`
+    : "";
+  return `m:${ev.event_type || ""}|${ev.location || ""}|${ev.time || ""}|${c}`;
 }
 
 /** Кешована перевірка "зменшеного руху" — вимикає пульсацію та дихання */
@@ -85,11 +127,11 @@ const freshnessColor: Record<Freshness, string> = {
 
 /** Резервні події на випадок, якщо бекенд недоступний (тільки реальні типи) */
 const fallbackEvents: EventPoint[] = [
-  { coordinates: [-123.0, 49.5], event_type: "Wildfire", severity: "high", location: "British Columbia, Canada" },
-  { coordinates: [-119.0, 38.5], event_type: "Wildfire", severity: "high", location: "California, USA" },
-  { coordinates: [-60.0, -4.0], event_type: "Wildfire", severity: "high", location: "Amazonas, Brazil" },
-  { coordinates: [22.0, 38.5], event_type: "Wildfire", severity: "high", location: "Greece" },
-  { coordinates: [145.0, -19.0], event_type: "Wildfire", severity: "medium", location: "Queensland, Australia" },
+  { coordinates: [-123.0, 49.5], event_type: "Wildfire", severity: "high", location: "British Columbia, Canada", time: new Date().toISOString().slice(0, 10) },
+  { coordinates: [-119.0, 38.5], event_type: "Wildfire", severity: "high", location: "California, USA", time: new Date().toISOString().slice(0, 10) },
+  { coordinates: [-60.0, -4.0], event_type: "Wildfire", severity: "high", location: "Amazonas, Brazil", time: new Date().toISOString().slice(0, 10) },
+  { coordinates: [22.0, 38.5], event_type: "Wildfire", severity: "high", location: "Greece", time: new Date().toISOString().slice(0, 10) },
+  { coordinates: [145.0, -19.0], event_type: "Wildfire", severity: "medium", location: "Queensland, Australia", time: new Date().toISOString().slice(0, 10) },
 ];
 
 /** Резервні астероїди — коли API без NASA_API_KEY повертає порожній список.
@@ -178,7 +220,7 @@ function Earth({
   events: EventPoint[];
   asteroids: AsteroidObject[];
   autoRotate: boolean;
-  hovered: EventPoint | any | null;
+  hovered: HoveredPoint | null;
   sunRef?: React.MutableRefObject<THREE.Vector3 | null>;
   markerRegistry: React.MutableRefObject<MarkerEntry[]>;
   asteroidRegistry: React.MutableRefObject<AsteroidEntry[]>;
@@ -274,14 +316,14 @@ function Earth({
 
       {/* Маркери подій */}
       {events.map((ev, i) => (
-        <Marker key={i} ev={ev} index={i} markerRegistry={markerRegistry} active={(hovered as any)?._id === markerId(ev)} />
+        <Marker key={i} ev={ev} index={i} markerRegistry={markerRegistry} active={hovered?._id === markerId(ev)} />
       ))}
 
       {/* Навколоземні астероїди — анімовані орбіти */}
       <AsteroidField
         asteroids={asteroids}
         asteroidRegistry={asteroidRegistry}
-        activeId={(hovered as any)?._id}
+        activeId={hovered?._id}
       />
 
       {/* Атмосферне сяйво */}
@@ -440,7 +482,7 @@ function HoverController({
   markers: React.MutableRefObject<MarkerEntry[]>;
   asteroids: React.MutableRefObject<AsteroidEntry[]>;
   events: EventPoint[];
-  onHover: (ev: EventPoint | any | null) => void;
+  onHover: (ev: HoveredPoint | null) => void;
 }) {
   const camera = useThree((s) => s.camera);
   const gl = useThree((s) => s.gl);
@@ -480,7 +522,7 @@ function HoverController({
     const h = size.height;
     let bestDist = HOVER_RADIUS;
     let bestKey = "";
-    let best: any = null;
+    let best: HoveredPoint | null = null;
     // При першому кадрі, якщо курсор ще не отриманий (user ще не рухав мишкою),
     // все одно проецируємо перший маркер/астероїд і показуємо тултіп (накладно для доступу та дебагу).
     const isFirstFrameWithoutPointer = (!p && size.width && size.height);
@@ -494,7 +536,18 @@ function HoverController({
       if (pv.z > 1) return;
       const sx = (pv.x * 0.5 + 0.5) * size.width;
       const sy = (-pv.y * 0.5 + 0.5) * size.height;
-      onHoverRef.current({ ...ev, _id: markerId(ev), _screen: { x: sx, y: sy } });
+      const key = markerId(ev);
+      // Емітимо лише при зміні об'єкта або русі — інакше тултіп «залипає»
+      // при першому русі миші по порожньому простору.
+      if (
+        !lastEmit.current ||
+        lastEmit.current.key !== key ||
+        Math.abs(lastEmit.current.x - sx) > 4 ||
+        Math.abs(lastEmit.current.y - sy) > 4
+      ) {
+        lastEmit.current = { key, x: sx, y: sy };
+        onHoverRef.current({ ...ev, _id: key, _screen: { x: sx, y: sy } });
+      }
       return;
     }
     if (!p) return;
@@ -581,8 +634,8 @@ function Scene({
 }: {
   events: EventPoint[];
   asteroids: AsteroidObject[];
-  onHover: (ev: EventPoint | any | null) => void;
-  hovered: EventPoint | any | null;
+  onHover: (ev: HoveredPoint | null) => void;
+  hovered: HoveredPoint | null;
   markerRegistry: React.MutableRefObject<MarkerEntry[]>;
   asteroidRegistry: React.MutableRefObject<AsteroidEntry[]>;
 }) {
@@ -706,14 +759,19 @@ function SunLight({ sunRef }: { sunRef: React.MutableRefObject<THREE.Vector3 | n
 export default function EarthGlobe() {
   const [events, setEvents] = useState<EventPoint[]>(fallbackEvents);
   const [asteroids, setAsteroids] = useState<AsteroidObject[]>(fallbackAsteroids);
-  const [hovered, setHovered] = useState<EventPoint | any | null>(null);
+  const [hovered, setHovered] = useState<HoveredPoint | null>(null);
   const markerRegistry = useRef<MarkerEntry[]>([]);
   const asteroidRegistry = useRef<AsteroidEntry[]>([]);
   const { t } = useI18n();
 
   /** Побудова океанічних кліматичних точок з API даних */
   const buildOceanPoints = useCallback(
-    (sl: any, oh: any, ph: any, south: any): EventPoint[] => {
+    (
+      sl: SeaLevelData | null,
+      oh: OceanHeatData | null,
+      ph: OceanPhData | null,
+      south: SeaIceData | null
+    ): EventPoint[] => {
       const points: EventPoint[] = [];
 
       // Рівень моря — прибережні точки з поточним значенням
@@ -735,6 +793,7 @@ export default function EarthGlobe() {
             location: `${slValue >= 0 ? "+" : ""}${slValue.toFixed(1)} mm · ${t.globe.legend.seaLevel}${
               slDate ? ` · ${String(slDate).slice(0, 4)}` : ""
             }`,
+            time: slDate ? String(slDate) : undefined,
           });
         });
       }
@@ -756,6 +815,7 @@ export default function EarthGlobe() {
             location: `${ohValue.toFixed(0)} ZJ · ${t.globe.legend.oceanHeat}${
               oh?.latest?.year != null ? ` · ${oh.latest.year}` : ""
             }`,
+            time: oh?.latest?.year != null ? String(oh.latest.year) : undefined,
           });
         });
       }
@@ -771,6 +831,7 @@ export default function EarthGlobe() {
           location: `pH ${phValue.toFixed(3)} · ${t.globe.legend.ph}${
             phDate ? ` · ${String(phDate).slice(0, 4)}` : ""
           }`,
+          time: phDate ? String(phDate) : undefined,
         });
       }
 
@@ -814,31 +875,36 @@ export default function EarthGlobe() {
       const points: EventPoint[] = [];
 
       // Поточні події з FIRMS/NOAA (пожежі, циклони)
-      const data = await eventsRes.json().catch(() => null);
+      const data = (await eventsRes.json().catch(() => null)) as ClimateEvent[] | null;
       if (Array.isArray(data) && data.length > 0) {
         points.push(
-          ...data.slice(0, 160).map((ev: any) => ({
+          ...data.slice(0, 160).map((ev) => ({
             coordinates: ev.coordinates as [number, number],
             event_type: ev.event_type,
             severity: ev.severity,
             location: ev.location,
             time: ev.time,
+            frp: ev.frp ?? undefined,
+            confidence: ev.confidence ?? undefined,
+            satellite: ev.satellite ?? undefined,
           }))
         );
       }
 
       // Події NASA EONET (природні катастрофи без ключа) — без Wildfire,
       // щоб не дублювати пожежі FIRMS на глобусі
-      const eonet = eonetRes ? await eonetRes.json().catch(() => null) : null;
+      const eonet = eonetRes
+        ? ((await eonetRes.json().catch(() => null)) as { events?: RawEonetEvent[] } | null)
+        : null;
       if (eonet && Array.isArray(eonet.events)) {
         const eonetPoints: EventPoint[] = eonet.events
-          .filter((e: any) => e.coordinates && e.event_type && e.event_type !== "Wildfire")
+          .filter((e) => e.coordinates && e.event_type && e.event_type !== "Wildfire")
           .slice(0, 90)
-          .map((e: any) => ({
+          .map((e) => ({
             coordinates: e.coordinates as [number, number],
             event_type: e.event_type,
             severity: e.severity || "medium",
-            location: e.title || e.location,
+            location: e.title || e.location || "",
             time: e.time,
           }));
         points.push(...eonetPoints);
@@ -870,14 +936,20 @@ export default function EarthGlobe() {
     }
   };
 
-  const eventLabel = (type?: string) =>
-    (t.events as any)[type || ""] ||
-    (t.globe.legend as any)[oceanLegendKey(type)] ||
-    type ||
-    "";
+  const eventLabel = (type?: string) => {
+    const direct = (t.events as Record<string, unknown>)[type || ""];
+    if (typeof direct === "string") return direct;
+    return (t.globe.legend as Record<string, string>)[oceanLegendKey(type)] || type || "";
+  };
+
+  // Короткий опис події — «що це»
+  const eventDesc = (type?: string) => {
+    const desc = (t.events as Record<string, unknown>).desc as Record<string, string> | undefined;
+    return desc?.[type || ""] || "";
+  };
 
   // Позиція тултіпа
-  const screen = (hovered as any)?._screen;
+  const screen = hovered?._screen;
 
   // Свіжість даних маркера (для індикатора актуальності)
   const hoverFresh = freshnessOf(hovered?.time);
@@ -889,10 +961,10 @@ export default function EarthGlobe() {
 
   // Перекладені підписи легенди
   const legendLabel = (key: string) =>
-    (t.globe.legend as any)[key] ?? key;
+    (t.globe.legend as Record<string, string>)[key] ?? key;
 
   // Переклади для тултіпа астероїдів
-  const ast = t.asteroids as any;
+  const ast = t.asteroids;
 
   return (
     <div className="w-full h-full relative bg-[#070A16] overflow-hidden animate-fade-in">
@@ -911,14 +983,14 @@ export default function EarthGlobe() {
       </Canvas>
 
       {/* Легенда типів подій та кліматичних точок — над кнопкою прокрутки */}
-      <div className="absolute bottom-16 left-1/2 -translate-x-1/2 glass rounded-full px-4 py-2 flex items-center gap-3 flex-wrap justify-center z-20">
+      <div className="absolute bottom-16 left-1/2 -translate-x-1/2 glass rounded-xl px-4 py-2 flex items-center gap-x-2.5 gap-y-1 flex-wrap justify-center max-w-[94vw] z-20">
         {LEGEND.map((item, i) => (
           <span
             key={item.key}
-            className="flex items-center space-x-1.5 text-[10px] font-medium text-primary/90 animate-fade-up"
+            className="flex items-center gap-1.5 text-[9px] font-medium uppercase tracking-wide text-primary/85 whitespace-nowrap animate-fade-up"
             style={{ animationDelay: `${350 + i * 55}ms` }}
           >
-            <span className="w-2 h-2 rounded-full inline-block" style={{ background: item.color }} />
+            <span className="w-1.5 h-1.5 rounded-full inline-block shrink-0" style={{ background: item.color }} />
             <span>{legendLabel(item.key)}</span>
           </span>
         ))}
@@ -950,7 +1022,7 @@ export default function EarthGlobe() {
       {/* Тултіп при наведенні на маркер або астероїд */}
       {hovered && screen && (
         <div
-          key={hovered.kind === "asteroid" ? `ast-${hovered.name}` : `${hovered.event_type}-${hovered.location}-${hovered.time}`}
+          key={hovered.kind === "asteroid" ? `ast-${hovered.name}` : hovered._id}
           className="absolute z-30 glass-strong rounded-xl px-3.5 py-2.5 max-w-[240px] pointer-events-none animate-tooltip-pop"
           style={{
             left: Math.min(screen.x + 14, window.innerWidth - 260),
@@ -1005,12 +1077,42 @@ export default function EarthGlobe() {
                   {eventLabel(hovered.event_type)}
                 </span>
               </div>
+              {eventDesc(hovered.event_type) && (
+                <div className="mt-1 text-[10px] leading-snug text-secondary/90">
+                  {eventDesc(hovered.event_type)}
+                </div>
+              )}
               {hovered.location && (
                 <div className="mt-1 text-[11px] text-secondary">{hovered.location}</div>
               )}
-              <div className="mt-1.5 text-[10px] font-mono text-secondary">
-                {hovered.coordinates[0].toFixed(2)}°, {hovered.coordinates[1].toFixed(2)}°
-              </div>
+              {/* Дані пожежі (FRP/достовірність/супутник) — тільки якщо є від FIRMS */}
+              {hovered.frp != null && (
+                <div className="mt-1.5 space-y-0.5">
+                  <div className="flex items-center justify-between gap-3 text-[11px] text-secondary">
+                    <span>{t.globe.frp}</span>
+                    <span className="text-primary font-medium">{hovered.frp.toFixed(1)} MW</span>
+                  </div>
+                  {hovered.confidence && (
+                    <div className="flex items-center justify-between gap-3 text-[11px] text-secondary">
+                      <span>{t.globe.confidence}</span>
+                      <span className="text-primary font-medium capitalize">
+                        {hovered.confidence}
+                      </span>
+                    </div>
+                  )}
+                  {hovered.satellite && (
+                    <div className="flex items-center justify-between gap-3 text-[11px] text-secondary">
+                      <span>{t.globe.satellite}</span>
+                      <span className="text-primary/80">{hovered.satellite}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+              {hovered.coordinates && (
+                <div className="mt-1.5 text-[10px] font-mono text-secondary">
+                  {hovered.coordinates[0].toFixed(2)}°, {hovered.coordinates[1].toFixed(2)}°
+                </div>
+              )}
               {/* Актуальність даних: час + індикатор свіжості */}
               <div className="mt-2 pt-1.5 border-t border-violet/15 flex items-center justify-between gap-2">
                 <div className="flex items-center space-x-1.5 min-w-0">

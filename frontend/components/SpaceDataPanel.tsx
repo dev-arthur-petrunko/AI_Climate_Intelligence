@@ -22,7 +22,6 @@ import {
   Gauge,
   Droplets,
   Satellite,
-  ChevronUp,
 } from "lucide-react";
 import {
   api,
@@ -51,6 +50,16 @@ const stormColor: Record<string, string> = {
   severe: "#FF5D6C",
 };
 
+/** Палитра Aurora — для JS-логики индикаторов */
+const C = {
+  emerald: "#2EE6A6",
+  cyan: "#29F2FF",
+  blue: "#36A3FF",
+  amber: "#FFC24D",
+  orange: "#FF8A3D",
+  pink: "#FF5D6C",
+};
+
 interface LocalWeather {
   temp: number;
   wind: number;
@@ -68,6 +77,17 @@ export default function SpaceDataPanel() {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<Tab>("space");
 
+  /** На десктопі/ноутбуці панель відкрита зразу (вікно ліворуч);
+   *  при зменшенні екрана до планшета/телефона закривається. */
+  useEffect(() => {
+    const onResize = () => {
+      if (window.innerWidth < 1024) setOpen(false);
+    };
+    if (window.innerWidth >= 1024) setOpen(true);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
   const [loading, setLoading] = useState(true);
   const [geo, setGeo] = useState<GeomagneticData | null>(null);
   const [swd, setSwd] = useState<SpaceWeatherData | null>(null);
@@ -79,18 +99,15 @@ export default function SpaceDataPanel() {
 
   /** Локальная погода из /api/overview (плоская структура weather.*) */
   const loadLocalWeather = useCallback(async () => {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
     try {
-      const res = await fetch(`${apiUrl}/api/overview`);
-      if (!res.ok) return;
-      const d = await res.json();
-      const cur = d?.weather;
+      const d = await api.overview();
+      const cur = d.weather;
       if (!cur) return;
       setWeather({
-        temp: cur.temperature,
-        wind: cur.wind_speed,
-        humidity: cur.humidity,
-        pressure: cur.pressure,
+        temp: cur.temperature ?? 0,
+        wind: cur.wind_speed ?? 0,
+        humidity: cur.humidity ?? 0,
+        pressure: cur.pressure ?? 0,
         label: "Local",
       });
     } catch {
@@ -138,7 +155,6 @@ export default function SpaceDataPanel() {
   const hasData = hasSpaceData || !!astData || !!weather;
 
   if (loading) return null;
-  if (!hasData) return null;
 
   const level = stormLevelOf(geo?.current_kp ?? null);
   const kpVal = geo?.current_kp ?? null;
@@ -260,6 +276,10 @@ export default function SpaceDataPanel() {
     <>
       {tab === "space" ? (
         <div className="px-4 py-3 max-h-[44vh] overflow-y-auto custom-scroll space-y-3">
+          {/* Порожній стан, якщо даних поки немає */}
+          {!hasData && (
+            <div className="text-center py-6 text-secondary text-sm">{t.common.noData}</div>
+          )}
           {/* Текущий Kp и уровень бури */}
           {kpVal != null && (
             <div
@@ -346,7 +366,7 @@ export default function SpaceDataPanel() {
               </div>
               <div className="flex items-end gap-1.5">
                 {kpForecast.map((p, i) => {
-                  const c = p.kp >= 5 ? "#FF5D6C" : p.kp >= 4 ? "#FFC24D" : "#2EE6A6";
+                  const c = p.kp >= 5 ? C.pink : p.kp >= 4 ? C.amber : C.emerald;
                   return (
                     <div key={`kp-${i}`} className="flex-1 flex flex-col items-center gap-1">
                       <span className="text-[9px] font-mono" style={{ color: c }}>
@@ -502,6 +522,7 @@ export default function SpaceDataPanel() {
           <button
             type="button"
             onClick={() => setOpen(true)}
+            data-space-trigger
             className="pointer-events-auto absolute left-3 top-1/2 -translate-y-1/2 z-10 flex flex-col items-center gap-1.5 px-2 py-3 glass-strong rounded-xl text-cyan hover:bg-violet/10 transition-colors"
             aria-label={sw.toggle}
           >
@@ -525,7 +546,8 @@ export default function SpaceDataPanel() {
 
         {/* Сама панель */}
         <div
-          className={`pointer-events-auto absolute left-3 top-1/2 -translate-y-1/2 w-[320px] max-w-[calc(100vw-40px)] glass-strong rounded-2xl overflow-hidden flex flex-col shadow-[0_16px_56px_rgba(0,0,0,0.55)] transition-all duration-500 ${
+          data-space-panel
+          className={`pointer-events-auto absolute left-3 top-1/2 -translate-y-1/2 w-[260px] lg:w-[300px] xl:w-[320px] max-w-[calc(100vw-40px)] glass-strong rounded-2xl overflow-hidden flex flex-col shadow-[0_16px_56px_rgba(0,0,0,0.55)] transition-all duration-500 ${
             open
               ? "translate-x-0 opacity-100"
               : "-translate-x-[calc(100%+20px)] opacity-0 pointer-events-none"
@@ -537,34 +559,30 @@ export default function SpaceDataPanel() {
         </div>
       </div>
 
-      {/* Мобильные: нижняя панель-триггер + bottom-sheet */}
-      <div className="md:hidden fixed inset-x-3 bottom-3 z-40 pointer-events-none">
+      {/* Мобильные: компактная кнопка внизу слева + bottom-sheet */}
+      <div className="md:hidden fixed bottom-3 left-3 z-40 pointer-events-none">
         {!open && (
           <button
             type="button"
             onClick={() => setOpen(true)}
-            className="pointer-events-auto w-full glass-strong rounded-xl px-4 py-3 flex items-center justify-between text-cyan text-xs font-medium hover:bg-violet/10 transition-colors"
+            data-space-trigger-mobile
+            className="pointer-events-auto absolute bottom-0 left-0 glass-strong rounded-xl px-3.5 py-2.5 flex items-center gap-2 text-cyan text-xs font-medium hover:bg-violet/10 transition-colors"
             aria-label={sw.open}
           >
-            <span className="flex items-center gap-2">
-              <Sun className="w-4 h-4" />
-              {sw.title}
-            </span>
-            <span className="w-px h-4 bg-white/10" />
-            <span className="flex items-center gap-2">
-              <Orbit className="w-4 h-4" />
-              {ast.title}
-              {astData?.objects?.length != null && (
-                <span className="text-[9px] px-1 py-0.5 rounded-full bg-cyan/15 text-cyan font-bold">
-                  {astData.objects.length}
-                </span>
-              )}
-            </span>
-            <ChevronUp className="w-4 h-4" />
+            <Sun className="w-4 h-4" />
+            <span className="hidden sm:inline">{sw.title}</span>
+            <span className="w-px h-4 bg-white/10 hidden sm:block" />
+            <Orbit className="w-4 h-4" />
+            {astData?.objects?.length != null && (
+              <span className="text-[9px] px-1 py-0.5 rounded-full bg-cyan/15 text-cyan font-bold">
+                {astData.objects.length}
+              </span>
+            )}
           </button>
         )}
         <div
-          className={`pointer-events-auto glass-strong rounded-2xl overflow-hidden flex flex-col shadow-[0_16px_56px_rgba(0,0,0,0.55)] transition-all duration-500 ${
+          data-space-panel-mobile
+          className={`pointer-events-auto absolute bottom-0 left-0 glass-strong rounded-2xl overflow-hidden flex flex-col shadow-[0_16px_56px_rgba(0,0,0,0.55)] transition-all duration-500 ${
             open
               ? "translate-y-0 opacity-100"
               : "translate-y-[calc(100%+20px)] opacity-0 pointer-events-none"

@@ -150,7 +150,7 @@ export default function CityWeatherWidget() {
         {/* Дропдаун результатів */}
         {dropdownOpen && results.length > 0 && (
           <div className="absolute left-0 right-0 top-full mt-1.5 z-20 glass-strong rounded-xl border border-violet/10 overflow-hidden max-h-64 overflow-y-auto custom-scroll shadow-[0_16px_48px_rgba(0,0,0,0.55)]">
-            {results.map((r, i) => (
+            {results.map((r) => (
               <button
                 key={`${r.name}-${r.latitude}-${r.longitude}`}
                 type="button"

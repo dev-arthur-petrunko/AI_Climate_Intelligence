@@ -13,6 +13,8 @@ import {
 } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 
+// `any` навмисно: бібліотека react-plotly.js не має власних типів
+// (потрібен @types/react-plotly.js), а динамічний імпорт обов'язковий для SSR.
 const Plot: any = dynamic(() => import("react-plotly.js"), {
   ssr: false,
   loading: () => <div className="glass p-8">Loading chart...</div>,

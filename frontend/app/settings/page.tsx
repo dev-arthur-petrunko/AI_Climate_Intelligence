@@ -4,7 +4,7 @@
  * Сторінка налаштувань — адреса сайту, версія та перелік поточного функціоналу.
  */
 
-import { Globe, Github, Info, Settings, CheckCircle2, Sparkles } from "lucide-react";
+import { Globe, Github, Info, Settings, CheckCircle2, Sparkles, History } from "lucide-react";
 import SideNavigation from "@/components/SideNavigation";
 import MissionHeader from "@/components/MissionHeader";
 import { useI18n } from "@/lib/i18n";
@@ -90,6 +90,34 @@ export default function SettingsPage() {
                 </li>
               ))}
             </ul>
+          </div>
+
+          {/* Історія оновлень (попередні версії) */}
+          <div className="glass-strong p-6">
+            <div className="flex items-center space-x-2 mb-2">
+              <History className="w-5 h-5 text-violet" />
+              <h2 className="text-xl font-semibold">{t.settings.historyTitle}</h2>
+            </div>
+            <p className="text-secondary text-sm mb-4">{t.settings.historyText}</p>
+            <div className="space-y-6">
+              {t.settings.historyItems.map((entry, gi) => (
+                <div key={gi}>
+                  <div className="flex items-center space-x-2 mb-2">
+                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-violet/10 text-violet border border-violet/20">
+                      {entry.version}
+                    </span>
+                  </div>
+                  <ul className="space-y-2">
+                    {entry.items.map((item, index) => (
+                      <li key={index} className="flex items-start space-x-3">
+                        <CheckCircle2 className="w-4 h-4 text-violet mt-0.5 shrink-0" />
+                        <span className="text-sm text-secondary leading-relaxed">{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* Що вже є зараз (попередні оновлення) */}

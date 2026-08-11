@@ -21,10 +21,12 @@ import os
 import time
 import csv
 import io
+import math
 import logging
 import random
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 
 import httpx
 from dotenv import load_dotenv
@@ -696,6 +698,99 @@ _FALLBACK_FIRES = [
     # Mediterranean / Greece
     [22.0, 38.0], [23.5, 39.5], [20.5, 40.0],
 ]
+
+
+# ---------------------------------------------------------------------------
+# Reverse geocoding (найближче велике місто) — для людських назв пожеж FIRMS
+# ---------------------------------------------------------------------------
+
+_MAJOR_CITIES = [
+    # (lat, lon, city, country)
+    (49.28, -123.12, "Vancouver", "Canada"),
+    (47.61, -122.33, "Seattle", "USA"),
+    (37.77, -122.42, "San Francisco", "USA"),
+    (34.05, -118.24, "Los Angeles", "USA"),
+    (32.72, -117.16, "San Diego", "USA"),
+    (33.45, -112.07, "Phoenix", "USA"),
+    (39.74, -104.99, "Denver", "USA"),
+    (40.71, -74.01, "New York", "USA"),
+    (25.76, -80.19, "Miami", "USA"),
+    (29.76, -95.37, "Houston", "USA"),
+    (19.43, -99.13, "Mexico City", "Mexico"),
+    (9.07, -79.44, "Panama City", "Panama"),
+    (-6.2, 106.82, "Jakarta", "Indonesia"),
+    (13.76, 100.5, "Bangkok", "Thailand"),
+    (1.35, 103.82, "Singapore", "Singapore"),
+    (14.6, 120.98, "Manila", "Philippines"),
+    (22.32, 114.17, "Hong Kong", "China"),
+    (39.9, 116.41, "Beijing", "China"),
+    (31.23, 121.47, "Shanghai", "China"),
+    (23.12, 113.26, "Guangzhou", "China"),
+    (35.68, 139.69, "Tokyo", "Japan"),
+    (37.57, 126.98, "Seoul", "South Korea"),
+    (55.76, 37.62, "Moscow", "Russia"),
+    (52.52, 13.41, "Berlin", "Germany"),
+    (48.86, 2.35, "Paris", "France"),
+    (51.51, -0.13, "London", "UK"),
+    (40.42, -3.7, "Madrid", "Spain"),
+    (41.9, 12.5, "Rome", "Italy"),
+    (38.72, -9.14, "Lisbon", "Portugal"),
+    (50.85, 4.35, "Brussels", "Belgium"),
+    (52.37, 4.9, "Amsterdam", "Netherlands"),
+    (45.46, 9.19, "Milan", "Italy"),
+    (48.14, 11.58, "Munich", "Germany"),
+    (37.98, 23.73, "Athens", "Greece"),
+    (41.01, 28.98, "Istanbul", "Turkey"),
+    (31.77, 35.21, "Jerusalem", "Israel"),
+    (30.04, 31.24, "Cairo", "Egypt"),
+    (25.2, 55.27, "Dubai", "UAE"),
+    (19.07, 72.88, "Mumbai", "India"),
+    (28.61, 77.21, "New Delhi", "India"),
+    (13.08, 80.27, "Chennai", "India"),
+    (22.57, 88.36, "Kolkata", "India"),
+    (-33.87, 151.21, "Sydney", "Australia"),
+    (-37.81, 144.96, "Melbourne", "Australia"),
+    (-27.47, 153.03, "Brisbane", "Australia"),
+    (-31.95, 115.86, "Perth", "Australia"),
+    (-36.85, 174.76, "Auckland", "New Zealand"),
+    (-34.6, -58.38, "Buenos Aires", "Argentina"),
+    (-23.55, -46.63, "São Paulo", "Brazil"),
+    (-15.79, -47.88, "Brasília", "Brazil"),
+    (-12.97, -38.5, "Salvador", "Brazil"),
+    (-8.05, -34.9, "Recife", "Brazil"),
+    (6.52, 3.38, "Lagos", "Nigeria"),
+    (-1.29, 36.82, "Nairobi", "Kenya"),
+    (-33.92, 18.42, "Cape Town", "South Africa"),
+    (-26.2, 28.05, "Johannesburg", "South Africa"),
+    (36.8, 10.18, "Tunis", "Tunisia"),
+    (44.8, 20.47, "Belgrade", "Serbia"),
+    (50.45, 30.52, "Kyiv", "Ukraine"),
+]
+
+# Париж залишається єдиним: видалено дублікат із пунктом 49.0/2.55
+
+
+def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Відстань між двома координатами у кілометрах (сфера)."""
+    radius = 6371.0
+    p1 = math.radians(lat1)
+    p2 = math.radians(lat2)
+    dp = math.radians(lat2 - lat1)
+    dl = math.radians(lon2 - lon1)
+    a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return 2 * radius * math.asin(math.sqrt(a))
+
+
+def nearest_place(lat: float, lon: float, max_km: float = 400.0) -> Optional[str]:
+    """Найближче велике місто в межах max_km або None (для людської назви пожежі)."""
+    best: Optional[str] = None
+    best_d = max_km
+    for (clat, clon, city, country) in _MAJOR_CITIES:
+        d = _haversine_km(lat, lon, clat, clon)
+        if d < best_d:
+            best_d = d
+            best = f"{city}, {country}"
+    return best
 
 
 def fetch_fires(days: int = 1) -> dict:

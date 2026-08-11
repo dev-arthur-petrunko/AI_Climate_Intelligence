@@ -70,7 +70,6 @@ export function isDaylight(
 ): boolean {
   const sub = getSubsolarPoint(date);
   // Кутова відстань від субсолярної точки < 90° — вдень
-  const dLat = ((lat - sub.lat) * Math.PI) / 180;
   const dLon = ((lon - sub.lon) * Math.PI) / 180;
   const cosC =
     Math.sin((lat * Math.PI) / 180) * Math.sin((sub.lat * Math.PI) / 180) +

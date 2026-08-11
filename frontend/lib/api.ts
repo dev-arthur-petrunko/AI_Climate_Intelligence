@@ -120,6 +120,9 @@ export interface ClimateEvent {
   time: string;
   severity: string;
   coordinates?: [number, number] | null;
+  frp?: number | null;
+  confidence?: string | null;
+  satellite?: string | null;
 }
 
 export interface KPIItem {
@@ -162,25 +165,6 @@ export interface AsteroidsData {
   range?: { start: string; end: string };
   count?: number;
   objects: AsteroidObject[];
-  error?: boolean;
-}
-
-export interface EonetEvent {
-  id?: string;
-  event_type: string;
-  title?: string;
-  location?: string;
-  time?: string;
-  severity?: string;
-  coordinates?: [number, number] | null;
-  status?: string;
-}
-
-export interface EonetData {
-  source: string;
-  range_days?: number;
-  count?: number;
-  events: EonetEvent[];
   error?: boolean;
 }
 
@@ -278,7 +262,6 @@ export const api = {
   predictions: (lang?: string) =>
     getJSON<AIPrediction[]>("/api/predictions", lang ? { lang } : undefined),
   asteroids: (days = 7) => getJSON<AsteroidsData>("/api/asteroids", { days }),
-  eonet: (days = 10) => getJSON<EonetData>("/api/eonet", { days }),
   geomagnetic: () => getJSON<GeomagneticData>("/api/geomagnetic"),
   spaceWeather: (days = 7) => getJSON<SpaceWeatherData>("/api/space-weather", { days }),
   geocode: (q: string, count = 8) => getJSON<GeocodeData>("/api/geocode", { q, count }),

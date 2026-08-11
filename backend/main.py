@@ -27,6 +27,7 @@ from data_sources import (
     get_geocode,
     get_kp_forecast,
     get_goes_xray,
+    nearest_place,
     get_solar_cycle,
 )
 from ai_groq import get_ai_analysis, get_ai_predictions
@@ -81,6 +82,9 @@ class ClimateEvent(BaseModel):
     time: str
     severity: str
     coordinates: Optional[Tuple[float, float]] = None
+    frp: Optional[float] = None
+    confidence: Optional[str] = None
+    satellite: Optional[str] = None
 
 
 class AIPrediction(BaseModel):
@@ -584,13 +588,20 @@ async def get_climate_events():
         for fire in sampled:
             coords = fire.get("coordinates")
             if coords:
+                frp = fire.get("frp")
+                place = nearest_place(coords[1], coords[0])
                 events.append(
                     {
                         "event_type": "Wildfire",
-                        "location": f"{fire.get('satellite', 'VIIRS')} hotspot",
+                        # Людська назва місця (найближче місто) або координати
+                        "location": place
+                        or f"≈ {coords[1]:.1f}°, {coords[0]:.1f}°",
                         "time": fire.get("acq_date", "recent"),
-                        "severity": "high" if fire.get("frp", 0) > 100 else "medium",
+                        "severity": "high" if (frp or 0) > 100 else "medium",
                         "coordinates": (coords[0], coords[1]),
+                        "frp": round(float(frp), 1) if frp is not None else None,
+                        "confidence": fire.get("confidence"),
+                        "satellite": fire.get("satellite"),
                     }
                 )
     except Exception:
