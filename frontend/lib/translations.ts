@@ -62,21 +62,53 @@ export const en = {
     siteLabel: "Site address",
     githubLabel: "GitHub repository",
     versionLabel: "Version",
-    version: "1.2.0",
+    version: "1.2.5",
     latestUpdateTitle: "Latest update",
     latestUpdateText: "What's new in this version:",
     latestUpdateItems: [
-      "Responsive layout for phone, tablet and laptop — side panels auto-open on desktop and collapse into compact buttons on mobile",
-      "Fire tooltips enriched: FRP (radiative power), confidence and satellite shown for every hotspot",
-      "Fire locations now use nearest major city names via reverse geocoding (~60 cities worldwide)",
-      "Tooltips explain what each event is, with descriptions in all 7 languages",
-      "Fixed panel positioning: Space & AI windows now anchor correctly on every screen size",
-      "Asteroids rendered larger and brighter with clearer orbits and comet tails",
-      "Technical cleanup: removed legacy styles and unused code, stricter TypeScript types",
+      "Support page with action links: GitHub star, share project, report bugs via Telegram, contribute code/translations/data",
+      "Space Weather: CME 'no events' state, Bt (total magnetic field), X-ray flux history chart (6h GOES data)",
+      "Local Weather: shows coordinates and data source (Open-Meteo)",
+      "Fire KPI trend updated to 'global, 24h' for clarity",
+      "All translations updated — no Russian text when Ukrainian selected",
+      "Coronal Mass Ejections display properly when no events in last 7 days",
     ],
     historyTitle: "Update history",
     historyText: "Previous versions:",
     historyItems: [
+      {
+        version: "1.2.5",
+        items: [
+          "Support page with action links: GitHub star, share project, report bugs via Telegram, contribute code/translations/data",
+          "Space Weather: CME 'no events' state, Bt (total magnetic field), X-ray flux history chart (6h GOES data)",
+          "Local Weather: shows coordinates and data source (Open-Meteo)",
+          "Fire KPI trend updated to 'global, 24h' for clarity",
+          "All translations updated — no Russian text when Ukrainian selected",
+          "Coronal Mass Ejections display properly when no events in last 7 days",
+        ],
+      },
+      {
+        version: "1.2.2",
+        items: [
+          "Support page redesigned with proper action links and translations for all 7 languages",
+          "Space Weather panel enhanced with Bt field and X-ray flux history chart",
+          "Coronal Mass Ejections show 'no events' when no CMEs detected",
+          "Local Weather now displays coordinates and data source",
+          "Fire KPI trend label updated to 'global, 24h'",
+        ],
+      },
+      {
+        version: "1.2.0",
+        items: [
+          "Responsive layout for phone, tablet and laptop — side panels auto-open on desktop and collapse into compact buttons on mobile",
+          "Fire tooltips enriched: FRP (radiative power), confidence and satellite shown for every hotspot",
+          "Fire locations now use nearest major city names via reverse geocoding (~60 cities worldwide)",
+          "Tooltips explain what each event is, with descriptions in all 7 languages",
+          "Fixed panel positioning: Space & AI windows now anchor correctly on every screen size",
+          "Asteroids rendered larger and brighter with clearer orbits and comet tails",
+          "Technical cleanup: removed legacy styles and unused code, stricter TypeScript types",
+        ],
+      },
       {
         version: "1.1.0",
         items: [
@@ -367,6 +399,7 @@ export const en = {
     earthDirected: "→ Earth",
     noData: "No space weather data available",
     xrayFlux: "X-ray flux (0.1–0.8 nm)",
+    placeholder: "Search city...",
   },
   weatherWidget: {
     title: "City Weather",
@@ -733,6 +766,7 @@ export const uk: TranslationDict = {
     earthDirected: "→ Земля",
     noData: "Дані космічної погоди недоступні",
     xrayFlux: "Рентгенівський потік (0.1–0.8 nm)",
+    placeholder: "Пошук міста...",
   },
   weatherWidget: {
     title: "Погода у місті",
@@ -1099,6 +1133,7 @@ export const de: TranslationDict = {
     earthDirected: "→ Erde",
     noData: "Keine Weltraumwetterdaten verfügbar",
     xrayFlux: "Röntgenfluss (0,1–0,8 nm)",
+    placeholder: "Stadt suchen...",
   },
   weatherWidget: {
     title: "Stadtwetter",
@@ -1465,6 +1500,7 @@ export const pl: TranslationDict = {
     earthDirected: "→ Ziemia",
     noData: "Brak danych pogody kosmicznej",
     xrayFlux: "Strumień rentgenowski (0,1–0,8 nm)",
+    placeholder: "Szukaj miasta...",
   },
   weatherWidget: {
     title: "Pogoda w mieście",
@@ -1831,6 +1867,7 @@ export const fr: TranslationDict = {
     earthDirected: "→ Terre",
     noData: "Aucune donnée météo spatiale",
     xrayFlux: "Flux X (0,1–0,8 nm)",
+    placeholder: "Rechercher une ville...",
   },
   weatherWidget: {
     title: "Météo de la ville",
@@ -2197,6 +2234,7 @@ export const it: TranslationDict = {
     earthDirected: "→ Terra",
     noData: "Nessun dato meteo spaziale",
     xrayFlux: "Flusso X (0,1–0,8 nm)",
+    placeholder: "Cerca città...",
   },
   weatherWidget: {
     title: "Meteo della città",
@@ -2563,6 +2601,7 @@ export const ka: TranslationDict = {
     earthDirected: "→ დედამიწა",
     noData: "კოსმოსური ამინდის მონაცემები მიუწვდომელია",
     xrayFlux: "X-შუალედური ნაკადი (0,1–0,8 nm)",
+    placeholder: "ქალაქის ძიება...",
   },
   weatherWidget: {
     title: "ამინდი ქალაქში",

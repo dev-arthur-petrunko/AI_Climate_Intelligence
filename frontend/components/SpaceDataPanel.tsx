@@ -6,7 +6,7 @@
  * Мобильные: компактная нижняя панель-триггер + bottom-sheet.
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Orbit,
   X,
@@ -22,6 +22,8 @@ import {
   Gauge,
   Droplets,
   Satellite,
+  Search,
+  MapPin,
 } from "lucide-react";
 import {
   api,
@@ -33,6 +35,7 @@ import {
   SolarCycleData,
   SolarWindData,
   OverviewData,
+  GeocodeResult,
 } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 
@@ -113,13 +116,43 @@ export default function SpaceDataPanel() {
   const [weather, setWeather] = useState<LocalWeather | null>(null);
   const [astData, setAstData] = useState<AsteroidsData | null>(null);
 
+  // Local weather location selection
+  const [weatherLocation, setWeatherLocation] = useState<{ lat: number; lon: number; name: string } | null>(null);
+  const [weatherQuery, setWeatherQuery] = useState("");
+  const [weatherResults, setWeatherResults] = useState<GeocodeResult[]>([]);
+  const [weatherSearching, setWeatherSearching] = useState(false);
+  const [weatherDropdownOpen, setWeatherDropdownOpen] = useState(false);
+  const weatherSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const weatherBoxRef = useRef<HTMLDivElement>(null);
+
+  /** Save selected weather location to localStorage */
+  useEffect(() => {
+    if (weatherLocation) {
+      localStorage.setItem("ci-weather-location", JSON.stringify(weatherLocation));
+    }
+  }, [weatherLocation]);
+
+  /** Load saved weather location on mount */
+  useEffect(() => {
+    const saved = localStorage.getItem("ci-weather-location");
+    if (saved) {
+      try {
+        setWeatherLocation(JSON.parse(saved));
+      } catch {
+        /* ignore */
+      }
+    }
+  }, []);
+
   /** Локальная погода из /api/overview (плоская структура weather.*) */
   const loadLocalWeather = useCallback(async () => {
     try {
-      const d: OverviewData = await api.overview();
+      const lat = weatherLocation?.lat ?? 50.45;
+      const lon = weatherLocation?.lon ?? 30.52;
+      const d: OverviewData = await api.overview(lat, lon);
       const cur = d.weather;
       if (!cur) return;
-      const place = nearestName(d);
+      const place = weatherLocation?.name || nearestName(d);
       setWeather({
         temp: cur.temperature ?? 0,
         wind: cur.wind_speed ?? 0,
@@ -133,7 +166,7 @@ export default function SpaceDataPanel() {
     } catch {
       /* без локальной погоды */
     }
-  }, []);
+  }, [weatherLocation]);
 
   const load = useCallback(async () => {
     try {
@@ -167,6 +200,41 @@ export default function SpaceDataPanel() {
     const id = setInterval(load, 30 * 60 * 1000);
     return () => clearInterval(id);
   }, [load]);
+
+  /** Geocode search with debounce */
+  useEffect(() => {
+    if (weatherSearchTimer.current) clearTimeout(weatherSearchTimer.current);
+    if (weatherQuery.trim().length < 2) {
+      setWeatherResults([]);
+      return;
+    }
+    weatherSearchTimer.current = setTimeout(async () => {
+      setWeatherSearching(true);
+      try {
+        const data = await api.geocode(weatherQuery.trim(), 8);
+        setWeatherResults(data.results || []);
+        setWeatherDropdownOpen(true);
+      } catch {
+        setWeatherResults([]);
+      } finally {
+        setWeatherSearching(false);
+      }
+    }, 350);
+    return () => {
+      if (weatherSearchTimer.current) clearTimeout(weatherSearchTimer.current);
+    };
+  }, [weatherQuery]);
+
+  /** Close dropdown on outside click */
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      if (weatherBoxRef.current && !weatherBoxRef.current.contains(e.target as Node)) {
+        setWeatherDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, []);
 
   const hasSpaceData =
     !!(geo && geo.current_kp != null) ||
@@ -589,6 +657,54 @@ export default function SpaceDataPanel() {
                   {weather.label ? ` · ${weather.label}` : ""}
                 </span>
               </div>
+
+              {/* Пошук міста для локальної погоди */}
+              <div ref={weatherBoxRef} className="relative mb-2">
+                <div className="relative">
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-secondary" />
+                  <input
+                    type="text"
+                    value={weatherQuery}
+                    onChange={(e) => setWeatherQuery(e.target.value)}
+                    onFocus={() => weatherResults.length > 0 && setWeatherDropdownOpen(true)}
+                    placeholder={sw.placeholder || "Пошук міста..."}
+                    className="w-full pl-8 pr-8 py-1.5 rounded-lg bg-white/[0.03] border border-white/5 text-xs text-primary placeholder:text-secondary/60 focus:border-cyan/40 focus:outline-none focus:ring-1 focus:ring-cyan/30 transition-colors"
+                  />
+                  {weatherSearching && (
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 border-2 border-cyan/40 border-t-transparent rounded-full animate-spin" />
+                  )}
+                </div>
+
+                {weatherDropdownOpen && weatherResults.length > 0 && (
+                  <div className="absolute left-0 right-0 top-full mt-1 z-10 glass-strong rounded-lg border border-violet/10 overflow-hidden max-h-48 overflow-y-auto custom-scroll shadow-[0_16px_48px_rgba(0,0,0,0.55)]">
+                    {weatherResults.map((r) => (
+                      <button
+                        key={`${r.name}-${r.latitude}-${r.longitude}`}
+                        type="button"
+                        onClick={() => {
+                          setWeatherLocation({
+                            lat: r.latitude,
+                            lon: r.longitude,
+                            name: `${r.name}${r.admin1 ? `, ${r.admin1}` : ""}${r.country ? `, ${r.country}` : ""}`,
+                          });
+                          setWeatherQuery(`${r.name}${r.admin1 ? `, ${r.admin1}` : ""}${r.country ? `, ${r.country}` : ""}`);
+                          setWeatherDropdownOpen(false);
+                        }}
+                        className="w-full flex items-center justify-between px-2.5 py-2 text-left hover:bg-white/5 transition-colors"
+                      >
+                        <span className="flex items-center space-x-1.5 text-xs text-primary">
+                          <MapPin className="w-3 h-3 text-cyan/70" />
+                          <span>{r.name}</span>
+                        </span>
+                        <span className="text-[9px] text-secondary truncate ml-2">
+                          {[r.admin1, r.country].filter(Boolean).join(", ")}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               {(weather.lat != null && weather.lon != null) && (
                 <div className="mb-1.5 text-[9px] text-secondary/80 font-mono">
                   {weather.lat.toFixed(2)}°, {weather.lon.toFixed(2)}°
