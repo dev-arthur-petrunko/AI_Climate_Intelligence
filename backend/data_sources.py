@@ -24,6 +24,7 @@ import io
 import math
 import logging
 import random
+import re
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -239,7 +240,10 @@ def fetch_gistemp() -> dict:
     r.raise_for_status()
 
     series = []
+    monthly = []
     header_seen = False
+    months = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+    current_year = datetime.now(timezone.utc).year
     for raw_line in r.text.splitlines():
         line = raw_line.strip()
         if not line:
@@ -255,20 +259,40 @@ def fetch_gistemp() -> dict:
         # Columns: Year,Jan..Dec,J-D,D-N,DJF,MAM,JJA,SON -> annual mean is idx 13
         if len(cols) <= 13:
             continue
+        year = int(cols[0])
         annual = cols[13]
-        if annual in ("***", ""):
-            continue
-        try:
-            value = float(annual)
-        except ValueError:
-            continue
-        series.append({"year": int(cols[0]), "value": round(value, 2)})
+        if annual not in ("***", "") and len(annual) <= 10:
+            try:
+                series.append({"year": year, "value": round(float(annual), 2)})
+            except ValueError:
+                pass
+        # Рік, що йде (частково завершений): збираємо доступні місяці,
+        # щоб показати найсвіжішу аномалію замість минулого річного значення.
+        if year >= current_year - 1:
+            for m_idx, m_name in enumerate(months):
+                if 1 + m_idx >= len(cols):
+                    continue
+                m_raw = cols[1 + m_idx]
+                if m_raw in ("***", ""):
+                    continue
+                try:
+                    monthly.append({"year": year, "month": m_idx + 1, "value": round(float(m_raw), 2)})
+                except ValueError:
+                    continue
 
-    latest = series[-1] if series else None
+    # Найсвіжіша точка: останній доступний місяць, інакше річне значення.
+    latest = None
+    if monthly:
+        monthly.sort(key=lambda p: (p["year"], p["month"]))
+        latest = monthly[-1]
+    elif series:
+        latest = series[-1]
+
     return {
         "source": "NASA GISTEMP v4",
         "reference": "1951-1980 baseline",
         "series": series,
+        "monthly": monthly,
         "latest": latest,
     }
 
@@ -477,30 +501,33 @@ def get_sea_ice_south() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# OWID: global sea level rise (Church & White + UHSLC)
+# University of Colorado: global mean sea level (altimetry, 2026_rel1)
 # ---------------------------------------------------------------------------
 
 def fetch_sea_level() -> dict:
-    url = "https://ourworldindata.org/grapher/sea-level.csv"
+    url = "https://sealevel.colorado.edu/files/2026_rel1/gmsl_2026rel1_seasons_rmvd.txt"
     r = httpx.get(url, timeout=_TIMEOUT, headers=_HEADERS, follow_redirects=True)
     r.raise_for_status()
 
     series = []
-    reader = csv.DictReader(io.StringIO(r.text))
-    for row in reader:
-        if (row.get("Entity") or "").lower() != "world":
+    for raw_line in r.text.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
             continue
-        month = (row.get("Month") or row.get("Day") or "").strip()
-        raw = (row.get("Average of Church and White (2011) and UHSLC") or "").strip()
-        if not raw:
-            raw = (row.get("Church and White (2011)") or "").strip()
-        if not month or not raw:
+        parts = line.split()
+        if len(parts) < 2:
             continue
         try:
-            value = float(raw)
+            year_frac = float(parts[0])
+            value = float(parts[1])
         except ValueError:
             continue
-        series.append({"date": month, "value": round(value, 2)})
+        if value >= 9990:
+            continue
+        year = int(year_frac)
+        day_of_year = (year_frac - year) * 365.25
+        dt = datetime(year, 1, 1) + timedelta(days=day_of_year)
+        series.append({"date": dt.strftime("%Y-%m-%d"), "value": round(value, 2)})
 
     if not series:
         raise RuntimeError("No sea level data parsed")
@@ -519,9 +546,9 @@ def fetch_sea_level() -> dict:
         trend = round((latest["value"] - ref_point["value"]) / years, 2)
 
     return {
-        "source": "Church & White (2011) + UHSLC (OWID)",
+        "source": "University of Colorado Sea Level Research Group (2026_rel1)",
         "unit": "mm",
-        "reference": "mean sea level 1900-2000",
+        "reference": "altimetry 1993-present, relative to TOPEX/Jason mean, seasonal signals removed",
         "series": series,
         "latest": latest,
         "trend": trend,
@@ -576,30 +603,54 @@ def get_ocean_heat() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# OWID: ocean acidification (seawater pH, Hawaii station)
+# Hawaii Ocean Time-series (HOT): surface seawater pH, Station ALOHA
 # ---------------------------------------------------------------------------
 
 def fetch_ocean_ph() -> dict:
-    url = "https://ourworldindata.org/grapher/seawater-ph.csv"
+    url = "https://hahana.soest.hawaii.edu/hot/hotco2/HOT_surface_CO2.txt"
     r = httpx.get(url, timeout=_TIMEOUT, headers=_HEADERS, follow_redirects=True)
     r.raise_for_status()
 
     series = []
-    reader = csv.DictReader(io.StringIO(r.text))
-    for row in reader:
-        if (row.get("Entity") or "").lower() != "hawaii":
+    data_started = False
+    for raw_line in r.text.splitlines():
+        line = raw_line.rstrip("\r")
+        if not data_started:
+            if "cruise" in line and "pH" in line:
+                data_started = True
             continue
-        month = (row.get("Month") or row.get("Day") or "").strip()
-        raw = (row.get("Annual average") or "").strip()
-        if not raw:
-            raw = (row.get("Monthly average") or "").strip()
-        if not month or not raw:
+        cols = [c.strip() for c in line.split("\t")]
+        # Columns: cruise, days, date, temp, sal, phos, sil, DIC, TA, nDIC, nTA,
+        # pHmeas_25C, pHmeas_insitu, pHcalc_25C, pHcalc_insitu, ...
+        if len(cols) < 15:
             continue
-        try:
-            value = float(raw)
-        except ValueError:
+        date_raw = cols[2]
+        ph_value = None
+        for idx in (11, 14, 13, 12):
+            raw = cols[idx]
+            if raw in ("", "-999", "-999.0", "nan", "NaN"):
+                continue
+            try:
+                ph_value = float(raw)
+                break
+            except ValueError:
+                continue
+        if ph_value is None:
             continue
-        series.append({"date": month, "value": round(value, 4)})
+        m = re.match(r"(\d{1,2})-([A-Za-z]{3})-(\d{2})", date_raw)
+        if not m:
+            continue
+        day, mon, yy = int(m.group(1)), m.group(2), int(m.group(3))
+        year = 1900 + yy if yy >= 88 else 2000 + yy
+        months = {"Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6,
+                  "Jul": 7, "Aug": 8, "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12}
+        month = months.get(mon)
+        if not month:
+            continue
+        series.append({
+            "date": f"{year:04d}-{month:02d}-{day:02d}",
+            "value": round(ph_value, 4),
+        })
 
     if not series:
         raise RuntimeError("No ocean pH data parsed")
@@ -608,9 +659,9 @@ def fetch_ocean_ph() -> dict:
     latest = series[-1]
 
     return {
-        "source": "NOAA / OWID (Hawaii station)",
+        "source": "Hawaii Ocean Time-series (HOT), Station ALOHA",
         "unit": "pH",
-        "reference": "surface seawater pH (total scale)",
+        "reference": "surface seawater pH (total scale, 25 C)",
         "series": series,
         "latest": latest,
     }

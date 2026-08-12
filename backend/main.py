@@ -199,7 +199,7 @@ async def sea_ice_south():
 
 @app.get("/api/sea-level")
 async def sea_level():
-    """Глобальний рівень моря (Church & White 2011 + UHSLC, через OWID)"""
+    """Глобальний рівень моря за даними супутникової альтиметрії (University of Colorado)"""
     data = get_sea_level()
     data["analysis"] = analyze(data.get("series", []), time_key="date")
     return data
@@ -215,7 +215,7 @@ async def ocean_heat():
 
 @app.get("/api/ocean-ph")
 async def ocean_ph():
-    """Закислення океану — pH поверхневої води, станція Гаваї (NOAA/OWID)"""
+    """Закислення океану — pH поверхневої води, станція ALOHA (HOT)"""
     data = get_ocean_ph()
     data["analysis"] = analyze(data.get("series", []), time_key="date")
     return data
@@ -417,7 +417,8 @@ async def get_kpi_metrics():
                 "value": f"{anomaly['value']:+.2f}°C",
                 "trend": f"vs 1951-1980 baseline",
                 "trend_up": anomaly["value"] > 0,
-                "insight": f"NASA GISTEMP, {anomaly.get('year')}",
+                "insight": f"NASA GISTEMP, {anomaly.get('year')}"
+                + (f"-{anomaly.get('month'):02d}" if anomaly.get("month") else ""),
             }
         )
 
@@ -495,7 +496,7 @@ async def get_kpi_metrics():
                 "value": f"{sl['value']:+.0f} mm",
                 "trend": f"{sl_trend:+.2f} mm/yr" if sl_trend is not None else "relative",
                 "trend_up": True,
-                "insight": f"Church & White + UHSLC, {sl.get('date', '')[:4]}",
+                "insight": f"Satellite altimetry (Univ. of Colorado), {sl.get('date', '')[:4]}",
             }
         )
 
@@ -517,9 +518,9 @@ async def get_kpi_metrics():
             {
                 "name": "Ocean pH",
                 "value": f"{ph['value']:.3f}",
-                "trend": "Hawaii station",
+                "trend": "Station ALOHA",
                 "trend_up": False,
-                "insight": "NOAA/OWID surface seawater pH",
+                "insight": "HOT (Station ALOHA) surface seawater pH",
             }
         )
 
@@ -697,7 +698,7 @@ async def get_ai_summary():
             sl = ocean_climate.get("sea_level") or {}
             if sl.get("value") is not None:
                 summary_parts.append(
-                    f"Global mean sea level stands at {sl['value']:+.0f} mm relative to the 1900-2000 mean."
+                    f"Global mean sea level stands at {sl['value']:+.0f} mm relative to the TOPEX/Jason reference mean."
                 )
             oh = ocean_climate.get("ocean_heat") or {}
             if oh.get("value") is not None:
@@ -707,7 +708,7 @@ async def get_ai_summary():
             ph = ocean_climate.get("ocean_ph") or {}
             if ph.get("value") is not None:
                 summary_parts.append(
-                    f"Surface ocean pH fell to {ph['value']:.3f}, reflecting continued acidification (Hawaii station)."
+                    f"Surface ocean pH fell to {ph['value']:.3f}, reflecting continued acidification (Station ALOHA)."
                 )
             fires = (overview_data.get("fires") or {}).get("count", 0)
             summary_parts.append(f"Satellites are currently tracking {fires} active fire hotspots globally.")

@@ -146,6 +146,9 @@ export const en = {
       oceanHeat: "Ocean Heat",
       ph: "Ocean pH",
       asteroid: "Asteroids",
+      asteroidHazard: "Hazardous",
+      asteroidWatch: "Near approach",
+      asteroidSafe: "Safe",
     },
   },
   events: {
@@ -473,6 +476,9 @@ export const uk: TranslationDict = {
       oceanHeat: "Тепло океану",
       ph: "pH океану",
       asteroid: "Астероїди",
+      asteroidHazard: "Небезпечні",
+      asteroidWatch: "Близьке зближення",
+      asteroidSafe: "Безпечні",
     },
   },
   events: {
@@ -800,6 +806,9 @@ export const de: TranslationDict = {
       oceanHeat: "Ozeanwärme",
       ph: "Ozean-pH",
       asteroid: "Asteroiden",
+      asteroidHazard: "Gefährlich",
+      asteroidWatch: "Naher Vorbeiflug",
+      asteroidSafe: "Sicher",
     },
   },
   events: {
@@ -1127,6 +1136,9 @@ export const pl: TranslationDict = {
       oceanHeat: "Ciepło oceanu",
       ph: "pH oceanu",
       asteroid: "Asteroidy",
+      asteroidHazard: "Niebezpieczne",
+      asteroidWatch: "Bliskie przeloty",
+      asteroidSafe: "Bezpieczne",
     },
   },
   events: {
@@ -1454,6 +1466,9 @@ export const fr: TranslationDict = {
       oceanHeat: "Chaleur océanique",
       ph: "pH océanique",
       asteroid: "Astéroïdes",
+      asteroidHazard: "Dangereux",
+      asteroidWatch: "Approche proche",
+      asteroidSafe: "Sûrs",
     },
   },
   events: {
@@ -1781,6 +1796,9 @@ export const it: TranslationDict = {
       oceanHeat: "Calore oceanico",
       ph: "pH oceanico",
       asteroid: "Asteroidi",
+      asteroidHazard: "Pericolosi",
+      asteroidWatch: "Vicinanza ravvicinata",
+      asteroidSafe: "Sicuri",
     },
   },
   events: {
@@ -2108,6 +2126,9 @@ export const ka: TranslationDict = {
       oceanHeat: "ოკეანის სითბო",
       ph: "ოკეანის pH",
       asteroid: "ასტეროიდები",
+      asteroidHazard: "საშიში",
+      asteroidWatch: "ახლო მიახლოება",
+      asteroidSafe: "უსაფრთხო",
     },
   },
   events: {

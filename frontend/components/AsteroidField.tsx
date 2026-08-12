@@ -5,7 +5,8 @@
  * Кожен астероїд рухається власною орбітою (нахил + висхідний вузол),
  * обертається навколо осі, має сяйво та кометний хвіст.
  * Орбіти промальовані ТОНКИМИ ПУНКТИРНИМИ ЛІНІЯМИ (не суцільні тори).
- * Небезпечні (PHO) — рожеві, решта — блакитні. Розмір ~ діаметру.
+ * Колір — за ступенем загрози: небезпечні (PHO) — червоні, близьке
+ * зближення — жовті, безпечні — зелені. Розмір ~ діаметру.
  * При наведенні показує тултіп із даними NASA NeoWs.
  */
 
@@ -28,12 +29,34 @@ const MISS_MAX_KM = 7.5e7;
 /** Нормалізація діаметра (м) у розмір моделі на сцені */
 function diameterToSize(diamMax: number | null): number {
   const d = diamMax && diamMax > 0 ? diamMax : 100;
-  return 0.09 + Math.min(1, d / 1200) * 0.32;
+  return 0.02 + Math.min(1, d / 1200) * 0.07;
 }
 
-/** Кольори: небезпечний — рожевий (danger), безпечний — блакитний (accent) */
-const HAZARD_COLOR = "#FF5C8A";
-const SAFE_COLOR = "#36A3FF";
+/** Кольори за ступенем загрози: небезпечний — червоний, близьке зближення — жовтий, безпечний — зелений */
+const HAZARD_COLOR = "#FF5D6C";
+const WATCH_COLOR = "#FFB648";
+const SAFE_COLOR = "#28E08F";
+
+/** Поріг зближення (км) — менше вважається «жовтим» рівнем уваги */
+const WATCH_MISS_KM = 4e7;
+
+/** Колір за ступенем загрози (спільний для легенди та тултіпа) */
+export function asteroidThreatColor(obj: {
+  hazardous?: boolean;
+  miss_km?: number | null;
+}): string {
+  if (obj.hazardous) return HAZARD_COLOR;
+  const miss = obj.miss_km;
+  if (miss != null && miss < WATCH_MISS_KM) return WATCH_COLOR;
+  return SAFE_COLOR;
+}
+
+/** База каменя під колір загрози */
+const ROCK_BASE: Record<string, string> = {
+  [HAZARD_COLOR]: "#5a3340",
+  [WATCH_COLOR]: "#57422f",
+  [SAFE_COLOR]: "#2f4a3c",
+};
 
 /** Кількість сегментів у пунктирній орбіті та ланок кометного хвоста */
 const ORBIT_SEGMENTS = 128;
@@ -93,7 +116,7 @@ function Asteroid({
     };
   }, [obj, asteroidRegistry]);
 
-  const color = obj.hazardous ? HAZARD_COLOR : SAFE_COLOR;
+  const color = asteroidThreatColor(obj);
 
   /** Точки пунктирної орбіти (у площині XY до нахилу групи) */
   const orbitCircle = useMemo(() => {
@@ -133,7 +156,7 @@ function Asteroid({
         const m = tailRefs.current[i];
         if (!m) continue;
         const k = i + 1;
-        const dist = orbit.size * (1.8 + k * 1.1);
+        const dist = orbit.size * (1.5 + k * 0.9);
         m.position.set(
           moverRef.current.position.x + bx * dist,
           moverRef.current.position.y + by * dist,
@@ -158,7 +181,7 @@ function Asteroid({
       <Line
         points={orbitCircle}
         color={color}
-        lineWidth={0.8}
+        lineWidth={0.6}
         dashed
         dashScale={2}
         dashSize={0.8}
@@ -172,7 +195,7 @@ function Asteroid({
       <group ref={moverRef}>
         {/* Сяйво навколо астероїда */}
         <mesh>
-          <sphereGeometry args={[orbit.size * 2.0, 12, 12]} />
+          <sphereGeometry args={[orbit.size * 1.6, 12, 12]} />
           <meshBasicMaterial
             ref={glowMatRef}
             color={color}
@@ -186,7 +209,7 @@ function Asteroid({
         <mesh ref={rockRef}>
           <icosahedronGeometry args={[orbit.size, 1]} />
           <meshStandardMaterial
-            color={obj.hazardous ? "#5a3340" : "#3a4a63"}
+            color={ROCK_BASE[color] ?? "#3a4a63"}
             emissive={color}
             emissiveIntensity={active ? 0.8 : 0.45}
             roughness={0.9}

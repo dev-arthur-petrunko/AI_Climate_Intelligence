@@ -13,7 +13,8 @@ import { OrbitControls, Stars } from "@react-three/drei";
 import * as THREE from "three";
 import { useI18n } from "@/lib/i18n";
 import { sunDirection } from "@/lib/solar";
-import AsteroidField, { AsteroidEntry } from "./AsteroidField";
+import { moonDirection } from "@/lib/moon";
+import AsteroidField, { AsteroidEntry, asteroidThreatColor } from "./AsteroidField";
 import type { AsteroidObject, ClimateEvent, OceanHeatData, OceanPhData, SeaIceData, SeaLevelData } from "@/lib/api";
 
 /** Локальні текстури — гарантовано доступні, не залежать від CDN */
@@ -22,6 +23,10 @@ const EARTH_BUMP = "/earth/earth-topology.png";
 
 /** Радіус планети в одиницях сцени */
 const EARTH_RADIUS = 5;
+
+/** Місяць: дистанція та радіус (художній масштаб, щоб був видимий у кадрі) */
+const MOON_DISTANCE = 42;
+const MOON_RADIUS = 1.9;
 
 /** Структура події для маркера на глобусі */
 interface EventPoint {
@@ -204,14 +209,15 @@ const LEGEND: LegendItem[] = [
   { key: "seaLevel", color: "#FFC24D" },
   { key: "oceanHeat", color: "#FF7043" },
   { key: "ph", color: "#00E5FF" },
-  { key: "asteroid", color: "#36A3FF" },
+  { key: "asteroidHazard", color: "#FF5D6C" },
+  { key: "asteroidWatch", color: "#FFB648" },
+  { key: "asteroidSafe", color: "#28E08F" },
 ];
 
 /** Земля: кольори Blue Marble + рельєф bump map + атмосфера + маркери + астероїди */
 function Earth({
   events,
   asteroids,
-  autoRotate,
   hovered,
   sunRef,
   markerRegistry,
@@ -219,7 +225,6 @@ function Earth({
 }: {
   events: EventPoint[];
   asteroids: AsteroidObject[];
-  autoRotate: boolean;
   hovered: HoveredPoint | null;
   sunRef?: React.MutableRefObject<THREE.Vector3 | null>;
   markerRegistry: React.MutableRefObject<MarkerEntry[]>;
@@ -261,13 +266,10 @@ function Earth({
   // Автообертання планети, реальна позиція Сонця та "дихання" атмосферного сяйва.
   // Сонце обчислюється за фактичним UTC-часом (субсолярна точка) і лишається
   // нерухомим у світових координатах (далеко, на своїй реальній позиції).
-  // Земля повільно обертається декоративно — термінатор день/ніч плавно ковзає,
-  // як прискорений добовий цикл, а саме Сонце не «крутиться» навколо планети.
+  // Земля не обертається навколо своєї осі, тому субсолярна довгота завжди
+  // дивиться на Сонце — термінатор день/ніч відповідає реальному часу доби
+  // і географії (які регіони зараз удень).
   useFrame((_, delta) => {
-    const g = groupRef.current;
-    if (g && autoRotate) {
-      g.rotation.y += delta * 0.012;
-    }
     // Напрямок на Сонце у світових координатах — фіксований за реальним часом (UTC).
     if (sunRef) {
       const sub = sunDirection(new Date(), 1);
@@ -639,7 +641,6 @@ function Scene({
   markerRegistry: React.MutableRefObject<MarkerEntry[]>;
   asteroidRegistry: React.MutableRefObject<AsteroidEntry[]>;
 }) {
-  const [interacting, setInteracting] = useState(false);
   const sunRef = useRef<THREE.Vector3 | null>(null);
   return (
     <>
@@ -649,16 +650,17 @@ function Scene({
       <directionalLight position={[-8, -3, -6]} intensity={0.8} color="#8B9AB5" />
       <pointLight position={[-10, -5, -5]} intensity={0.6} color="#7C4DFF" />
       <pointLight position={[0, 8, 0]} intensity={0.4} color="#2EE6A6" />
-      <Stars radius={100} depth={50} count={4000} factor={4} fade speed={0.5} />
+      <Stars radius={100} depth={50} count={10000} factor={2} fade speed={0.5} />
       <Earth
         events={events}
         asteroids={asteroids}
-        autoRotate={!interacting}
         hovered={hovered}
         sunRef={sunRef}
         markerRegistry={markerRegistry}
         asteroidRegistry={asteroidRegistry}
       />
+      {/* Місяць на реальній сублунарній позиції (фаза — від освітлення Сонцем) */}
+      <Moon />
       {/* Screen-space hover: проєктує маркери/астероїди на екран і обирає найближчий
           до курсора — детерміновано, незалежно від raycast R3F.
           *  Фолбэк: якщо pointer.current ще null (first frame), все одно обчислюємо дальнішу позицію
@@ -676,8 +678,6 @@ function Scene({
         maxDistance={18}
         enablePan={false}
         autoRotate={false}
-        onStart={() => setInteracting(true)}
-        onEnd={() => setInteracting(false)}
       />
     </>
   );
@@ -749,6 +749,99 @@ function SunLight({ sunRef }: { sunRef: React.MutableRefObject<THREE.Vector3 | n
         </mesh>
       </group>
     </>
+  );
+}
+
+/** Проксіювана текстура Місяця: база, шум, темні моря та кратери на canvas. */
+function createMoonTexture(): THREE.CanvasTexture {
+  const W = 512;
+  const H = 256;
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d")!;
+
+  // База
+  ctx.fillStyle = "#b4b8c0";
+  ctx.fillRect(0, 0, W, H);
+
+  // Дрібний шум
+  for (let i = 0; i < 14000; i++) {
+    const x = Math.random() * W;
+    const y = Math.random() * H;
+    const s = 70 + Math.floor(Math.random() * 90);
+    ctx.fillStyle = `rgba(${s},${s},${s + 6},0.4)`;
+    ctx.fillRect(x, y, 1 + Math.random() * 2, 1 + Math.random() * 2);
+  }
+
+  // Темні "моря"
+  const maria: [number, number, number][] = [
+    [0.42, 0.34, 0.17],
+    [0.64, 0.27, 0.13],
+    [0.5, 0.6, 0.11],
+    [0.27, 0.54, 0.09],
+    [0.72, 0.49, 0.08],
+    [0.55, 0.42, 0.06],
+  ];
+  for (const [mx, my, mr] of maria) {
+    const g = ctx.createRadialGradient(mx * W, my * H, 2, mx * W, my * H, mr * W);
+    g.addColorStop(0, "rgba(96,100,112,0.55)");
+    g.addColorStop(1, "rgba(96,100,112,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(mx * W - mr * W, my * H - mr * H, mr * W * 2, mr * H * 2);
+  }
+
+  // Кратери
+  for (let i = 0; i < 46; i++) {
+    const x = Math.random() * W;
+    const y = Math.random() * H;
+    const r = 2 + Math.random() * 6;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255,255,255,0.07)";
+    ctx.fill();
+    ctx.strokeStyle = "rgba(58,62,72,0.55)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  return tex;
+}
+
+/** Місяць на реальній сублунарній позиції (Meeus), у світових координатах.
+ *  Фаза відтворюється природно: Місяць освітлюється тим самим світлом Сонця. */
+function Moon() {
+  const groupRef = useRef<THREE.Group>(null);
+  const tex = useMemo(() => (typeof document !== "undefined" ? createMoonTexture() : null), []);
+  // Дата заморожена на момент монтування: Місяць стоїть на реальній сублунарній
+  // точці (реальний рух ~13°/добу занадто повільний, щоб бути видимим), а не
+  // «біжить» щокадрово з перерахуванням позиції.
+  const moonDate = useMemo(() => new Date(), []);
+
+  useFrame(() => {
+    const d = moonDirection(moonDate, 1);
+    const g = groupRef.current;
+    if (!g) return;
+    g.position.set(d[0] * MOON_DISTANCE, d[1] * MOON_DISTANCE, d[2] * MOON_DISTANCE);
+    g.lookAt(0, 0, 0);
+  });
+
+  return (
+    <group ref={groupRef}>
+      <mesh raycast={() => null}>
+        <sphereGeometry args={[MOON_RADIUS, 32, 32]} />
+        <meshPhongMaterial
+          key={tex ? "textured" : "plain"}
+          map={tex || undefined}
+          color={tex ? "#ffffff" : "#b0b4bc"}
+          specular="#333333"
+          shininess={6}
+        />
+      </mesh>
+    </group>
   );
 }
 
@@ -1036,7 +1129,7 @@ export default function EarthGlobe() {
               <div className="flex items-center space-x-2">
                 <span
                   className="w-2 h-2 rounded-full"
-                  style={{ background: hovered.hazardous ? "#FF5C8A" : "#36A3FF" }}
+                  style={{ background: asteroidThreatColor(hovered) }}
                 />
                 <span className="text-sm font-semibold text-primary truncate">{hovered.name}</span>
                 {hovered.hazardous && (

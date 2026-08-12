@@ -8,9 +8,17 @@ services:
     envVars:
       - key: GROQ_API_KEY
         sync: false
+      - key: GROQ_MODEL
+        sync: false
+      - key: NASA_API_KEY
+        sync: false
       - key: FIRMS_API_KEY
         sync: false
+      - key: OPENWEATHER_API_KEY
+        sync: false
       - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_POOL_SIZE
         sync: false
       - key: CORS_ORIGINS
         sync: false

@@ -69,7 +69,7 @@ export interface GISTEMPSeries {
   source: string;
   reference: string;
   series: { year: number; value: number }[];
-  latest: { year: number; value: number } | null;
+  latest: { year: number; month?: number; value: number } | null;
 }
 
 export interface CO2Series {
