@@ -423,27 +423,44 @@ def _parse_predictions(text: str) -> Optional[List[Dict[str, Any]]]:
     return None
 
 
-def _generate_predictions(lang: str) -> List[Dict[str, Any]]:
-    """Generate AI predictions for the planet's near-term climate via Groq."""
+def _horizon_text(days: int) -> str:
+    """Human-readable forecast horizon used in the Groq prompt."""
+    if days <= 7:
+        return "the next 7 days (short-term)"
+    if days <= 30:
+        return "the next 30 days"
+    if days <= 90:
+        return "the next 90 days"
+    return "the next 12 months (year-ahead)"
+
+
+def _generate_predictions(lang: str, days: int = 30) -> List[Dict[str, Any]]:
+    """Generate AI predictions tailored to the requested forecast horizon via Groq."""
     lang = _normalize_lang(lang)
+    days = max(7, min(int(days or 30), 365))
     snapshot = _data_snapshot()
     snapshot_block = _snapshot_text(snapshot)
 
     system_prompt = (
         "You are a climate risk forecasting AI. Based on the provided data snapshot, "
-        "generate exactly 5 predictions about near-term climate risks. Return ONLY a "
+        f"generate exactly 5 predictions for {_horizon_text(days)}. "
+        "The stagger (probabilities, urgency and timeframe values) must clearly reflect "
+        "this EXACT horizon — short horizons should mention immediate weather drivers, "
+        "long horizons should weigh structural trends (CO2, ice, sea level). Return ONLY a "
         "valid JSON array, no markdown. Each object must have exactly these keys:\n"
         '  - "category": string (e.g. "Temperature", "Wildfire Risk", "Flood Risk", "Sea Ice", "Cyclone")\n'
-        '  - "prediction": short string describing the expected situation\n'
+        '  - "prediction": short string describing the expected situation for this horizon\n'
         '  - "probability": float 0..1\n'
         '  - "confidence_interval": [low, high] two floats 0..1\n'
         '  - "reasoning": short explanation grounded in the provided data\n'
         '  - "risk_level": "low" | "medium" | "high"\n'
-        '  - "timeframe": short string (e.g. "7-14 days")\n'
+        '  - "timeframe": short string that reflects a sub-window of the horizon (e.g. "7-14 days" for 30-day horizon)\n'
         "Do not invent numeric facts beyond the data; the reasoning should reference the snapshot. "
         f"Write all string values in {_lang_name(lang)}."
     )
-    user_prompt = f"Data snapshot:\n\n{snapshot_block}"
+    user_prompt = (
+        f"Forecast horizon: {days} days.\n\nData snapshot:\n\n{snapshot_block}"
+    )
 
     text = _chat(
         [
@@ -457,7 +474,7 @@ def _generate_predictions(lang: str) -> List[Dict[str, Any]]:
         if parsed and len(parsed) >= 2:
             return parsed
 
-    return _template_predictions(snapshot, lang)
+    return _template_predictions(snapshot, lang, days)
 
 
 # Шаблони резервних прогнозів для всіх 7 мов
@@ -514,10 +531,21 @@ _TEMPLATE_PREDICTIONS = {
 }
 
 
-def _template_predictions(snapshot: Dict[str, Any], lang: str) -> List[Dict[str, Any]]:
+def _template_predictions(snapshot: Dict[str, Any], lang: str, days: int = 30) -> List[Dict[str, Any]]:
     """Deterministic fallback predictions when Groq is unavailable."""
     lang = _normalize_lang(lang)
+    days = max(7, min(int(days or 30), 365))
     tpl = _TEMPLATE_PREDICTIONS[lang]
+
+    def _timeframe_scale(short: str, medium: str, long: str) -> str:
+        if days <= 7:
+            return short
+        if days <= 30:
+            return medium
+        if days <= 90:
+            return max(medium, long, key=len)
+        return long
+
     predictions: List[Dict[str, Any]] = []
 
     anomaly = (snapshot.get("temperature") or {}).get("value")
@@ -531,7 +559,7 @@ def _template_predictions(snapshot: Dict[str, Any], lang: str) -> List[Dict[str,
                 "confidence_interval": [0.80, 0.94],
                 "reasoning": t["reasoning"].format(v=f"{anomaly:+.2f}"),
                 "risk_level": "high",
-                "timeframe": "30-90 days",
+                "timeframe": _timeframe_scale("7 days", "30 days", "1 year"),
             }
         )
 
@@ -546,7 +574,7 @@ def _template_predictions(snapshot: Dict[str, Any], lang: str) -> List[Dict[str,
                 "confidence_interval": [0.66, 0.82],
                 "reasoning": t["reasoning"].format(n=fires),
                 "risk_level": "high",
-                "timeframe": "7-14 days",
+                "timeframe": _timeframe_scale("3-7 days", "7-14 days", "30-90 days"),
             }
         )
 
@@ -561,7 +589,7 @@ def _template_predictions(snapshot: Dict[str, Any], lang: str) -> List[Dict[str,
                 "confidence_interval": [0.58, 0.78],
                 "reasoning": t["reasoning"].format(n=storms),
                 "risk_level": "medium",
-                "timeframe": "7-30 days",
+                "timeframe": _timeframe_scale("1-3 days", "7-30 days", "30-90 days"),
             }
         )
 
@@ -575,7 +603,7 @@ def _template_predictions(snapshot: Dict[str, Any], lang: str) -> List[Dict[str,
                 "confidence_interval": [0.74, 0.90],
                 "reasoning": t["reasoning"],
                 "risk_level": "high",
-                "timeframe": "90 days",
+                "timeframe": _timeframe_scale("30 days", "90 days", "1 year"),
             }
         )
         t = tpl["ocean"]
@@ -587,20 +615,21 @@ def _template_predictions(snapshot: Dict[str, Any], lang: str) -> List[Dict[str,
                 "confidence_interval": [0.78, 0.92],
                 "reasoning": t["reasoning"],
                 "risk_level": "high",
-                "timeframe": "1 year",
+                "timeframe": _timeframe_scale("90 days", "90 days", "1 year"),
             }
         )
 
     return predictions[:5]
 
 
-def get_ai_predictions(lang: str = "en") -> List[Dict[str, Any]]:
-    """Return Groq-powered predictions in the requested language."""
+def get_ai_predictions(lang: str = "en", days: int = 30) -> List[Dict[str, Any]]:
+    """Return Groq-powered predictions in the requested language and horizon."""
     lang = _normalize_lang(lang)
-    key = f"ai_predictions:{lang}"
+    days = max(7, min(int(days or 30), 365))
+    key = f"ai_predictions:{lang}:{days}"
     hit = _cache.get(key)
     if hit:
         return hit["data"]
-    data = _generate_predictions(lang)
+    data = _generate_predictions(lang, days)
     _cache[key] = {"ts": time.time(), "data": data}
     return data

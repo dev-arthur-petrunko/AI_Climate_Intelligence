@@ -31,6 +31,8 @@ import {
   KpForecastData,
   GoesXrayData,
   SolarCycleData,
+  SolarWindData,
+  OverviewData,
 } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 
@@ -41,6 +43,16 @@ function stormLevelOf(kp: number | null): "none" | "minor" | "strong" | "severe"
   if (kp >= 6) return "strong";
   if (kp >= 5) return "minor";
   return "none";
+}
+
+/** Человекочитаемое имя локации из /api/overview (lat/lon fallback). */
+function nearestName(d: OverviewData): string {
+  const loc = d.location;
+  if (!loc) return "Local";
+  const { lat, lon } = loc;
+  // Якщо це Київ (за замовчуванням) — так і підписуємо, інакше просто координати
+  if (Math.abs(lat - 50.45) < 0.1 && Math.abs(lon - 30.52) < 0.1) return "Kyiv, Ukraine";
+  return `≈ ${lat.toFixed(2)}°, ${lon.toFixed(2)}°`;
 }
 
 const stormColor: Record<string, string> = {
@@ -66,6 +78,9 @@ interface LocalWeather {
   humidity: number;
   pressure: number;
   label: string;
+  source?: string;
+  lat?: number;
+  lon?: number;
 }
 
 type Tab = "space" | "asteroids";
@@ -94,21 +109,26 @@ export default function SpaceDataPanel() {
   const [kpFc, setKpFc] = useState<KpForecastData | null>(null);
   const [xray, setXray] = useState<GoesXrayData | null>(null);
   const [scycle, setScycle] = useState<SolarCycleData | null>(null);
+  const [solarWind, setSolarWind] = useState<SolarWindData | null>(null);
   const [weather, setWeather] = useState<LocalWeather | null>(null);
   const [astData, setAstData] = useState<AsteroidsData | null>(null);
 
   /** Локальная погода из /api/overview (плоская структура weather.*) */
   const loadLocalWeather = useCallback(async () => {
     try {
-      const d = await api.overview();
+      const d: OverviewData = await api.overview();
       const cur = d.weather;
       if (!cur) return;
+      const place = nearestName(d);
       setWeather({
         temp: cur.temperature ?? 0,
         wind: cur.wind_speed ?? 0,
         humidity: cur.humidity ?? 0,
         pressure: cur.pressure ?? 0,
-        label: "Local",
+        label: place,
+        source: d.weather.source || "Open-Meteo",
+        lat: d.location?.lat,
+        lon: d.location?.lon,
       });
     } catch {
       /* без локальной погоды */
@@ -117,12 +137,13 @@ export default function SpaceDataPanel() {
 
   const load = useCallback(async () => {
     try {
-      const [geoRes, swRes, kpRes, xrayRes, scycleRes, astRes] = await Promise.allSettled([
+      const [geoRes, swRes, kpRes, xrayRes, scycleRes, windRes, astRes] = await Promise.allSettled([
         api.geomagnetic(),
         api.spaceWeather(7),
         api.kpForecast(),
         api.solarFlares(),
         api.solarCycle(),
+        api.solarWind(),
         api.asteroids(7),
       ]);
       setGeo(geoRes.status === "fulfilled" ? geoRes.value : null);
@@ -130,6 +151,7 @@ export default function SpaceDataPanel() {
       setKpFc(kpRes.status === "fulfilled" ? kpRes.value : null);
       setXray(xrayRes.status === "fulfilled" ? xrayRes.value : null);
       setScycle(scycleRes.status === "fulfilled" ? scycleRes.value : null);
+      setSolarWind(windRes.status === "fulfilled" ? windRes.value : null);
       const ad = astRes.status === "fulfilled" ? astRes.value : null;
       setAstData(ad && ad.objects && ad.objects.length > 0 ? ad : null);
       await loadLocalWeather();
@@ -151,7 +173,8 @@ export default function SpaceDataPanel() {
     !!(swd && swd.events.length > 0) ||
     !!(kpFc && (kpFc.forecast || []).length > 0) ||
     !!(xray && xray.flare_class) ||
-    !!(scycle && scycle.latest);
+    !!(scycle && scycle.latest) ||
+    !!solarWind;
   const hasData = hasSpaceData || !!astData || !!weather;
 
   if (loading) return null;
@@ -173,6 +196,10 @@ export default function SpaceDataPanel() {
   const flareFlux = xray?.max_flux ?? null;
   const ssn = scycle?.latest?.ssn ?? null;
   const f107 = scycle?.latest?.f10_7 ?? null;
+  const windSpeed = solarWind?.speed ?? null;
+  const windDensity = solarWind?.density ?? null;
+  const windBz = solarWind?.bz ?? null;
+  const windBt = solarWind?.bt ?? null;
 
   const astList = [...(astData?.objects || [])].sort((a, b) => {
     const da = a.miss_km ?? Infinity;
@@ -409,27 +436,146 @@ export default function SpaceDataPanel() {
           )}
 
           {/* Корональные выбросы */}
-          {cmeEvents.length > 0 && (
+          {cmeEvents.length > 0 ? (
             <div>
               <div className="flex items-center space-x-1.5 text-[10px] uppercase tracking-[0.15em] text-secondary mb-1.5">
                 <Radio className="w-3 h-3 text-[#36A3FF]" />
                 <span>{sw.cmes}</span>
               </div>
               <ul className="space-y-1">
-                {cmeEvents.map((e, i) => (
-                  <li
-                    key={`cme-${i}`}
-                    className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-white/[0.03] border border-white/5"
-                  >
-                    <span className="text-[10px] text-secondary truncate">
-                      {e.source_location ? `${e.source_location}` : "—"}
-                    </span>
-                    <span className="text-[9px] font-mono text-primary/70 truncate ml-2">
-                      {e.start_time}
-                    </span>
-                  </li>
-                ))}
+                {cmeEvents.map((e, i) => {
+                  const cmeType = e.class_ || "CME";
+                  const speed = e.speed != null ? `${Math.round(e.speed)} km/s` : null;
+                  const earth =
+                    e.isEarthGB === true ? (sw.earthDirected || "→ Earth") : null;
+                  const loc = e.source_location || e.linked_activity || null;
+                  return (
+                    <li
+                      key={`cme-${i}`}
+                      className="px-2.5 py-1.5 rounded-lg bg-white/[0.03] border border-white/5"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] text-primary/80 font-medium truncate">
+                          {cmeType}
+                          {loc ? ` · ${loc}` : ""}
+                        </span>
+                        <span className="text-[9px] font-mono text-primary/70 truncate ml-2 shrink-0">
+                          {e.start_time || ""}
+                        </span>
+                      </div>
+                      {(speed || earth) && (
+                        <div className="mt-1 flex items-center gap-2 text-[9px]">
+                          {speed && <span className="text-cyan">{speed}</span>}
+                          {earth && (
+                            <span className="px-1.5 py-px rounded bg-[#FF5D6C]/15 border border-[#FF5D6C]/30 text-[#FF5D6C] font-bold uppercase tracking-wider">
+                              {earth}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
+            </div>
+          ) : (
+            <div className="text-center py-3 text-secondary/60 text-[11px]">
+              {sw.cmes}: {sw.noData}
+            </div>
+          )}
+
+          {/* Сонячний вітер: швидкість, густина, Bz, Bt */}
+          {(windSpeed != null || windDensity != null || windBz != null || (solarWind?.bt != null)) && (
+            <div>
+              <div className="flex items-center space-x-1.5 text-[10px] uppercase tracking-[0.15em] text-secondary mb-1.5">
+                <Wind className="w-3 h-3 text-[#29F2FF]" />
+                <span>{sw.solarWind}</span>
+                {windSpeed != null && (
+                  <span className="ml-auto text-[9px] font-mono text-cyan">
+                    {(solarWind?.time_tag || "").slice(5, 16)}
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {windSpeed != null && (
+                  <div className="px-2 py-1.5 rounded-lg bg-white/[0.03] border border-white/5">
+                    <div className="text-[9px] text-secondary uppercase tracking-wider">{sw.windSpeed}</div>
+                    <div className="text-xs font-semibold text-primary">{Math.round(windSpeed)} km/s</div>
+                  </div>
+                )}
+                {windDensity != null && (
+                  <div className="px-2 py-1.5 rounded-lg bg-white/[0.03] border border-white/5">
+                    <div className="text-[9px] text-secondary uppercase tracking-wider">{sw.density}</div>
+                    <div className="text-xs font-semibold text-primary">
+                      {windDensity.toFixed(1)} p/cm³
+                    </div>
+                  </div>
+                )}
+                {windBz != null && (
+                  <div className="px-2 py-1.5 rounded-lg bg-white/[0.03] border border-white/5">
+                    <div className="text-[9px] text-secondary uppercase tracking-wider">{sw.bzLabel}</div>
+                    <div className="text-xs font-semibold" style={{ color: windBz < 0 ? "#29F2FF" : "#FFC24D" }}>
+                      {windBz > 0 ? "+" : ""}
+                      {windBz.toFixed(1)} nT
+                    </div>
+                  </div>
+                )}
+                {solarWind?.bt != null && (
+                  <div className="px-2 py-1.5 rounded-lg bg-white/[0.03] border border-white/5">
+                    <div className="text-[9px] text-secondary uppercase tracking-wider">{sw.btLabel}</div>
+                    <div className="text-xs font-semibold text-primary">{solarWind.bt.toFixed(1)} nT</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Рентгеновский поток (GOES) — история 6 часов */}
+          {xray?.series && xray.series.length > 0 && (
+            <div>
+              <div className="flex items-center space-x-1.5 text-[10px] uppercase tracking-[0.15em] text-secondary mb-1.5">
+                <Radio className="w-3 h-3 text-[#FF8A3D]" />
+                <span>{sw.xrayFlux}</span>
+                {xray.current && (
+                  <span className="ml-auto text-[9px] font-mono text-[#FF8A3D]">
+                    {xray.current.flux.toExponential(1)} W/m²
+                  </span>
+                )}
+              </div>
+              <div className="h-20 bg-white/[0.02] border border-white/5 rounded-lg overflow-hidden">
+                <svg width="100%" height="100%" viewBox="0 0 300 80" preserveAspectRatio="none">
+                  <defs>
+                    <linearGradient id="xrayGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#FF8A3D" stopOpacity="0.3" />
+                      <stop offset="100%" stopColor="#FF8A3D" stopOpacity="0" />
+                    </linearGradient>
+                  </defs>
+                  {(() => {
+                    const data = xray.series!.slice(-180);
+                    if (data.length < 2) return null;
+                    const maxFlux = Math.max(...data.map(d => d.flux || 0), 1e-8);
+                    const minFlux = Math.min(...data.map(d => d.flux || 0), 1e-8);
+                    const logMax = Math.log10(maxFlux);
+                    const logMin = Math.log10(minFlux);
+                    const points = data.map((d, i) => {
+                      const x = (i / (data.length - 1)) * 300;
+                      const logVal = Math.log10(Math.max(d.flux || 1e-8, 1e-8));
+                      const y = 80 - ((logVal - logMin) / (logMax - logMin || 1)) * 70;
+                      return `${x},${y}`;
+                    }).join(" ");
+                    return (
+                      <>
+                        <polygon points={`${points} 300,80 0,80`} fill="url(#xrayGrad)" />
+                        <polyline points={points} fill="none" stroke="#FF8A3D" strokeWidth="1.5" />
+                      </>
+                    );
+                  })()}
+                </svg>
+              </div>
+              <div className="flex justify-between text-[8px] text-secondary/60 mt-1">
+                <span>6h ago</span>
+                <span>Now</span>
+              </div>
             </div>
           )}
 
@@ -443,6 +589,16 @@ export default function SpaceDataPanel() {
                   {weather.label ? ` · ${weather.label}` : ""}
                 </span>
               </div>
+              {(weather.lat != null && weather.lon != null) && (
+                <div className="mb-1.5 text-[9px] text-secondary/80 font-mono">
+                  {weather.lat.toFixed(2)}°, {weather.lon.toFixed(2)}°
+                </div>
+              )}
+              {weather.source && (
+                <div className="mb-1.5 text-[9px] text-secondary/80">
+                  {sw.source} {weather.source}
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-1.5">
                 <div className="px-2.5 py-1.5 rounded-lg bg-white/[0.03] border border-white/5 flex items-center space-x-1.5">
                   <span className="text-[10px] text-secondary">{sw.temp}</span>

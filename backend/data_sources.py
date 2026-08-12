@@ -1114,11 +1114,15 @@ def _normalize_solar_event(kind: str, item: dict) -> dict | None:
             }
         if kind == "CME":
             linked = (item.get("linkedEvents") or [{}])[0] or {}
+            analysis = (item.get("cmeAnalyses") or [None])[0] or {}
             return {
                 "type": "CME",
                 "start_time": (item.get("startTime") or "").strip(),
-                "class_": (item.get("cmeAnalyses") or [{}])[0].get("type") if item.get("cmeAnalyses") else None,
-                "source_location": linked.get("activityID"),
+                "class_": analysis.get("type") or None,
+                "source_location": (item.get("sourceLocation") or "").strip() or None,
+                "linked_activity": linked.get("activityID"),
+                "speed": _num(analysis.get("speed")),
+                "isEarthGB": bool(analysis.get("isEarthGB")) if "isEarthGB" in analysis else None,
             }
     except Exception as exc:  # pragma: no cover
         logger.warning("Failed to normalize DONKI %s event: %s", kind, exc)
@@ -1383,3 +1387,64 @@ def fetch_solar_cycle() -> dict:
 
 def get_solar_cycle() -> dict:
     return _cached("solar_cycle", 6 * 3600, fetch_solar_cycle)
+
+
+# ---------------------------------------------------------------------------
+# NOAA SWPC: solar wind (plasma speed + Bz magnetic field) — free, live
+# ---------------------------------------------------------------------------
+
+def fetch_solar_wind() -> dict:
+    """Current solar wind speed, proton density and IMF Bz from NOAA SWPC.
+
+    Combines the near-real-time solar wind plasma and magnetometer products so the
+    space panel can show the key stream-driving indicators for geomagnetic storms.
+    """
+    result = {
+        "source": "fallback",
+        "time_tag": None,
+        "speed": None,
+        "density": None,
+        "bt": None,
+        "bz": None,
+        "error": True,
+    }
+
+    def _latest(key: str) -> dict | None:
+        try:
+            r = httpx.get(
+                f"https://services.swpc.noaa.gov/json/rtsw/rtsw_{key}_1m.json",
+                timeout=httpx.Timeout(15.0),
+                headers=_HEADERS,
+            )
+            r.raise_for_status()
+            rows = r.json()
+        except Exception as exc:
+            logger.warning("SWPC solar wind (rtsw_%s) failed: %s", key, exc)
+            return None
+        if not rows:
+            return None
+        active = [row for row in rows if row.get("active") is True]
+        return (active[-1] if active else rows[-1]) or None
+
+    plasma = _latest("wind")
+    mag = _latest("mag")
+
+    if plasma:
+        result["time_tag"] = (plasma.get("time_tag") or "").strip()
+        result["speed"] = _num(plasma.get("proton_speed"))
+        result["density"] = _num(plasma.get("proton_density"))
+    if mag:
+        result["bt"] = _num(mag.get("bt"))
+        result["bz"] = _num(mag.get("bz_gsm") if "bz_gsm" in mag else mag.get("bz_gse"))
+        if not result["time_tag"]:
+            result["time_tag"] = (mag.get("time_tag") or "").strip()
+
+    if result["speed"] is not None or result["bz"] is not None:
+        result["source"] = "NOAA SWPC"
+        result["error"] = False
+
+    return result
+
+
+def get_solar_wind() -> dict:
+    return _cached("solar_wind", 5 * 60, fetch_solar_wind)

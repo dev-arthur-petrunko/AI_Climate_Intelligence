@@ -29,6 +29,7 @@ from data_sources import (
     get_goes_xray,
     nearest_place,
     get_solar_cycle,
+    get_solar_wind,
 )
 from ai_groq import get_ai_analysis, get_ai_predictions
 from analytics import describe as analyze
@@ -284,6 +285,13 @@ async def solar_cycle():
     return _safe(get_solar_cycle, {"latest": None, "source": "fallback", "error": True})
 
 
+@app.get("/api/solar-wind")
+async def solar_wind():
+    """Сонячний вітер: швидкість, густина протонів та IMF Bz (NOAA SWPC, без ключа).
+    Ключові індикатори для прогнозу геомагнітних бур та полярних сяйв."""
+    return _safe(get_solar_wind, {"speed": None, "bz": None, "source": "fallback", "error": True})
+
+
 def _safe(fetcher, default=None):
     """Викликати fetcher() і повернути default при будь-якій помилці."""
     try:
@@ -452,7 +460,7 @@ async def get_kpi_metrics():
         {
             "name": "Active Fire Hotspots",
             "value": str(fires_count),
-            "trend": "24h",
+            "trend": "global, 24h",
             "trend_up": fires_count > 0,
             "insight": "NASA FIRMS VIIRS (global)",
         }
@@ -630,9 +638,10 @@ async def get_climate_events():
 
 
 @app.get("/api/predictions", response_model=List[AIPrediction])
-async def get_predictions(lang: str = Query("en")):
-    """Прогнози штучного інтелекту щодо кліматичних ризиків (AI Groq)"""
-    predictions = get_ai_predictions(lang)
+async def get_predictions(lang: str = Query("en"), days: int = Query(30, ge=7, le=365)):
+    """Прогнози штучного інтелекту щодо кліматичних ризиків (AI Groq).
+    days (7/30/90/365) змінює горизонт: щоразу AI генерує прогнози під цей період."""
+    predictions = get_ai_predictions(lang, days)
     normalized = []
     for p in predictions:
         ci = p.get("confidence_interval") or p.get("confidence") or [p.get("probability", 0.5), p.get("probability", 0.5)]

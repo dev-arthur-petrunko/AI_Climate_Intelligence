@@ -6,7 +6,7 @@
  * У разі недоступності бекенду — резервні локальні прогнози.
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Thermometer,
   Flame,
@@ -121,31 +121,49 @@ export default function AIPredictions() {
   const [selectedTimeframe, setSelectedTimeframe] = useState("days30");
   const [expandedPrediction, setExpandedPrediction] = useState<number | null>(null);
 
-  /** Завантаження прогнозів з API (AI Groq через бекенд, мовою інтерфейсу) */
-  const load = useCallback(async () => {
-    try {
-      const data: AIPrediction[] = await api.predictions(locale);
-      if (Array.isArray(data) && data.length > 0) {
-        setCards(
-          data.map((p) => ({
-            category: p.category,
-            icon: iconFor(p.category),
-            prediction: p.prediction,
-            probability: p.probability,
-            confidenceInterval: p.confidence_interval ?? [p.probability, p.probability],
-            reasoning: p.reasoning,
-            timeframe: p.timeframe || "7-90 days",
-            riskLevel: riskLevelOf(p.risk_level),
-          }))
-        );
-        setLive(true);
+  const timeframes = useMemo(
+    () => [
+      { key: "days7", maxDays: 7 },
+      { key: "days30", maxDays: 30 },
+      { key: "days90", maxDays: 90 },
+      { key: "year1", maxDays: 365 },
+    ],
+    []
+  );
+
+  const daysFor = useCallback(
+    (key: string) => timeframes.find((t) => t.key === key)?.maxDays ?? 30,
+    [timeframes]
+  );
+
+  /** Завантаження прогнозів з API (AI Groq через бекенд, мовою інтерфейсу + горизонт днів) */
+  const load = useCallback(
+    async (days = daysFor(selectedTimeframe)) => {
+      try {
+        const data: AIPrediction[] = await api.predictions(locale, days);
+        if (Array.isArray(data) && data.length > 0) {
+          setCards(
+            data.map((p) => ({
+              category: p.category,
+              icon: iconFor(p.category),
+              prediction: p.prediction,
+              probability: p.probability,
+              confidenceInterval: p.confidence_interval ?? [p.probability, p.probability],
+              reasoning: p.reasoning,
+              timeframe: p.timeframe || `${days}-${Math.max(days * 3, days + 60)} days`,
+              riskLevel: riskLevelOf(p.risk_level),
+            }))
+          );
+          setLive(true);
+        }
+      } catch {
+        /* зберігаємо резервні прогнози */
+      } finally {
+        setLoading(false);
       }
-    } catch {
-      /* зберігаємо резервні прогнози */
-    } finally {
-      setLoading(false);
-    }
-  }, [locale]);
+    },
+    [locale, selectedTimeframe, daysFor]
+  );
 
   useEffect(() => {
     setLoading(true);
@@ -153,13 +171,6 @@ export default function AIPredictions() {
     const id = setInterval(load, 30 * 60 * 1000);
     return () => clearInterval(id);
   }, [load]);
-
-  const timeframes = [
-    { key: "days7", maxDays: 7 },
-    { key: "days30", maxDays: 30 },
-    { key: "days90", maxDays: 90 },
-    { key: "year1", maxDays: 365 },
-  ];
 
   const getRiskColor = (level: string) => {
     switch (level) {

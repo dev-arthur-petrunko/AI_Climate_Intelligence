@@ -40,6 +40,7 @@ export interface OverviewData {
     precipitation?: number | null;
     weather_code?: number | null;
     forecast?: WeatherForecast;
+    source?: string;
   };
   ocean: {
     sea_surface_temperature?: number | null;
@@ -181,6 +182,9 @@ export interface SolarEvent {
   start_time: string;
   class_?: string | null;
   source_location?: string | null;
+  linked_activity?: string | null;
+  speed?: number | null;
+  isEarthGB?: boolean | null;
 }
 
 export interface SpaceWeatherData {
@@ -228,6 +232,16 @@ export interface SolarCycleData {
   error?: boolean;
 }
 
+export interface SolarWindData {
+  source: string;
+  time_tag?: string | null;
+  speed?: number | null;
+  density?: number | null;
+  bt?: number | null;
+  bz?: number | null;
+  error?: boolean;
+}
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 async function getJSON<T>(path: string, params?: Record<string, string | number>): Promise<T> {
@@ -259,8 +273,8 @@ export const api = {
   aiSummary: () => getJSON<{ summary: string; last_updated: string; confidence: number }>("/api/ai-summary"),
   aiAnalysis: (lang?: string) =>
     getJSON<AIAnalysis>("/api/ai-analysis", lang ? { lang } : undefined),
-  predictions: (lang?: string) =>
-    getJSON<AIPrediction[]>("/api/predictions", lang ? { lang } : undefined),
+  predictions: (lang?: string, days?: number) =>
+    getJSON<AIPrediction[]>("/api/predictions", { ...(lang ? { lang } : {}), ...(days ? { days } : {}) }),
   asteroids: (days = 7) => getJSON<AsteroidsData>("/api/asteroids", { days }),
   geomagnetic: () => getJSON<GeomagneticData>("/api/geomagnetic"),
   spaceWeather: (days = 7) => getJSON<SpaceWeatherData>("/api/space-weather", { days }),
@@ -268,4 +282,5 @@ export const api = {
   kpForecast: () => getJSON<KpForecastData>("/api/kp-forecast"),
   solarFlares: () => getJSON<GoesXrayData>("/api/solar-flares"),
   solarCycle: () => getJSON<SolarCycleData>("/api/solar-cycle"),
+  solarWind: () => getJSON<SolarWindData>("/api/solar-wind"),
 };
