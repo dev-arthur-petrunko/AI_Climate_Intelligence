@@ -45,7 +45,7 @@ export default function MissionHeader() {
   }, []);
 
   const co2 = data?.co2?.value;
-  const iceAnomaly = data?.sea_ice?.anomaly;
+  const iceExtent = data?.sea_ice?.extent;
   const fires = data?.fires?.count ?? 0;
   const cyclones = data?.hurricanes?.count ?? 0;
 
@@ -64,7 +64,7 @@ export default function MissionHeader() {
           {/* Показники клімату — приховані на мобільних */}
           <div className="hidden lg:flex items-center">
             {statItem(t.mission.co2, co2 ? `${co2.toFixed(0)} ppm` : "—", "text-amber")}
-            {statItem(t.mission.seaIce, iceAnomaly != null ? `${iceAnomaly.toFixed(1)}M` : "—", "text-pink")}
+            {statItem(t.mission.seaIce, iceExtent != null ? `${iceExtent.toFixed(1)}M km²` : "—", "text-pink")}
             {statItem(t.mission.fires, String(fires), "text-amber")}
             {statItem(t.mission.cyclones, String(cyclones), "text-violet")}
           </div>

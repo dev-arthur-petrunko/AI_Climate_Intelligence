@@ -99,3 +99,25 @@ export function moonDirection(date: Date = new Date(), radius = 1): [number, num
     radius * Math.sin(phi) * Math.sin(theta),
   ];
 }
+
+/**
+ * Фаза Місяця — розраховується локально (формула, API не потрібен).
+ * Повертає частку освітленої поверхні (0..1), вік Місяця в днях та
+ * індекс фази 0..7 (новолуння → повний місяць → новолуння).
+ */
+export function moonPhase(date: Date = new Date()): {
+  illumination: number;
+  ageDays: number;
+  phaseIndex: number;
+} {
+  // Синодичний місяць: 29.530588853 діб. Нульова точка — новолуння 2000-01-06 18:14 UTC.
+  const knownNewMoon = Date.UTC(2000, 0, 6, 18, 14, 0);
+  const days = (date.getTime() - knownNewMoon) / 86400000;
+  const ageDays = ((days % 29.530588853) + 29.530588853) % 29.530588853;
+
+  // Освітленість за кутом між Сонцем і Місяцем (емпірична синусоїда).
+  const illumination = (1 - Math.cos((ageDays / 29.530588853) * 2 * Math.PI)) / 2;
+
+  const phaseIndex = Math.round((ageDays / 29.530588853) * 8) % 8;
+  return { illumination, ageDays, phaseIndex };
+}

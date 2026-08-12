@@ -67,7 +67,7 @@ def _fetch_weather_openmeteo(lat: float, lon: float) -> dict:
         "current": (
             "temperature_2m,relative_humidity_2m,apparent_temperature,is_day,"
             "precipitation,weather_code,cloud_cover,pressure_msl,"
-            "wind_speed_10m,wind_direction_10m,wind_gusts_10m"
+            "wind_speed_10m,wind_direction_10m,wind_gusts_10m,uv_index"
         ),
         "daily": (
             "weather_code,temperature_2m_max,temperature_2m_min,"
@@ -1448,3 +1448,139 @@ def fetch_solar_wind() -> dict:
 
 def get_solar_wind() -> dict:
     return _cached("solar_wind", 5 * 60, fetch_solar_wind)
+
+
+# ---------------------------------------------------------------------------
+# USGS: significant earthquakes (no API key)
+# ---------------------------------------------------------------------------
+
+def fetch_earthquakes(days: int = 7, limit: int = 12) -> dict:
+    """Recent significant earthquakes worldwide (USGS GeoJSON feed, no key)."""
+    try:
+        r = httpx.get(
+            "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_week.geojson",
+            timeout=httpx.Timeout(20.0),
+            headers=_HEADERS,
+        )
+        r.raise_for_status()
+        data = r.json()
+    except Exception as exc:
+        logger.warning("USGS earthquake feed failed: %s", exc)
+        return {"earthquakes": [], "count": 0, "source": "fallback", "error": True}
+
+    quakes = []
+    for feat in (data or {}).get("features", []) or []:
+        props = feat.get("properties", {}) or {}
+        geom = feat.get("geometry", {}) or {}
+        coords = geom.get("coordinates") or []
+        try:
+            mag = float(props.get("mag")) if props.get("mag") is not None else None
+            depth_km = float(coords[2]) if len(coords) > 2 and coords[2] is not None else None
+            time_epoch = props.get("time")
+        except (TypeError, ValueError):
+            continue
+        quakes.append(
+            {
+                "id": str(props.get("id") or feat.get("id") or ""),
+                "magnitude": round(mag, 1) if mag is not None else None,
+                "place": props.get("place") or "Unknown",
+                "time": time_epoch,
+                "depth_km": round(depth_km, 1) if depth_km is not None else None,
+                "coordinates": [coords[0], coords[1]] if len(coords) >= 2 else None,
+                "tsunami": bool(props.get("tsunami")),
+                "url": props.get("url"),
+            }
+        )
+
+    quakes.sort(key=lambda q: q["magnitude"] if q["magnitude"] is not None else -1, reverse=True)
+    return {
+        "source": "USGS",
+        "count": len(quakes),
+        "updated": (data or {}).get("metadata", {}).get("generated"),
+        "earthquakes": quakes[:limit],
+    }
+
+
+def get_earthquakes(days: int = 7, limit: int = 12) -> dict:
+    return _cached("earthquakes", 15 * 60, lambda: fetch_earthquakes(days, limit))
+
+
+# ---------------------------------------------------------------------------
+# NOAA SWPC: aurora probability (OVATION + Kp fallback)
+# ---------------------------------------------------------------------------
+
+def fetch_aurora(lat: float, lon: float) -> dict:
+    """Aurora probability at (lat, lon) from NOAA SWPC OVATION latest forecast.
+
+    The OVATION JSON is a flat grid of [longitude, latitude, aurora] triples where
+    the third value is the aurora intensity/probability. Falls back to a Kp-index
+    driven estimate if the OVATION product is unavailable.
+    """
+    grid = None
+    observed_time = None
+    forecast_time = None
+    try:
+        r = httpx.get(
+            "https://services.swpc.noaa.gov/json/ovation_aurora_latest.json",
+            timeout=httpx.Timeout(30.0),
+            headers=_HEADERS,
+        )
+        r.raise_for_status()
+        raw = r.json()
+        grid = raw.get("coordinates") or []
+        observed_time = raw.get("Observation Time")
+        forecast_time = raw.get("Forecast Time")
+    except Exception as exc:
+        logger.warning("SWPC OVATION aurora failed: %s", exc)
+
+    probability = None
+    max_intensity = None
+    source = "NOAA SWPC OVATION"
+
+    if grid and len(grid) > 0:
+        # Grid rows: [lon, lat, aurora]. Longitude wraps 0..360 → normalize to -180..180.
+        values = []
+        target_lat = max(-90.0, min(90.0, lat))
+        for row in grid:
+            try:
+                glon, glat, aurora = float(row[0]), float(row[1]), float(row[2])
+            except (TypeError, ValueError, IndexError):
+                continue
+            lon_diff = abs(((glon + 180) % 360) - ((lon + 180) % 360))
+            lon_diff = min(lon_diff, 360 - lon_diff)
+            values.append((abs(glat - target_lat) + lon_diff * 0.5, aurora))
+        if values:
+            max_intensity = max(v[1] for v in values)
+            nearest = min(values, key=lambda v: v[0])
+            probability = round(max(0.0, min(100.0, nearest[1])), 1)
+    else:
+        # Fallback: Kp-driven aurora oval estimate.
+        try:
+            geo = get_geomagnetic()
+            kp = geo.get("current_kp")
+        except Exception:
+            kp = None
+        if kp is not None:
+            source = "NOAA SWPC (Kp estimate)"
+            boundary = 65.0 - 2.4 * float(kp)  # equatorward auroral boundary, magnetic lat
+            distance = abs(lat) - boundary
+            if distance >= 0:
+                probability = round(min(100.0, 35.0 + float(kp) * 12.0 + distance * 3.0), 1)
+            else:
+                probability = round(100.0 * math.exp(distance / 4.0) * min(1.0, float(kp) / 6.0), 1)
+            probability = max(0.0, min(100.0, probability))
+
+    return {
+        "source": source,
+        "observed_time": observed_time,
+        "forecast_time": forecast_time,
+        "max_intensity": round(max_intensity, 1) if max_intensity is not None else None,
+        "probability": probability,
+        "latitude": lat,
+        "longitude": lon,
+        "error": probability is None,
+    }
+
+
+def get_aurora(lat: float = 50.45, lon: float = 30.52) -> dict:
+    return _cached(f"aurora:{lat:.2f}:{lon:.2f}", 10 * 60, lambda: fetch_aurora(lat, lon))

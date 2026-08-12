@@ -24,6 +24,11 @@ import {
   Satellite,
   Search,
   MapPin,
+  Globe,
+  Activity,
+  Moon,
+  Sparkles,
+  Crosshair,
 } from "lucide-react";
 import {
   api,
@@ -36,8 +41,11 @@ import {
   SolarWindData,
   OverviewData,
   GeocodeResult,
+  EarthquakesData,
+  AuroraData,
 } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
+import { moonPhase } from "@/lib/moon";
 
 /** Уровень геомагнитной бури по шкале NOAA G */
 function stormLevelOf(kp: number | null): "none" | "minor" | "strong" | "severe" {
@@ -65,6 +73,15 @@ const stormColor: Record<string, string> = {
   severe: "#FF5D6C",
 };
 
+/** Колір індикатора ймовірності полярного сяйва. */
+function auroraColorOf(prob: number | null): string {
+  if (prob == null) return "#8B9AB5";
+  if (prob < 10) return "#29F2FF";
+  if (prob < 30) return "#2EE6A6";
+  if (prob < 60) return "#FFC24D";
+  return "#FF5D6C";
+}
+
 /** Палитра Aurora — для JS-логики индикаторов */
 const C = {
   emerald: "#2EE6A6",
@@ -80,18 +97,21 @@ interface LocalWeather {
   wind: number;
   humidity: number;
   pressure: number;
+  uv: number | null;
+  aqi: number | null;
   label: string;
   source?: string;
   lat?: number;
   lon?: number;
 }
 
-type Tab = "space" | "asteroids";
+type Tab = "space" | "earth" | "asteroids";
 
 export default function SpaceDataPanel() {
   const { t } = useI18n();
   const sw = t.spaceWeather as Record<string, string>;
   const ast = t.asteroids as Record<string, string>;
+  const ew = t.earthWeather as Record<string, string>;
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<Tab>("space");
 
@@ -115,6 +135,9 @@ export default function SpaceDataPanel() {
   const [solarWind, setSolarWind] = useState<SolarWindData | null>(null);
   const [weather, setWeather] = useState<LocalWeather | null>(null);
   const [astData, setAstData] = useState<AsteroidsData | null>(null);
+  const [earthquakes, setEarthquakes] = useState<EarthquakesData | null>(null);
+  const [aurora, setAurora] = useState<AuroraData | null>(null);
+  const [geoLoading, setGeoLoading] = useState(false);
 
   // Local weather location selection
   const [weatherLocation, setWeatherLocation] = useState<{ lat: number; lon: number; name: string } | null>(null);
@@ -132,18 +155,6 @@ export default function SpaceDataPanel() {
     }
   }, [weatherLocation]);
 
-  /** Load saved weather location on mount */
-  useEffect(() => {
-    const saved = localStorage.getItem("ci-weather-location");
-    if (saved) {
-      try {
-        setWeatherLocation(JSON.parse(saved));
-      } catch {
-        /* ignore */
-      }
-    }
-  }, []);
-
   /** Локальная погода из /api/overview (плоская структура weather.*) */
   const loadLocalWeather = useCallback(async () => {
     try {
@@ -158,6 +169,8 @@ export default function SpaceDataPanel() {
         wind: cur.wind_speed ?? 0,
         humidity: cur.humidity ?? 0,
         pressure: cur.pressure ?? 0,
+        uv: cur.uv_index ?? null,
+        aqi: d.air_quality?.us_aqi ?? null,
         label: place,
         source: d.weather.source || "Open-Meteo",
         lat: d.location?.lat,
@@ -170,15 +183,20 @@ export default function SpaceDataPanel() {
 
   const load = useCallback(async () => {
     try {
-      const [geoRes, swRes, kpRes, xrayRes, scycleRes, windRes, astRes] = await Promise.allSettled([
-        api.geomagnetic(),
-        api.spaceWeather(7),
-        api.kpForecast(),
-        api.solarFlares(),
-        api.solarCycle(),
-        api.solarWind(),
-        api.asteroids(7),
-      ]);
+      const wlat = weatherLocation?.lat ?? 50.45;
+      const wlon = weatherLocation?.lon ?? 30.52;
+      const [geoRes, swRes, kpRes, xrayRes, scycleRes, windRes, astRes, eqRes, auroraRes] =
+        await Promise.allSettled([
+          api.geomagnetic(),
+          api.spaceWeather(7),
+          api.kpForecast(),
+          api.solarFlares(),
+          api.solarCycle(),
+          api.solarWind(),
+          api.asteroids(7),
+          api.earthquakes(),
+          api.aurora(wlat, wlon),
+        ]);
       setGeo(geoRes.status === "fulfilled" ? geoRes.value : null);
       setSwd(swRes.status === "fulfilled" ? swRes.value : null);
       setKpFc(kpRes.status === "fulfilled" ? kpRes.value : null);
@@ -187,19 +205,55 @@ export default function SpaceDataPanel() {
       setSolarWind(windRes.status === "fulfilled" ? windRes.value : null);
       const ad = astRes.status === "fulfilled" ? astRes.value : null;
       setAstData(ad && ad.objects && ad.objects.length > 0 ? ad : null);
+      const eq = eqRes.status === "fulfilled" ? eqRes.value : null;
+      setEarthquakes(eq && eq.earthquakes && eq.earthquakes.length > 0 ? eq : null);
+      setAurora(auroraRes.status === "fulfilled" ? auroraRes.value : null);
       await loadLocalWeather();
     } catch {
       /* игнорируем */
     } finally {
       setLoading(false);
     }
-  }, [loadLocalWeather]);
+  }, [loadLocalWeather, weatherLocation]);
 
   useEffect(() => {
     load();
     const id = setInterval(load, 30 * 60 * 1000);
     return () => clearInterval(id);
   }, [load]);
+
+  /** Автовизначення локації (якщо ручний/збережений вибір ще не встановлений). */
+  const detectLocation = useCallback(() => {
+    if (weatherLocation) return;
+    if (!navigator.geolocation) return;
+    setGeoLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setWeatherLocation({
+          lat: pos.coords.latitude,
+          lon: pos.coords.longitude,
+          name: "My location",
+        });
+        setGeoLoading(false);
+      },
+      () => setGeoLoading(false),
+      { timeout: 8000, maximumAge: 600000 }
+    );
+  }, [weatherLocation]);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("ci-weather-location");
+    if (saved) {
+      try {
+        setWeatherLocation(JSON.parse(saved));
+      } catch {
+        detectLocation();
+      }
+    } else {
+      detectLocation();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /** Geocode search with debounce */
   useEffect(() => {
@@ -242,13 +296,17 @@ export default function SpaceDataPanel() {
     !!(kpFc && (kpFc.forecast || []).length > 0) ||
     !!(xray && xray.flare_class) ||
     !!(scycle && scycle.latest) ||
-    !!solarWind;
-  const hasData = hasSpaceData || !!astData || !!weather;
+    !!solarWind ||
+    !!aurora;
+  const hasEarthData = !!earthquakes || !!weather;
 
   if (loading) return null;
 
   const level = stormLevelOf(geo?.current_kp ?? null);
   const kpVal = geo?.current_kp ?? null;
+
+  const moon = moonPhase(new Date());
+  const moonGlyphs = ["🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘"];
 
   const flareEvents = (swd?.events || [])
     .filter((e) => (e.type || "").toLowerCase().includes("flr"))
@@ -289,26 +347,36 @@ export default function SpaceDataPanel() {
     return `${m[3]} ${m[2]} ${m[1]}`;
   };
 
+  const fmtTime = (raw: number | null): string => {
+    if (raw == null) return "—";
+    const d = new Date(raw);
+    const mon = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getUTCDate()} ${mon[d.getUTCMonth()]} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+  };
+
   /** Общий заголовок панели (десктоп + мобильный) */
   const renderHeader = (onClose: () => void) => (
     <>
       <div className="flex items-center justify-between px-4 py-3 border-b border-violet/15 bg-violet/5">
         <div className="flex items-center space-x-2 min-w-0">
           <span className="p-1.5 rounded-lg bg-violet/12 text-cyan shrink-0">
-            {tab === "space" ? <Sun className="w-4 h-4" /> : <Orbit className="w-4 h-4" />}
+            {tab === "space" ? <Sun className="w-4 h-4" /> : tab === "earth" ? <Globe className="w-4 h-4" /> : <Orbit className="w-4 h-4" />}
           </span>
           <div className="min-w-0">
             <h3 className="text-sm font-semibold leading-tight truncate">
-              {tab === "space" ? sw.title : ast.title}
+              {tab === "space" ? sw.title : tab === "earth" ? ew.title : ast.title}
             </h3>
             <div className="flex items-center space-x-1.5 text-[10px] text-secondary">
               <span className="w-1.5 h-1.5 rounded-full bg-cyan ping-dot text-cyan shrink-0" />
               <span className="truncate">
                 {tab === "space"
                   ? sw.subtitle
-                  : astData?.range
-                    ? `${astData.range.start} — ${astData.range.end}`
-                    : ast.subtitle}
+                  : tab === "earth"
+                    ? ew.subtitle
+                    : astData?.range
+                      ? `${astData.range.start} — ${astData.range.end}`
+                      : ast.subtitle}
               </span>
             </div>
           </div>
@@ -333,7 +401,7 @@ export default function SpaceDataPanel() {
         </div>
       </div>
 
-      {/* Вкладки: космическая погода / астероиды */}
+      {/* Вкладки: космическая погода / погода Земли / астероиды */}
       <div className="flex gap-1.5 px-4 pt-3">
         <button
           type="button"
@@ -346,6 +414,21 @@ export default function SpaceDataPanel() {
         >
           <Sun className="w-3 h-3" />
           {sw.title}
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("earth")}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all ${
+            tab === "earth"
+              ? "bg-emerald text-[#04211A]"
+              : "bg-white/5 text-secondary hover:text-primary hover:bg-white/10"
+          }`}
+        >
+          <Globe className="w-3 h-3" />
+          {ew.title}
+          {earthquakes?.count != null && (
+            <span className="text-[9px] opacity-70">{earthquakes.count}</span>
+          )}
         </button>
         <button
           type="button"
@@ -371,9 +454,9 @@ export default function SpaceDataPanel() {
     <>
       {tab === "space" ? (
         <div className="px-4 py-3 max-h-[44vh] overflow-y-auto custom-scroll space-y-3">
-          {/* Порожній стан, якщо даних поки немає */}
-          {!hasData && (
-            <div className="text-center py-6 text-secondary text-sm">{t.common.noData}</div>
+          {/* Порожній стан, якщо даних космічної погоди немає */}
+          {!hasSpaceData && (
+            <div className="text-center py-6 text-secondary text-sm">{sw.noData}</div>
           )}
           {/* Текущий Kp и уровень бури */}
           {kpVal != null && (
@@ -647,18 +730,140 @@ export default function SpaceDataPanel() {
             </div>
           )}
 
+          {/* Полярное сияние (NOAA SWPC OVATION) */}
+          {aurora && (
+            <div
+              className="rounded-xl border px-3 py-2.5"
+              style={{
+                borderColor: `${auroraColorOf(aurora.probability)}44`,
+                background: `${auroraColorOf(aurora.probability)}0d`,
+              }}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-1.5 text-[10px] uppercase tracking-[0.15em] text-secondary">
+                  <Sparkles className="w-3 h-3" style={{ color: auroraColorOf(aurora.probability) }} />
+                  <span>{sw.aurora}</span>
+                </div>
+                <span className="text-[9px] text-secondary/70">{sw.sourceNASA}</span>
+              </div>
+              <div className="mt-2 flex items-center gap-2">
+                <span
+                  className="text-2xl font-bold font-mono"
+                  style={{ color: auroraColorOf(aurora.probability) }}
+                >
+                  {aurora.probability != null ? `${Math.round(aurora.probability)}%` : "—"}
+                </span>
+                <div className="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden">
+                  <div
+                    className="h-full rounded-full"
+                    style={{
+                      width: `${aurora.probability != null ? Math.min(100, aurora.probability) : 0}%`,
+                      background: auroraColorOf(aurora.probability),
+                    }}
+                  />
+                </div>
+              </div>
+              {aurora.forecast_time && (
+                <div className="mt-1 text-[9px] text-secondary/70">
+                  {aurora.forecast_time}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Фаза Луны (локальный расчёт) */}
+          <div>
+            <div className="flex items-center space-x-1.5 text-[10px] uppercase tracking-[0.15em] text-secondary mb-1.5">
+              <Moon className="w-3 h-3 text-[#C9A7FF]" />
+              <span>{sw.moonPhase}</span>
+              <span className="ml-auto text-[9px] text-secondary/70">{sw.sourceLocal}</span>
+            </div>
+            <div className="flex items-center gap-3 rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2.5">
+              <span className="text-3xl leading-none">{moonGlyphs[moon.phaseIndex]}</span>
+              <div>
+                <div className="text-sm font-semibold text-primary">
+                  {Math.round(moon.illumination * 100)}%
+                </div>
+                <div className="text-[9px] text-secondary">
+                  {sw.moonAge} · {Math.round(moon.ageDays)} d
+                </div>
+              </div>
+              <div className="ml-auto flex items-center gap-0.5">
+                {moonGlyphs.map((g, i) => (
+                  <span
+                    key={i}
+                    className={i === moon.phaseIndex ? "text-sm" : "text-[10px] opacity-25"}
+                  >
+                    {g}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Шумановский резонанс — честная заглушка */}
+          <div className="rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-1.5 text-[10px] uppercase tracking-[0.15em] text-secondary">
+                <Radio className="w-3 h-3 text-[#36A3FF]" />
+                <span>{sw.schumann}</span>
+              </div>
+              <span className="px-1.5 py-px rounded bg-white/10 text-[8px] font-bold uppercase tracking-wider text-secondary">
+                {sw.notAvailable}
+              </span>
+            </div>
+            <div className="mt-1.5 text-[10px] text-secondary/80">{sw.schumannNote}</div>
+          </div>
+        </div>
+      ) : tab === "earth" ? (
+        <div className="px-4 py-3 max-h-[44vh] overflow-y-auto custom-scroll space-y-3">
+          {!hasEarthData && (
+            <div className="text-center py-6 text-secondary text-sm">{ew.noData}</div>
+          )}
+
+          {/* Землетрясения (USGS) */}
+          {earthquakes && earthquakes.earthquakes.length > 0 && (
+            <div>
+              <div className="flex items-center space-x-1.5 text-[10px] uppercase tracking-[0.15em] text-secondary mb-1.5">
+                <Activity className="w-3 h-3 text-[#FF5D6C]" />
+                <span>{ew.earthquakes}</span>
+                <span className="ml-auto text-[9px] text-secondary/70">{sw.sourceUSGS}</span>
+              </div>
+              <ul className="space-y-1.5">
+                {earthquakes.earthquakes.map((q, i) => (
+                  <li
+                    key={q.id || `eq-${i}`}
+                    className="px-2.5 py-1.5 rounded-lg bg-white/[0.03] border border-white/5"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-bold font-mono text-[#FF5D6C]">
+                        M{q.magnitude != null ? q.magnitude.toFixed(1) : "—"}
+                      </span>
+                      <span className="text-[9px] font-mono text-primary/60">{fmtTime(q.time)}</span>
+                    </div>
+                    <div className="mt-0.5 text-[10px] text-primary/85 truncate">{q.place}</div>
+                    <div className="text-[9px] text-secondary">
+                      {ew.depth}: {q.depth_km != null ? `${q.depth_km} km` : "—"}
+                      {q.tsunami ? " · ⚠" : ""}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {/* Локальная погода */}
           {weather && (
             <div>
               <div className="flex items-center space-x-1.5 text-[10px] uppercase tracking-[0.15em] text-secondary mb-1.5">
                 <Cloud className="w-3 h-3 text-[#29F2FF]" />
                 <span>
-                  {sw.local}
+                  {ew.localWeather}
                   {weather.label ? ` · ${weather.label}` : ""}
                 </span>
               </div>
 
-              {/* Пошук міста для локальної погоди */}
+              {/* Пошук міста для локальної погоди + визначення локації */}
               <div ref={weatherBoxRef} className="relative mb-2">
                 <div className="relative">
                   <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-secondary" />
@@ -667,11 +872,21 @@ export default function SpaceDataPanel() {
                     value={weatherQuery}
                     onChange={(e) => setWeatherQuery(e.target.value)}
                     onFocus={() => weatherResults.length > 0 && setWeatherDropdownOpen(true)}
-                    placeholder={sw.placeholder || "Пошук міста..."}
-                    className="w-full pl-8 pr-8 py-1.5 rounded-lg bg-white/[0.03] border border-white/5 text-xs text-primary placeholder:text-secondary/60 focus:border-cyan/40 focus:outline-none focus:ring-1 focus:ring-cyan/30 transition-colors"
+                    placeholder={ew.placeholder || "Пошук міста..."}
+                    className="w-full pl-8 pr-9 py-1.5 rounded-lg bg-white/[0.03] border border-white/5 text-xs text-primary placeholder:text-secondary/60 focus:border-cyan/40 focus:outline-none focus:ring-1 focus:ring-cyan/30 transition-colors"
                   />
-                  {weatherSearching && (
+                  {weatherSearching ? (
                     <div className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 border-2 border-cyan/40 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={detectLocation}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded text-secondary hover:text-primary transition-colors"
+                      aria-label={ew.locate || "Locate"}
+                      title={ew.locate || "Locate"}
+                    >
+                      <Crosshair className={`w-3.5 h-3.5 ${geoLoading ? "animate-spin text-cyan" : ""}`} />
+                    </button>
                   )}
                 </div>
 
@@ -712,12 +927,12 @@ export default function SpaceDataPanel() {
               )}
               {weather.source && (
                 <div className="mb-1.5 text-[9px] text-secondary/80">
-                  {sw.source} {weather.source}
+                  {ew.source} {weather.source} · Open-Meteo
                 </div>
               )}
               <div className="grid grid-cols-2 gap-1.5">
                 <div className="px-2.5 py-1.5 rounded-lg bg-white/[0.03] border border-white/5 flex items-center space-x-1.5">
-                  <span className="text-[10px] text-secondary">{sw.temp}</span>
+                  <span className="text-[10px] text-secondary">{ew.temperature}</span>
                   <span className="text-xs font-semibold text-primary">{Math.round(weather.temp)}°</span>
                 </div>
                 <div className="px-2.5 py-1.5 rounded-lg bg-white/[0.03] border border-white/5 flex items-center space-x-1.5">
@@ -731,6 +946,18 @@ export default function SpaceDataPanel() {
                 <div className="px-2.5 py-1.5 rounded-lg bg-white/[0.03] border border-white/5 flex items-center space-x-1.5">
                   <Gauge className="w-3 h-3 text-[#FFC24D]" />
                   <span className="text-xs font-semibold text-primary">{Math.round(weather.pressure)} hPa</span>
+                </div>
+                <div className="px-2.5 py-1.5 rounded-lg bg-white/[0.03] border border-white/5 flex items-center space-x-1.5">
+                  <Sun className="w-3 h-3 text-[#FFC24D]" />
+                  <span className="text-xs font-semibold text-primary">
+                    {weather.uv != null ? Math.round(weather.uv) : "—"}
+                  </span>
+                </div>
+                <div className="px-2.5 py-1.5 rounded-lg bg-white/[0.03] border border-white/5 flex items-center space-x-1.5">
+                  <span className="text-[10px] text-secondary">{ew.aqi || "AQI"}</span>
+                  <span className="text-xs font-semibold text-primary">
+                    {weather.aqi != null ? Math.round(weather.aqi) : "—"}
+                  </span>
                 </div>
               </div>
             </div>

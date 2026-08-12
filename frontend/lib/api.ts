@@ -39,6 +39,7 @@ export interface OverviewData {
     pressure?: number | null;
     precipitation?: number | null;
     weather_code?: number | null;
+    uv_index?: number | null;
     forecast?: WeatherForecast;
     source?: string;
   };
@@ -242,6 +243,36 @@ export interface SolarWindData {
   error?: boolean;
 }
 
+export interface EarthquakeObject {
+  id: string;
+  magnitude: number | null;
+  place: string;
+  time: number | null;
+  depth_km: number | null;
+  coordinates: [number, number] | null;
+  tsunami: boolean;
+  url?: string | null;
+}
+
+export interface EarthquakesData {
+  source: string;
+  count: number;
+  updated?: number | null;
+  earthquakes: EarthquakeObject[];
+  error?: boolean;
+}
+
+export interface AuroraData {
+  source: string;
+  observed_time?: string | null;
+  forecast_time?: string | null;
+  max_intensity?: number | null;
+  probability: number | null;
+  latitude?: number;
+  longitude?: number;
+  error?: boolean;
+}
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 async function getJSON<T>(path: string, params?: Record<string, string | number>): Promise<T> {
@@ -283,4 +314,7 @@ export const api = {
   solarFlares: () => getJSON<GoesXrayData>("/api/solar-flares"),
   solarCycle: () => getJSON<SolarCycleData>("/api/solar-cycle"),
   solarWind: () => getJSON<SolarWindData>("/api/solar-wind"),
+  earthquakes: () => getJSON<EarthquakesData>("/api/earthquakes"),
+  aurora: (lat?: number, lon?: number) =>
+    getJSON<AuroraData>("/api/aurora", { lat: lat ?? 50.45, lon: lon ?? 30.52 }),
 };

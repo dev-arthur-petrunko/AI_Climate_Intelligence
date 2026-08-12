@@ -155,6 +155,8 @@ python main.py                        # Start server (http://localhost:8000)
 - `GET /api/ocean-ph` - Ocean acidification pH (NOAA/OWID)
 - `GET /api/hurricanes` - Tropical cyclones (NOAA NHC)
 - `GET /api/fires?days=1` - Fire hotspots (NASA FIRMS, needs key)
+- `GET /api/earthquakes` - Significant earthquakes (USGS, no key)
+- `GET /api/aurora?lat=..&lon=..` - Aurora probability at point (NOAA SWPC OVATION, Kp fallback)
 - `GET /api/db-status` - Database connectivity + snapshot status
 
 ## Data Endpoints (Enriched)

@@ -15,7 +15,7 @@ import { useI18n } from "@/lib/i18n";
 import { sunDirection } from "@/lib/solar";
 import { moonDirection } from "@/lib/moon";
 import AsteroidField, { AsteroidEntry, asteroidThreatColor } from "./AsteroidField";
-import type { AsteroidObject, ClimateEvent, OceanHeatData, OceanPhData, SeaIceData, SeaLevelData } from "@/lib/api";
+import type { AsteroidObject, ClimateEvent, OceanHeatData, OceanPhData, SeaIceData, SeaLevelData, CO2Series } from "@/lib/api";
 
 /** Локальні текстури — гарантовано доступні, не залежать від CDN */
 const EARTH_TEXTURE = "/earth/earth-blue-marble.jpg";
@@ -185,6 +185,7 @@ function eventColor(type?: string): string {
     case "ocean heat": return "#FF7043";
     case "ocean ph": return "#00E5FF";
     case "antarctic ice": return "#29F2FF";
+    case "atmospheric co₂": return "#FFB648";
     default: return "#2EE6A6";
   }
 }
@@ -209,6 +210,7 @@ const LEGEND: LegendItem[] = [
   { key: "seaLevel", color: "#FFC24D" },
   { key: "oceanHeat", color: "#FF7043" },
   { key: "ph", color: "#00E5FF" },
+  { key: "co2", color: "#FFB648" },
   { key: "asteroidHazard", color: "#FF5D6C" },
   { key: "asteroidWatch", color: "#FFB648" },
   { key: "asteroidSafe", color: "#28E08F" },
@@ -863,9 +865,27 @@ export default function EarthGlobe() {
       sl: SeaLevelData | null,
       oh: OceanHeatData | null,
       ph: OceanPhData | null,
-      south: SeaIceData | null
+      south: SeaIceData | null,
+      co2: CO2Series | null
     ): EventPoint[] => {
       const points: EventPoint[] = [];
+
+      // CO₂ — Мона-Лоя (джерело даних NOAA)
+      const co2Value = co2?.latest?.value;
+      if (typeof co2Value === "number") {
+        const co2Date = co2?.latest?.year && co2?.latest?.month
+          ? `${co2.latest.year}-${String(co2.latest.month).padStart(2, "0")}`
+          : undefined;
+        points.push({
+          coordinates: [-155.58, 19.54],
+          event_type: "Atmospheric CO₂",
+          severity: "high",
+          location: `${co2Value.toFixed(1)} ppm · ${t.globe.legend.co2 || "CO₂"}${
+            co2Date ? ` · ${co2Date}` : ""
+          }`,
+          time: co2Date,
+        });
+      }
 
       // Рівень моря — прибережні точки з поточним значенням
       const slValue = sl?.latest?.value;
@@ -949,7 +969,7 @@ export default function EarthGlobe() {
   const load = useCallback(async () => {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
     try {
-      const [eventsRes, eonetRes, astRes, sl, oh, ph, south] = await Promise.all([
+      const [eventsRes, eonetRes, astRes, sl, oh, ph, south, co2Res] = await Promise.all([
         fetch(`${apiUrl}/api/events`),
         fetch(`${apiUrl}/api/eonet?days=14`).catch(() => null),
         fetch(`${apiUrl}/api/asteroids?days=7`),
@@ -957,8 +977,10 @@ export default function EarthGlobe() {
         fetch(`${apiUrl}/api/ocean-heat`).then((r) => (r.ok ? r.json() : null)),
         fetch(`${apiUrl}/api/ocean-ph`).then((r) => (r.ok ? r.json() : null)),
         fetch(`${apiUrl}/api/sea-ice-south`).then((r) => (r.ok ? r.json() : null)),
+        fetch(`${apiUrl}/api/co2`).then((r) => (r.ok ? r.json() : null)),
       ]);
       const astData = await astRes.json().catch(() => null);
+      const co2Data = await co2Res.json().catch(() => null);
       // Реальні астероїди (NASA NeoWs) або резервний набір, якщо API порожній
       setAsteroids(
         astData && Array.isArray(astData.objects) && astData.objects.length > 0
@@ -1003,7 +1025,7 @@ export default function EarthGlobe() {
         points.push(...eonetPoints);
       }
 
-      points.push(...buildOceanPoints(sl, oh, ph, south));
+      points.push(...buildOceanPoints(sl, oh, ph, south, co2Data));
       if (points.length > 0) {
         setEvents(points);
       }

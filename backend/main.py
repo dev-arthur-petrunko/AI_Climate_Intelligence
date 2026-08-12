@@ -30,6 +30,8 @@ from data_sources import (
     nearest_place,
     get_solar_cycle,
     get_solar_wind,
+    get_earthquakes,
+    get_aurora,
 )
 from ai_groq import get_ai_analysis, get_ai_predictions
 from analytics import describe as analyze
@@ -292,6 +294,19 @@ async def solar_wind():
     return _safe(get_solar_wind, {"speed": None, "bz": None, "source": "fallback", "error": True})
 
 
+@app.get("/api/earthquakes")
+async def earthquakes():
+    """Значні землетруси за останній тиждень (USGS GeoJSON, без ключа)."""
+    return _safe(get_earthquakes, {"earthquakes": [], "count": 0, "source": "fallback", "error": True})
+
+
+@app.get("/api/aurora")
+async def aurora(lat: float = Query(DEFAULT_LAT), lon: float = Query(DEFAULT_LON)):
+    """Ймовірність полярного сяйва в точці (NOAA SWPC OVATION, без ключа;
+    фолбек — оцінка за Kp-індексом)."""
+    return _safe(lambda: get_aurora(lat, lon), {"probability": None, "source": "fallback", "error": True})
+
+
 def _safe(fetcher, default=None):
     """Викликати fetcher() і повернути default при будь-якій помилці."""
     try:
@@ -359,6 +374,7 @@ async def overview(lat: float = Query(DEFAULT_LAT), lon: float = Query(DEFAULT_L
             "pressure": current.get("pressure_msl"),
             "precipitation": current.get("precipitation"),
             "weather_code": current.get("weather_code"),
+            "uv_index": current.get("uv_index"),
             "forecast": daily,
             "source": weather_data.get("_source", "open-meteo"),
         },
