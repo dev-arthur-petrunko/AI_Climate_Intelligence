@@ -13,7 +13,7 @@
 
 Real-time global climate monitoring powered by Python, Artificial Intelligence, satellite observations, and interactive 3D visualization.
 
-[🚀 Quick Start](#-quick-start) · [🗺️ Pages](#️-pages) · [🔌 API Reference](#-api-reference) · [🤝 Contributing](#-contributing)
+[🚀 Live Demo](https://aiclimateintelligence.vercel.app) · [📡 API](https://climate-intelligence-api.onrender.com/docs) · [🤝 Contributing](#-contributing)
 
 </div>
 
@@ -38,123 +38,6 @@ The interface is available in **7 languages** (🇬🇧 🇺🇦 🇩🇪 🇵�
 - 🧠 **AI Analysis Panel** — popup on the right of the globe with today's climate situation analysis, regenerated twice a day (09:00 & 17:00 Kyiv) by AI Groq in your language
 - 🌌 **Space & Asteroid Panel** — live geomagnetic Kp, solar flares, CMEs, Kp forecast, and near-Earth asteroid approaches on the left of the globe
 - 🌙 **Aurora Dark Theme** — deep-space palette with emerald / violet / pink accents
-- 🌍 **7 Languages** — English, Ukrainian, German, Polish, French, Italian, Georgian
-
----
-
-## 🎨 Design
-
-A premium dark experience with glassmorphism, gradient text, and subtle motion:
-
-```css
-Background:   #070A16   Surface:     #0D1226
-Surface-2:    #121A38   Hover:       #16204A
-Primary Text: #E8EAF6   Secondary:   #8B93B8
-Muted:        #4A5178   Borders:     rgba(124,77,255,0.14)
-Emerald:      #2EE6A6   Violet:      #7C4DFF
-Pink:         #FF5C8A   Amber:       #FFC24D
-```
-
----
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-- **Node.js** 18+ and npm
-- **Python** 3.10+
-
-### 1. Clone
-
-```bash
-git clone https://github.com/dev-arthur-petrunko/AI_Climate_Intelligence.git
-cd AI_Climate_Intelligence
-```
-
-### 2. Backend (FastAPI)
-
-```bash
-cd backend
-python -m venv venv
-
-# Activate
-# Windows:
-venv\Scripts\activate
-# Linux/Mac:
-source venv/bin/activate
-
-pip install -r requirements.txt
-python main.py
-```
-
-Backend runs at `http://localhost:8000` · interactive docs at `http://localhost:8000/docs`
-
-### 3. Frontend (Next.js)
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Frontend runs at `http://localhost:3000`
-
----
-
-## 📁 Project Structure
-
-```
-AI_Climate_Intelligence/
-├── frontend/                      # Next.js application
-│   ├── app/
-│   │   ├── page.tsx               # Homepage with 3D globe + dashboard
-│   │   ├── analytics/page.tsx     # Analytics page
-│   │   ├── predictions/page.tsx   # AI predictions page
-│   │   ├── settings/page.tsx      # Settings page (version & update history)
-│   │   ├── support/page.tsx       # Support page
-│   │   ├── layout.tsx             # Root layout
-│   │   └── globals.css            # Global styles
-│   ├── components/
-│   │   ├── EarthGlobe.tsx         # 3D Earth with climate layers + hover tooltips
-│   │   ├── DashboardSections.tsx  # KPI cards, AI summary, live events
-│   │   ├── AnalyticsCharts.tsx    # Interactive Plotly charts
-│   │   ├── AIPredictions.tsx      # AI forecast cards (Groq)
-│   │   ├── AIAnalysisPanel.tsx    # AI analysis window (right of globe, responsive)
-│   │   ├── SpaceDataPanel.tsx     # Space weather + asteroids window (left, responsive)
-│   │   ├── AsteroidField.tsx      # Animated NEO asteroid orbits around the globe
-│   │   ├── CityWeatherWidget.tsx  # City weather with geocoding search
-│   │   ├── SideNavigation.tsx     # Collapsible side navigation
-│   │   ├── LanguageSwitcher.tsx   # 7-language switcher
-│   │   └── MissionHeader.tsx      # Top header
-│   ├── lib/
-│   │   ├── api.ts                 # API client
-│   │   ├── i18n.tsx               # i18n context/provider
-│   │   ├── translations.ts        # UI translations (7 languages)
-│   │   └── solar.ts               # Subsolar point & day/night helpers
-│   └── public/earth/              # Earth textures
-├── backend/                       # FastAPI application
-│   ├── main.py                    # REST API (20 endpoints)
-│   ├── ai_groq.py                 # Groq AI analysis + predictions
-│   ├── data_sources.py            # Live data adapters + reverse geocoding
-│   ├── requirements.txt
-│   └── .env.example               # Environment template
-├── AGENTS.md                      # Technical documentation
-└── README.md
-```
-
----
-
-## 🛠️ Tech Stack
-
-| Layer | Technologies |
-|-------|--------------|
-| **Frontend** | Next.js 14 (App Router) · React 18 · TypeScript 5.5 |
-| **3D Graphics** | Three.js 0.166 · React Three Fiber 8.16 · Drei 9.108 |
-| **Styling** | TailwindCSS 3.4 · Framer Motion 11.3 |
-| **Charts** | Plotly.js 2.29 (react-plotly.js) |
-| **Data Fetching** | TanStack React Query 5.51 · Axios 1.7 |
-| **Backend** | FastAPI 0.112 · Pydantic 2.8 · Uvicorn 0.30 · httpx 0.27 |
-| **Big Data (planned)** | Deck.gl 9.0 · Mapbox GL |
 
 ---
 
@@ -205,41 +88,81 @@ All endpoints live in `backend/main.py` and return JSON.
 | `GET /api/ocean-ph` | Ocean acidification (surface pH) | NOAA / OWID |
 | `GET /api/hurricanes` | Active tropical cyclones | NOAA NHC |
 | `GET /api/fires?days=1` | Active wildfire hotspots | NASA FIRMS ⚠️ needs key |
+| `GET /api/geomagnetic` | Planetary Kp index | NOAA SWPC |
+| `GET /api/space-weather` | Solar flares, CMEs, geomagnetic storms | NASA DONKI |
+| `GET /api/solar-wind` | Solar wind speed, density, Bz | NOAA SWPC |
+| `GET /api/asteroids` | Near-Earth objects (7 days) | NASA NeoWs |
+| `GET /api/kp-forecast` | 3-day Kp forecast | NOAA SWPC |
 
-> **Wildfires** require `FIRMS_API_KEY` in `backend/.env`. If a provider is unreachable or a key is missing, the backend degrades gracefully to cached or fallback data so the dashboard always renders.
+> **Note:** Some endpoints require API keys (`FIRMS_API_KEY`, `NASA_API_KEY`, `GROQ_API_KEY`). The backend degrades gracefully to cached or fallback data when keys are missing or providers are unreachable.
 
-### Example Response
+---
 
-```json
-{
-  "name": "Global Temperature",
-  "value": "+1.54°C",
-  "trend": "+0.12°C",
-  "trend_up": true,
-  "insight": "Temperature anomaly continues upward trend"
-}
+## 🛠️ Tech Stack
+
+| Layer | Technologies |
+|-------|--------------|
+| **Frontend** | Next.js 14 (App Router) · React 18 · TypeScript 5.5 |
+| **3D Graphics** | Three.js 0.166 · React Three Fiber 8.16 · Drei 9.108 |
+| **Styling** | TailwindCSS 3.4 · Framer Motion 11.3 |
+| **Charts** | Plotly.js 2.29 (react-plotly.js) |
+| **Data Fetching** | TanStack React Query 5.51 · Axios 1.7 |
+| **Backend** | FastAPI 0.112 · Pydantic 2.8 · Uvicorn 0.30 · httpx 0.27 |
+| **AI** | Groq (llama-3.3-70b-versatile) |
+| **Database** | PostgreSQL (Neon) · SQLAlchemy async · Alembic |
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+- **Node.js** 18+ and npm
+- **Python** 3.10+
+
+### 1. Clone & Install
+```bash
+git clone https://github.com/dev-arthur-petrunko/AI_Climate_Intelligence.git
+cd AI_Climate_Intelligence
 ```
+
+### 2. Backend (FastAPI)
+```bash
+cd backend
+python -m venv venv
+# Windows: venv\Scripts\activate
+# Linux/Mac: source venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env   # add your API keys
+python main.py
+```
+Backend runs at `http://localhost:8000` · interactive docs at `http://localhost:8000/docs`
+
+### 3. Frontend (Next.js)
+```bash
+cd frontend
+npm install
+cp .env.local.example .env.local   # set NEXT_PUBLIC_API_URL
+npm run dev
+```
+Frontend runs at `http://localhost:3000`
 
 ---
 
 ## ⚙️ Configuration
 
-Create `backend/.env` from the template:
+### Backend (`backend/.env`)
+| Variable | Purpose | Required |
+|----------|---------|----------|
+| `FIRMS_API_KEY` | NASA FIRMS live wildfire hotspots | Optional |
+| `NASA_API_KEY` | NeoWs asteroids, DONKI space weather | Optional |
+| `GROQ_API_KEY` | AI analysis & predictions (free at [console.groq.com](https://console.groq.com/keys)) | Optional |
+| `GROQ_MODEL` | Groq model (default: `llama-3.3-70b-versatile`) | Optional |
+| `DATABASE_URL` | PostgreSQL connection string (Neon) | Optional |
+| `DATABASE_POOL_SIZE` | Connection pool size (default: 5) | Optional |
+| `PORT` | Server port (default: 8000) | Optional |
+| `CORS_ORIGINS` | Comma-separated allowed origins | Optional |
 
-```bash
-cp backend/.env.example backend/.env
-```
-
-| Variable | Purpose |
-|----------|---------|
-| `FIRMS_API_KEY` | NASA FIRMS key for live wildfire hotspots (optional) |
-| `DATABASE_URL` | PostgreSQL connection string (optional) |
-| `DATABASE_POOL_SIZE` | Connection pool size (optional) |
-| `GROQ_API_KEY` | Groq API key for AI analysis & predictions (free at [console.groq.com](https://console.groq.com/keys)) |
-| `GROQ_MODEL` | Groq model for AI analysis & predictions (default: `llama-3.3-70b-versatile`) |
-
-Create `frontend/.env.local` to point the UI at your backend:
-
+### Frontend (`frontend/.env.local`)
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
@@ -258,13 +181,26 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 - Enriched fire tooltips: FRP, confidence, satellite + nearest-city reverse geocoding
 - Responsive design for phone, tablet and laptop with auto-open/collapse side panels
 - 7-language support with event descriptions
-- FastAPI backend with 20 endpoints and graceful fallbacks
+- FastAPI backend with 20+ endpoints and graceful fallbacks
 
 ### Changelog
 
+**v1.2.5**
+- City selector for local weather in Space panel (search any city worldwide, persisted in localStorage)
+- Space Weather: CME "no events" state, Bt field, X-ray flux history chart (6h GOES)
+- Fire KPI trend updated to "global, 24h"
+- Asteroid legend labels with distance criteria (Hazardous < 0.05 AU, Watch < 0.1 AU, Safe > 0.1 AU)
+- All translations updated — no Russian text when Ukrainian selected
+
+**v1.2.2**
+- Support page redesigned with proper action links and translations for all 7 languages
+- Space Weather panel enhanced with Bt field and X-ray flux history chart
+- Coronal Mass Ejections show "no events" when no CMEs detected
+- Local Weather now displays coordinates and data source
+
 **v1.2.0**
 - Responsive layout for phone, tablet and laptop — side panels auto-open on desktop and collapse into compact buttons on mobile
-- Fire tooltips enriched: FRP (radiative power), confidence and satellite for every hotspot
+- Fire tooltips enriched: FRP (radiative power), confidence and satellite shown for every hotspot
 - Fire locations use nearest major city names via reverse geocoding (~60 cities worldwide)
 - Tooltips explain what each event is, with descriptions in all 7 languages
 - Fixed panel positioning: Space & AI windows anchor correctly on every screen size
@@ -303,7 +239,6 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 5. Open a Pull Request
 
 Development guidelines:
-
 - Follow the existing code style and the established color palette
 - Keep UI copy and code comments in Ukrainian (project convention)
 - Use `frontend/components/DashboardSections.tsx` for dashboard sections
