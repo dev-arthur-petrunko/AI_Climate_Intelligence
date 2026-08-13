@@ -431,13 +431,23 @@ def _horizon_text(days: int) -> str:
         return "the next 30 days"
     if days <= 90:
         return "the next 90 days"
-    return "the next 12 months (year-ahead)"
+    if days <= 365:
+        return "the next 12 months (year-ahead)"
+    if days <= 730:
+        return "the next 2 years"
+    if days <= 1095:
+        return "the next 3 years"
+    if days <= 1460:
+        return "the next 4 years"
+    if days <= 1825:
+        return "the next 5 years"
+    return "the next 10 years (long-term)"
 
 
 def _generate_predictions(lang: str, days: int = 30) -> List[Dict[str, Any]]:
     """Generate AI predictions tailored to the requested forecast horizon via Groq."""
     lang = _normalize_lang(lang)
-    days = max(7, min(int(days or 30), 365))
+    days = max(7, min(int(days or 30), 3650))
     snapshot = _data_snapshot()
     snapshot_block = _snapshot_text(snapshot)
 
@@ -534,7 +544,7 @@ _TEMPLATE_PREDICTIONS = {
 def _template_predictions(snapshot: Dict[str, Any], lang: str, days: int = 30) -> List[Dict[str, Any]]:
     """Deterministic fallback predictions when Groq is unavailable."""
     lang = _normalize_lang(lang)
-    days = max(7, min(int(days or 30), 365))
+    days = max(7, min(int(days or 30), 3650))
     tpl = _TEMPLATE_PREDICTIONS[lang]
 
     def _timeframe_scale(short: str, medium: str, long: str) -> str:
@@ -544,7 +554,9 @@ def _template_predictions(snapshot: Dict[str, Any], lang: str, days: int = 30) -
             return medium
         if days <= 90:
             return max(medium, long, key=len)
-        return long
+        if days <= 365:
+            return long
+        return f"{days // 365} years"
 
     predictions: List[Dict[str, Any]] = []
 
@@ -625,7 +637,7 @@ def _template_predictions(snapshot: Dict[str, Any], lang: str, days: int = 30) -
 def get_ai_predictions(lang: str = "en", days: int = 30) -> List[Dict[str, Any]]:
     """Return Groq-powered predictions in the requested language and horizon."""
     lang = _normalize_lang(lang)
-    days = max(7, min(int(days or 30), 365))
+    days = max(7, min(int(days or 30), 3650))
     key = f"ai_predictions:{lang}:{days}"
     hit = _cache.get(key)
     if hit:

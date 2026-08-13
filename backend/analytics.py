@@ -5,6 +5,7 @@ year-over-year порівнянь. Функції приймають серії 
 [{"year": ..., "value": ...}] або [{"date": ..., "value": ...}]
 і повертають окремі поля JSON, не ламаючи існуючу схему відповідей.
 """
+import datetime
 from typing import Optional
 
 import numpy as np
@@ -24,9 +25,13 @@ def _x_values(series: list[dict], time_key: str = "year") -> Optional[np.ndarray
         s = str(raw)
         try:
             year = int(s[:4])
-            day = int(s[5:7]) if len(s) >= 7 else 0
-            frac = (day - 1) / 365.0 if day else 0.0
-            xs.append(year + frac)
+            month = int(s[5:7]) if len(s) >= 7 else 1
+            day = int(s[8:10]) if len(s) >= 10 else 1
+            date = datetime.date(year, month, day)
+            start = datetime.date(year, 1, 1)
+            day_of_year = (date - start).days
+            days_in_year = 366 if (year % 4 == 0 and (year % 100 != 0 or year % 400 == 0)) else 365
+            xs.append(year + day_of_year / days_in_year)
         except (ValueError, TypeError):
             return None
     return np.asarray(xs, dtype=float)
@@ -82,9 +87,29 @@ def z_score_anomaly(
 
 
 def year_over_year(
-    series: list[dict], value_key: str = "value", steps: int = 12
+    series: list[dict], value_key: str = "value", time_key: str = "year", steps: Optional[int] = None
 ) -> Optional[float]:
-    """Різниця останньої точки і точки steps кроків тому (None, якщо мало даних)."""
+    """Різниця останньої точки і точки ~1 рік тому (None, якщо мало даних).
+
+    steps підбирається автоматично за гранулярністю ряду (денні — 365,
+    місячні — 12, річні — 1), якщо не заданий явно."""
+    if len(series) < 2:
+        return None
+    if steps is None:
+        x = _x_values(series, time_key)
+        if x is not None and len(x) >= 2:
+            gaps = np.diff(x)
+            gaps = gaps[np.isfinite(gaps)]
+            if gaps.size:
+                median_gap = float(np.median(gaps))
+                if median_gap > 0:
+                    steps = max(1, int(round(1.0 / median_gap)))
+                else:
+                    steps = 12
+            else:
+                steps = 12
+        else:
+            steps = 12
     if len(series) < steps + 1:
         return None
     try:
@@ -97,7 +122,7 @@ def describe(series: list[dict], value_key: str = "value", time_key: str = "year
     """Зібрана аналітика для одного ряду — зручно підставляти в ендпоінти."""
     trend = linear_trend(series, value_key, time_key)
     anomaly = z_score_anomaly(series, value_key, time_key)
-    yoy = year_over_year(series, value_key)
+    yoy = year_over_year(series, value_key, time_key)
     result = {}
     if trend:
         result["trend_analysis"] = trend

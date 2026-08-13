@@ -6,7 +6,7 @@
  */
 
 import { useEffect, useState, useCallback } from "react";
-import { Radio } from "lucide-react";
+import { Radio, ChevronDown, ChevronUp } from "lucide-react";
 import { api, OverviewData } from "@/lib/api";
 import LanguageSwitcher from "./LanguageSwitcher";
 import { useI18n } from "@/lib/i18n";
@@ -32,6 +32,7 @@ function useOverview(intervalMs = 60000) {
 export default function MissionHeader() {
   const data = useOverview();
   const [now, setNow] = useState<Date | null>(null);
+  const [collapsed, setCollapsed] = useState(false);
   const { t } = useI18n();
 
   /** Оновлення годинника кожну секунду.
@@ -62,27 +63,40 @@ export default function MissionHeader() {
       <div className="flex justify-center pt-4 px-5">
         <div className="pointer-events-auto glass rounded-xl px-4 py-2 flex items-center space-x-2 animate-fade-up" style={{ animationDelay: "100ms" }}>
           {/* Показники клімату — приховані на мобільних */}
-          <div className="hidden lg:flex items-center">
-            {statItem(t.mission.co2, co2 ? `${co2.toFixed(0)} ppm` : "—", "text-amber")}
-            {statItem(t.mission.seaIce, iceExtent != null ? `${iceExtent.toFixed(1)}M km²` : "—", "text-pink")}
-            {statItem(t.mission.fires, String(fires), "text-amber")}
-            {statItem(t.mission.cyclones, String(cyclones), "text-violet")}
-          </div>
+          {!collapsed && (
+            <div className="hidden lg:flex items-center">
+              {statItem(t.mission.co2, co2 ? `${co2.toFixed(0)} ppm` : "—", "text-amber")}
+              {statItem(t.mission.seaIce, iceExtent != null ? `${iceExtent.toFixed(1)}M km²` : "—", "text-pink")}
+              {statItem(t.mission.fires, String(fires), "text-amber")}
+              {statItem(t.mission.cyclones, String(cyclones), "text-violet")}
+            </div>
+          )}
 
-          <div className="hidden md:block w-px h-8 bg-violet/20" />
+          {!collapsed && <div className="hidden md:block w-px h-8 bg-violet/20" />}
 
           {/* Індикатор "Live" та поточний час */}
-          <div className="flex items-center space-x-3">
-            <div className="flex items-center space-x-1.5">
-              <Radio className="w-3 h-3 text-emerald animate-pulse" />
-              <span className="text-[9px] uppercase tracking-widest text-emerald">{t.common.live}</span>
+          {!collapsed && (
+            <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-1.5">
+                <Radio className="w-3 h-3 text-emerald animate-pulse" />
+                <span className="text-[9px] uppercase tracking-widest text-emerald">{t.common.live}</span>
+              </div>
+              <span className="text-xs font-mono text-secondary tabular-nums">
+                {now ? now.toLocaleTimeString("en-GB", { hour12: false }) : "—"}
+              </span>
             </div>
-            <span className="text-xs font-mono text-secondary tabular-nums">
-              {now ? now.toLocaleTimeString("en-GB", { hour12: false }) : "—"}
-            </span>
-          </div>
+          )}
 
           <LanguageSwitcher />
+
+          {/* Кнопка згортання/розгортання панелі */}
+          <button
+            onClick={() => setCollapsed((c) => !c)}
+            aria-label={collapsed ? "expand" : "collapse"}
+            className="p-1.5 rounded-lg text-secondary hover:text-primary hover:bg-surface-hover transition-colors"
+          >
+            {collapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+          </button>
         </div>
       </div>
     </header>

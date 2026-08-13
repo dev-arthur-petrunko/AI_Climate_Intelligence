@@ -654,9 +654,9 @@ async def get_climate_events():
 
 
 @app.get("/api/predictions", response_model=List[AIPrediction])
-async def get_predictions(lang: str = Query("en"), days: int = Query(30, ge=7, le=365)):
+async def get_predictions(lang: str = Query("en"), days: int = Query(30, ge=7, le=3650)):
     """Прогнози штучного інтелекту щодо кліматичних ризиків (AI Groq).
-    days (7/30/90/365) змінює горизонт: щоразу AI генерує прогнози під цей період."""
+    days (7/30/90/365/730/1095/1460/1825/3650) змінює горизонт: щоразу AI генерує прогнози під цей період."""
     predictions = get_ai_predictions(lang, days)
     normalized = []
     for p in predictions:

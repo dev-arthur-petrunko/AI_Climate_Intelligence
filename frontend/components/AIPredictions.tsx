@@ -127,6 +127,11 @@ export default function AIPredictions() {
       { key: "days30", maxDays: 30 },
       { key: "days90", maxDays: 90 },
       { key: "year1", maxDays: 365 },
+      { key: "year2", maxDays: 730 },
+      { key: "year3", maxDays: 1095 },
+      { key: "year4", maxDays: 1460 },
+      { key: "year5", maxDays: 1825 },
+      { key: "year10", maxDays: 3650 },
     ],
     []
   );
@@ -150,7 +155,7 @@ export default function AIPredictions() {
               probability: p.probability,
               confidenceInterval: p.confidence_interval ?? [p.probability, p.probability],
               reasoning: p.reasoning,
-              timeframe: p.timeframe || `${days}-${Math.max(days * 3, days + 60)} days`,
+              timeframe: p.timeframe || (days > 365 ? `${Math.round(days / 365)} years` : `${days}-${Math.max(days * 3, days + 60)} days`),
               riskLevel: riskLevelOf(p.risk_level),
             }))
           );
