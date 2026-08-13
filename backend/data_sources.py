@@ -1455,10 +1455,12 @@ def get_solar_wind() -> dict:
 # ---------------------------------------------------------------------------
 
 def fetch_earthquakes(days: int = 7, limit: int = 12) -> dict:
-    """Recent significant earthquakes worldwide (USGS GeoJSON feed, no key)."""
+    """Recent earthquakes worldwide with magnitude >= 4.5 (USGS GeoJSON feed, no key).
+    The 4.5_week feed gives ~100 events per week with coordinates — enough to render
+    real markers on the 3D globe (significant_week gives only a handful)."""
     try:
         r = httpx.get(
-            "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_week.geojson",
+            "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_week.geojson",
             timeout=httpx.Timeout(20.0),
             headers=_HEADERS,
         )

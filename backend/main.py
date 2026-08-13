@@ -1,5 +1,6 @@
 import asyncio
 import os
+from datetime import datetime, timezone
 from typing import List, Optional, Tuple
 
 from fastapi import FastAPI, Query
@@ -592,7 +593,8 @@ async def get_overview_safe() -> dict:
 @app.get("/api/events", response_model=List[ClimateEvent])
 async def get_climate_events():
     """Актуальні глобальні кліматичні події з координатами для 3D глобуса.
-    Тільки реальні дані на сьогодні: NASA FIRMS (пожежі) та NOAA NHC (циклони)."""
+    Тільки реальні дані на сьогодні: NASA FIRMS (пожежі), NOAA NHC (циклони)
+    та USGS (землетруси mag >= 4.5)."""
     events = []
 
     # --- Реальні дані: пожежі (NASA FIRMS) ---
@@ -605,9 +607,9 @@ async def get_climate_events():
         fires = fires_data.get("fires", [])
         # Беремо рівномірну вибірку по всій планеті, а не перші рядки CSV
         # (CSV відсортований, перші записи можуть бути скупчені в одному регіоні).
-        if len(fires) > 24:
-            step = max(1, len(fires) // 24)
-            sampled = fires[::step][:24]
+        if len(fires) > 120:
+            step = max(1, len(fires) // 120)
+            sampled = fires[::step][:120]
         else:
             sampled = fires
         for fire in sampled:
@@ -647,6 +649,32 @@ async def get_climate_events():
                         "coordinates": (coords[0], coords[1]),
                     }
                 )
+    except Exception:
+        pass
+
+    # --- Реальні дані: землетруси (USGS, mag >= 4.5, без ключа) ---
+    try:
+        quakes = (await asyncio.to_thread(get_earthquakes, 7, 60)).get("earthquakes", [])
+        for q in quakes:
+            coords = q.get("coordinates")
+            if not coords:
+                continue
+            ts = q.get("time")
+            iso = (
+                datetime.fromtimestamp(ts / 1000, tz=timezone.utc).isoformat()
+                if ts
+                else None
+            )
+            mag = q.get("magnitude") or 0
+            events.append(
+                {
+                    "event_type": "Earthquake",
+                    "location": q.get("place") or "Earthquake",
+                    "time": iso or "recent",
+                    "severity": "high" if mag >= 6.0 else "medium",
+                    "coordinates": (coords[0], coords[1]),
+                }
+            )
     except Exception:
         pass
 

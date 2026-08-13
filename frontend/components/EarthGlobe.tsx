@@ -178,6 +178,7 @@ function eventColor(type?: string): string {
     case "earthquake": return "#FF8A3D";
     case "landslide": return "#A1887F";
     case "ice": return "#C8D2E6";
+    case "arctic ice": return "#C8D2E6";
     case "extreme rainfall": return "#36A3FF";
     case "arctic ice loss": return "#C8D2E6";
     case "coastal flood": return "#2EE6A6";
@@ -866,6 +867,7 @@ export default function EarthGlobe() {
       oh: OceanHeatData | null,
       ph: OceanPhData | null,
       south: SeaIceData | null,
+      north: SeaIceData | null,
       co2: CO2Series | null
     ): EventPoint[] => {
       const points: EventPoint[] = [];
@@ -960,6 +962,18 @@ export default function EarthGlobe() {
         });
       }
 
+      // Арктичний морський лід — північний полюс
+      const northExtent = north?.latest?.extent;
+      if (typeof northExtent === "number") {
+        points.push({
+          coordinates: [0, 78],
+          event_type: "Arctic Ice",
+          severity: "low",
+          location: `${northExtent.toFixed(2)}M km² · ${t.globe.legend.ice}`,
+          time: north?.latest?.date,
+        });
+      }
+
       return points;
     },
     [t]
@@ -969,7 +983,7 @@ export default function EarthGlobe() {
   const load = useCallback(async () => {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
     try {
-      const [eventsRes, eonetRes, astRes, sl, oh, ph, south, co2Res] = await Promise.all([
+      const [eventsRes, eonetRes, astRes, sl, oh, ph, south, north, co2Res] = await Promise.all([
         fetch(`${apiUrl}/api/events`),
         fetch(`${apiUrl}/api/eonet?days=14`).catch(() => null),
         fetch(`${apiUrl}/api/asteroids?days=7`),
@@ -977,6 +991,7 @@ export default function EarthGlobe() {
         fetch(`${apiUrl}/api/ocean-heat`).then((r) => (r.ok ? r.json() : null)),
         fetch(`${apiUrl}/api/ocean-ph`).then((r) => (r.ok ? r.json() : null)),
         fetch(`${apiUrl}/api/sea-ice-south`).then((r) => (r.ok ? r.json() : null)),
+        fetch(`${apiUrl}/api/sea-ice`).then((r) => (r.ok ? r.json() : null)),
         fetch(`${apiUrl}/api/co2`).then((r) => (r.ok ? r.json() : null)),
       ]);
       const astData = await astRes.json().catch(() => null);
@@ -993,7 +1008,7 @@ export default function EarthGlobe() {
       const data = (await eventsRes.json().catch(() => null)) as ClimateEvent[] | null;
       if (Array.isArray(data) && data.length > 0) {
         points.push(
-          ...data.slice(0, 160).map((ev) => ({
+          ...data.slice(0, 260).map((ev) => ({
             coordinates: ev.coordinates as [number, number],
             event_type: ev.event_type,
             severity: ev.severity,
@@ -1025,7 +1040,7 @@ export default function EarthGlobe() {
         points.push(...eonetPoints);
       }
 
-      points.push(...buildOceanPoints(sl, oh, ph, south, co2Data));
+      points.push(...buildOceanPoints(sl, oh, ph, south, north, co2Data));
       if (points.length > 0) {
         setEvents(points);
       }
@@ -1047,6 +1062,7 @@ export default function EarthGlobe() {
       case "ocean heat": return "oceanHeat";
       case "ocean ph": return "ph";
       case "antarctic ice": return "ice";
+      case "arctic ice": return "ice";
       default: return "";
     }
   };
