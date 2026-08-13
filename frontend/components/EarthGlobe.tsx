@@ -28,6 +28,10 @@ const EARTH_RADIUS = 5;
 const MOON_DISTANCE = 42;
 const MOON_RADIUS = 1.9;
 
+/** Швидкість авто-обертання камери (рад/с). Time-based: ~150 с на повний оберт,
+ *  однакова на будь-якій частоті кадрів (60/120/144 Гц). */
+const ROTATE_RAD_PER_SEC = (Math.PI * 2) / 150;
+
 /** Структура події для маркера на глобусі */
 interface EventPoint {
   coordinates: [number, number];
@@ -412,13 +416,14 @@ function Marker({
     // При наведенні маркер злегка збільшується; завжди — м'яке "дихання"
     const hoverBoost = active ? 1.25 : 1;
     const breathe = reducedMotion() ? 1 : 1 + 0.07 * Math.sin(t * 2.6 + position.x);
-    // Менші маркери: базовий масштаб нижчий, щоб не закривати поверхню планети
-    const scale = (dist / 16) * hoverBoost * (0.3 + 0.7 * easePop) * breathe;
+    // Маркери мають лишатися помітними зі стартового ракурсу, але не закривати
+    // поверхню планети при zoom-in (масштаб пропорційний відстані до камери).
+    const scale = (dist / 13) * hoverBoost * (0.45 + 0.55 * easePop) * breathe;
     g.scale.setScalar(scale);
 
     // Яскравіше сяйво та біле ядро при наведенні
     if (glowMatRef.current) {
-      glowMatRef.current.opacity = active ? 0.45 : 0.2;
+      glowMatRef.current.opacity = active ? 0.55 : 0.32;
     }
     if (coreMatRef.current) {
       coreMatRef.current.color.set(active ? "#ffffff" : color);
@@ -441,23 +446,23 @@ function Marker({
     <group ref={groupRef} position={position}>
       {/* Сяйво навколо маркера */}
       <mesh>
-        <sphereGeometry args={[0.16, 12, 12]} />
+        <sphereGeometry args={[0.22, 12, 12]} />
         <meshBasicMaterial
           ref={glowMatRef}
           color={color}
           transparent
-          opacity={0.2}
+          opacity={0.32}
           depthWrite={false}
         />
       </mesh>
       {/* Ядро маркера */}
       <mesh>
-        <sphereGeometry args={[0.07, 10, 10]} />
+        <sphereGeometry args={[0.1, 10, 10]} />
         <meshBasicMaterial ref={coreMatRef} color={color} />
       </mesh>
       {/* Хвиля-кільце — декоративне, не перехоплює наведення */}
       <mesh ref={ringRef} visible={false} raycast={() => null}>
-        <sphereGeometry args={[0.28, 20, 20]} />
+        <sphereGeometry args={[0.4, 20, 20]} />
         <meshBasicMaterial
           ref={ringMatRef}
           color={color}
@@ -680,12 +685,27 @@ function Scene({
         minDistance={8}
         maxDistance={18}
         enablePan={false}
-        autoRotate
-        autoRotateSpeed={0.8}
         enableDamping={false}
       />
+      <IdleOrbit />
     </>
   );
+}
+
+/** Плавне авто-обертання камери навколо планети. Time-based (рад/с), тому
+ *  швидкість не залежить від частоти кадрів монітора. Виконується до
+ *  `controls.update()` (priority -2 < -1), тож OrbitControls перечитує нову
+ *  позицію камери і коректно зберігає зум/нахил та взаємодію користувача. */
+function IdleOrbit() {
+  useFrame((state, delta) => {
+    const a = Math.min(delta, 0.1) * ROTATE_RAD_PER_SEC;
+    if (a <= 0) return;
+    const p = state.camera.position;
+    const x = p.x * Math.cos(a) + p.z * Math.sin(a);
+    const z = -p.x * Math.sin(a) + p.z * Math.cos(a);
+    p.set(x, p.y, z);
+  }, -2);
+  return null;
 }
 
 /** Видиме Сонце + спрямоване світло з реальної субсолярної точки.
