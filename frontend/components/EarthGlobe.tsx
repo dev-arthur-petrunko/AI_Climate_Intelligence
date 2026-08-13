@@ -482,27 +482,111 @@ function Marker({
  *  Враховує видимість (лише передня півкуля планети) та обирає найближчий об'єкт
  *  у радіусі HOVER_RADIUS px. Це гарантує роботу тултіпів незалежно від
  *  внутрішньої системи подій R3F.
+ *  Клік по маркеру відкриває вікно з детальною інформацією (onSelect).
  *  Фолбэк: якщо реестр маркерів порожній — проециуємо безпосередньо з масиву events. */
 function HoverController({
   markers,
   asteroids,
   events,
   onHover,
+  onSelect,
 }: {
   markers: React.MutableRefObject<MarkerEntry[]>;
   asteroids: React.MutableRefObject<AsteroidEntry[]>;
   events: EventPoint[];
   onHover: (ev: HoveredPoint | null) => void;
+  onSelect: (ev: HoveredPoint | null) => void;
 }) {
   const camera = useThree((s) => s.camera);
   const gl = useThree((s) => s.gl);
   const size = useThree((s) => s.size);
   const onHoverRef = useRef(onHover);
   onHoverRef.current = onHover;
+  const onSelectRef = useRef(onSelect);
+  onSelectRef.current = onSelect;
 
   // Остання позиція курсора у координатах канваса (null — курсор поза канвасом)
   const pointer = useRef<{ x: number; y: number } | null>(null);
   const lastEmit = useRef<{ key: string; x: number; y: number } | null>(null);
+
+  // Спільний пошук найближчого маркера/астероїда під точкою (screen-space проекція).
+  // Використовується і для hover (кожен кадр), і для кліку (відкриття вікна).
+  const findBest = useCallback(
+    (px: number, py: number): HoveredPoint | null => {
+      const v = new THREE.Vector3();
+      const pv = new THREE.Vector3();
+      const w = size.width;
+      const h = size.height;
+      let bestDist = HOVER_RADIUS;
+      let bestKey = "";
+      let best: HoveredPoint | null = null;
+
+      const scanMarkers = (list: MarkerEntry[]) => {
+        for (const m of list) {
+          const g = m.ref.current;
+          if (!g || !g.visible) continue;
+          g.getWorldPosition(v);
+          if (v.dot(camera.position) < 0) continue;
+          pv.copy(v).project(camera);
+          if (pv.z > 1) continue;
+          const sx = (pv.x * 0.5 + 0.5) * w;
+          const sy = (-pv.y * 0.5 + 0.5) * h;
+          const d = Math.hypot(sx - px, sy - py);
+          if (d < bestDist) {
+            bestDist = d;
+            bestKey = markerId(m.ev);
+            best = { ...m.ev, _id: bestKey, _screen: { x: sx, y: sy } };
+          }
+        }
+      };
+      const scanEvents = (list: EventPoint[]) => {
+        for (const ev of list) {
+          const pos = latLonToVec3(ev.coordinates[1], ev.coordinates[0], EARTH_RADIUS * 1.002);
+          v.copy(pos);
+          if (v.dot(camera.position) < 0) continue;
+          pv.copy(v).project(camera);
+          if (pv.z > 1) continue;
+          const sx = (pv.x * 0.5 + 0.5) * w;
+          const sy = (-pv.y * 0.5 + 0.5) * h;
+          const d = Math.hypot(sx - px, sy - py);
+          if (d < bestDist) {
+            bestDist = d;
+            bestKey = markerId(ev);
+            best = { ...ev, _id: bestKey, _screen: { x: sx, y: sy } };
+          }
+        }
+      };
+      const scanAsteroids = (list: AsteroidEntry[]) => {
+        for (const a of list) {
+          const g = a.ref.current;
+          if (!g || !g.visible) continue;
+          g.getWorldPosition(v);
+          if (v.dot(camera.position) < 0) continue;
+          pv.copy(v).project(camera);
+          if (pv.z > 1) continue;
+          const sx = (pv.x * 0.5 + 0.5) * w;
+          const sy = (-pv.y * 0.5 + 0.5) * h;
+          const d = Math.hypot(sx - px, sy - py);
+          if (d < bestDist) {
+            bestDist = d;
+            bestKey = `a:${a.obj.name}`;
+            best = { ...a.obj, kind: "asteroid", _id: bestKey, _screen: { x: sx, y: sy } };
+          }
+        }
+      };
+
+      if (markers.current.length > 0) {
+        scanMarkers(markers.current);
+      }
+      // Фолбек: якщо реєстр порожній (mount timing) — проєкція напряму з events
+      if (bestDist === HOVER_RADIUS && markers.current.length === 0) {
+        scanEvents(events);
+      }
+      scanAsteroids(asteroids.current);
+      return best;
+    },
+    [camera, size.width, size.height, markers, asteroids, events]
+  );
 
   useEffect(() => {
     const el = gl.domElement;
@@ -515,34 +599,35 @@ function HoverController({
       lastEmit.current = null;
       onHoverRef.current(null);
     };
+    // Клік по маркеру/астероїду — відкриває вікно з деталями
+    const onClick = (e: PointerEvent) => {
+      const rect = el.getBoundingClientRect();
+      const hit = findBest(e.clientX - rect.left, e.clientY - rect.top);
+      if (hit) onSelectRef.current(hit);
+    };
     el.addEventListener("pointermove", onMove);
     el.addEventListener("pointerleave", onLeave);
+    el.addEventListener("click", onClick);
     return () => {
       el.removeEventListener("pointermove", onMove);
       el.removeEventListener("pointerleave", onLeave);
+      el.removeEventListener("click", onClick);
     };
-  }, [gl]);
+  }, [gl, findBest]);
 
   useFrame(() => {
     const p = pointer.current;
-    // Робочі вектори та стан найкращого кандидата для hover (screen-space проекція)
-    const v = new THREE.Vector3();
-    const pv = new THREE.Vector3();
-    const w = size.width;
-    const h = size.height;
-    let bestDist = HOVER_RADIUS;
-    let bestKey = "";
-    let best: HoveredPoint | null = null;
     // При першому кадрі, якщо курсор ще не отриманий (user ще не рухав мишкою),
     // все одно проецируємо перший маркер/астероїд і показуємо тултіп (накладно для доступу та дебагу).
-    const isFirstFrameWithoutPointer = (!p && size.width && size.height);
+    const isFirstFrameWithoutPointer = !p && size.width > 0 && size.height > 0;
     if (isFirstFrameWithoutPointer && events.length > 0) {
       // Показуємо тултіп на ПЕРШІМ маркері з подій Землі (wildfire, cyclone тощо)
       const ev = events[0];
+      const v = new THREE.Vector3();
       const pos = latLonToVec3(ev.coordinates[1], ev.coordinates[0], EARTH_RADIUS * 1.002);
       v.copy(pos);
       if (v.dot(camera.position) < 0) return;
-      pv.copy(v).project(camera);
+      const pv = new THREE.Vector3().copy(v).project(camera);
       if (pv.z > 1) return;
       const sx = (pv.x * 0.5 + 0.5) * size.width;
       const sy = (-pv.y * 0.5 + 0.5) * size.height;
@@ -561,67 +646,13 @@ function HoverController({
       return;
     }
     if (!p) return;
-    for (const m of markers.current) {
-      const g = m.ref.current;
-      if (!g || !g.visible) continue;
-      g.getWorldPosition(v);
-      // Ховаємо лише об'єкти, що позаду планети відносно камери
-      if (v.dot(camera.position) < 0) continue;
-      pv.copy(v).project(camera);
-      if (pv.z > 1) continue;
-      const sx = (pv.x * 0.5 + 0.5) * w;
-      const sy = (-pv.y * 0.5 + 0.5) * h;
-      const d = Math.hypot(sx - p.x, sy - p.y);
-      if (d < bestDist) {
-        bestDist = d;
-        bestKey = markerId(m.ev);
-        best = { ...m.ev, _id: bestKey, _screen: { x: sx, y: sy } };
-      }
-    }
-
-    // Фолбэк: якщо реестр порожній (mount timing) — проецируємо безпосередньо з events
-    if (bestDist === HOVER_RADIUS && markers.current.length === 0) {
-      for (const ev of events) {
-        const pos = latLonToVec3(ev.coordinates[1], ev.coordinates[0], EARTH_RADIUS * 1.002);
-        v.copy(pos);
-        if (v.dot(camera.position) < 0) continue;
-        pv.copy(v).project(camera);
-        if (pv.z > 1) continue;
-        const sx = (pv.x * 0.5 + 0.5) * w;
-        const sy = (-pv.y * 0.5 + 0.5) * h;
-        const d = Math.hypot(sx - p.x, sy - p.y);
-        if (d < bestDist) {
-          bestDist = d;
-          bestKey = markerId(ev);
-          best = { ...ev, _id: bestKey, _screen: { x: sx, y: sy } };
-        }
-      }
-    }
-
-    // Астероїди навколо планети
-    for (const a of asteroids.current) {
-      const g = a.ref.current;
-      if (!g || !g.visible) continue;
-      g.getWorldPosition(v);
-      if (v.dot(camera.position) < 0) continue;
-      pv.copy(v).project(camera);
-      if (pv.z > 1) continue;
-      const sx = (pv.x * 0.5 + 0.5) * w;
-      const sy = (-pv.y * 0.5 + 0.5) * h;
-      const d = Math.hypot(sx - p.x, sy - p.y);
-      if (d < bestDist) {
-        bestDist = d;
-        bestKey = `a:${a.obj.name}`;
-        best = { ...a.obj, kind: "asteroid", _id: bestKey, _screen: { x: sx, y: sy } };
-      }
-    }
-
+    const best = findBest(p.x, p.y);
     if (best) {
       const s = best._screen;
       const prev = lastEmit.current;
       // Пере-емітимо лише при зміні об'єкта або помітному русі тултіпа
-      if (!prev || prev.key !== bestKey || Math.abs(prev.x - s.x) > 4 || Math.abs(prev.y - s.y) > 4) {
-        lastEmit.current = { key: bestKey, x: s.x, y: s.y };
+      if (!prev || prev.key !== best._id || Math.abs(prev.x - s.x) > 4 || Math.abs(prev.y - s.y) > 4) {
+        lastEmit.current = { key: best._id, x: s.x, y: s.y };
         onHoverRef.current(best);
       }
     } else if (lastEmit.current) {
@@ -638,6 +669,7 @@ function Scene({
   events,
   asteroids,
   onHover,
+  onSelect,
   hovered,
   markerRegistry,
   asteroidRegistry,
@@ -645,6 +677,7 @@ function Scene({
   events: EventPoint[];
   asteroids: AsteroidObject[];
   onHover: (ev: HoveredPoint | null) => void;
+  onSelect: (ev: HoveredPoint | null) => void;
   hovered: HoveredPoint | null;
   markerRegistry: React.MutableRefObject<MarkerEntry[]>;
   asteroidRegistry: React.MutableRefObject<AsteroidEntry[]>;
@@ -678,6 +711,7 @@ function Scene({
         asteroids={asteroidRegistry}
         events={events}
         onHover={onHover}
+        onSelect={onSelect}
       />
       <OrbitControls
         enableZoom={true}
@@ -878,6 +912,7 @@ export default function EarthGlobe() {
   const [events, setEvents] = useState<EventPoint[]>(fallbackEvents);
   const [asteroids, setAsteroids] = useState<AsteroidObject[]>(fallbackAsteroids);
   const [hovered, setHovered] = useState<HoveredPoint | null>(null);
+  const [selected, setSelected] = useState<HoveredPoint | null>(null);
   const markerRegistry = useRef<MarkerEntry[]>([]);
   const asteroidRegistry = useRef<AsteroidEntry[]>([]);
   const { t } = useI18n();
@@ -1111,6 +1146,21 @@ export default function EarthGlobe() {
       : (t.globe.fresh as Record<string, string>)[hoverFresh];
   const hoverFreshColor = freshnessColor[hoverFresh];
 
+  // Свіжість даних вибраного маркера (для вікна інформації)
+  const selectedFresh = freshnessOf(selected?.time);
+  const selectedFreshLabel =
+    selectedFresh === "live"
+      ? t.globe.liveTag
+      : (t.globe.fresh as Record<string, string>)[selectedFresh];
+
+  // Рядок деталі для вікна інформації
+  const DetailRow = ({ label, value, mono }: { label: string; value: React.ReactNode; mono?: boolean }) => (
+    <div className="flex items-center justify-between gap-3 text-xs py-1">
+      <span className="text-secondary shrink-0">{label}</span>
+      <span className={`text-primary font-medium text-right ${mono ? "font-mono" : ""}`}>{value}</span>
+    </div>
+  );
+
   // Перекладені підписи легенди
   const legendLabel = (key: string) =>
     (t.globe.legend as Record<string, string>)[key] ?? key;
@@ -1129,6 +1179,7 @@ export default function EarthGlobe() {
           asteroids={asteroids}
           hovered={hovered}
           onHover={(ev) => setHovered(ev)}
+          onSelect={(ev) => setSelected(ev)}
           markerRegistry={markerRegistry}
           asteroidRegistry={asteroidRegistry}
         />
@@ -1279,6 +1330,99 @@ export default function EarthGlobe() {
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {/* Вікно з детальною інформацією при кліку на маркер/астероїд */}
+      {selected && (
+        <div
+          className="absolute inset-0 z-50 flex items-center justify-center bg-black/45 backdrop-blur-sm animate-fade-in p-4"
+          onClick={() => setSelected(null)}
+        >
+          <div
+            className="relative glass-strong rounded-2xl w-full max-w-md max-h-[82vh] overflow-y-auto p-5 animate-tooltip-pop"
+            onClick={(e) => e.stopPropagation()}
+            style={{ boxShadow: "0 24px 90px rgba(0,0,0,0.75)" }}
+          >
+            {/* Шапка */}
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center space-x-2.5 min-w-0">
+                <span
+                  className="w-2.5 h-2.5 rounded-full shrink-0"
+                  style={{ background: selected.kind === "asteroid" ? asteroidThreatColor(selected) : eventColor(selected.event_type) }}
+                />
+                <h3 className="text-base font-semibold text-primary truncate">
+                  {selected.kind === "asteroid" ? selected.name : eventLabel(selected.event_type)}
+                </h3>
+                {selected.kind === "asteroid" && selected.hazardous && (
+                  <span className="shrink-0 px-1.5 py-px rounded bg-[#FF5D6C]/15 border border-[#FF5D6C]/30 text-[9px] font-bold uppercase tracking-wider text-[#FF5D6C]">
+                    {ast.hazardous}
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelected(null)}
+                className="shrink-0 rounded-full glass p-1.5 text-secondary hover:text-primary transition-colors"
+                aria-label={t.globe.close}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Тіло */}
+            <div className="mt-3 space-y-2">
+              {selected.kind === "asteroid" ? (
+                <>
+                  <DetailRow label={ast.miss} value={selected.miss_km != null ? `${(selected.miss_km / 1e6).toFixed(1)}M km` : "—"} />
+                  <DetailRow label={ast.velocity} value={selected.velocity_kms != null ? `${selected.velocity_kms.toFixed(1)} km/s` : "—"} />
+                  <DetailRow label={ast.diameter} value={selected.diameter_m_max != null ? `${Math.round(selected.diameter_m_max)} m` : "—"} />
+                  <DetailRow label={ast.approach} value={selected.approach_date || "—"} />
+                </>
+              ) : (
+                <>
+                  {eventDesc(selected.event_type) && (
+                    <p className="text-xs leading-snug text-secondary/90">
+                      {eventDesc(selected.event_type)}
+                    </p>
+                  )}
+                  {selected.location && (
+                    <DetailRow label={t.globe.location} value={selected.location} />
+                  )}
+                  {selected.severity && (
+                    <DetailRow label={t.globe.severity} value={<span className="capitalize">{selected.severity}</span>} />
+                  )}
+                  {selected.frp != null && (
+                    <DetailRow label={t.globe.frp} value={`${selected.frp.toFixed(1)} MW`} />
+                  )}
+                  {selected.confidence && (
+                    <DetailRow label={t.globe.confidence} value={<span className="capitalize">{selected.confidence}</span>} />
+                  )}
+                  {selected.satellite && (
+                    <DetailRow label={t.globe.satellite} value={selected.satellite} />
+                  )}
+                  {selected.coordinates && (
+                    <DetailRow label="Lat / Lon" value={`${selected.coordinates[0].toFixed(2)}°, ${selected.coordinates[1].toFixed(2)}°`} mono />
+                  )}
+                </>
+              )}
+
+              {/* Актуальність даних */}
+              <div className="mt-3 pt-2.5 border-t border-violet/15 flex items-center justify-between gap-2">
+                <div className="flex items-center space-x-1.5 min-w-0">
+                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: freshnessColor[selectedFresh] }} />
+                  <span className="text-[11px] text-secondary truncate">
+                    {t.globe.updatedAt}: {selected.time || "—"}
+                  </span>
+                </div>
+                <span className="text-[11px] font-semibold shrink-0" style={{ color: freshnessColor[selectedFresh] }}>
+                  {selectedFreshLabel}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
