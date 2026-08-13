@@ -1005,7 +1005,7 @@ export default function EarthGlobe() {
   const load = useCallback(async () => {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
     try {
-      const [eventsRes, eonetRes, astRes, sl, oh, ph, south, north, co2Res] = await Promise.all([
+      const [eventsRes, eonetRes, astRes, sl, oh, ph, south, north, co2Data] = await Promise.all([
         fetch(`${apiUrl}/api/events`),
         fetch(`${apiUrl}/api/eonet?days=14`).catch(() => null),
         fetch(`${apiUrl}/api/asteroids?days=7`),
@@ -1017,7 +1017,6 @@ export default function EarthGlobe() {
         fetch(`${apiUrl}/api/co2`).then((r) => (r.ok ? r.json() : null)),
       ]);
       const astData = await astRes.json().catch(() => null);
-      const co2Data = await co2Res.json().catch(() => null);
       // Реальні астероїди (NASA NeoWs) або резервний набір, якщо API порожній
       setAsteroids(
         astData && Array.isArray(astData.objects) && astData.objects.length > 0
