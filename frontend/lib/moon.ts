@@ -31,13 +31,15 @@ export function getGMST(date: Date = new Date()): number {
 /** Сублунарна точка: широта = схилення Місяця, довгота = RA − GMST. */
 export function getSubLunarPoint(date: Date = new Date()): { lat: number; lon: number } {
   const d = dateToJD(date) - 2451545.0;
+  // Ряди Meeus задані на юліанський вік (T) від епохи J2000, а не на добу.
+  const T = d / 36525;
 
   // Середні орбітальні елементи Місяця (град)
-  const Lp = norm360(218.3164477 + 481267.88123421 * d);
-  const D = norm360(297.8501921 + 445267.1114034 * d);
-  const M = norm360(357.5291092 + 35999.0502909 * d);
-  const Mp = norm360(134.9633964 + 477198.8675055 * d);
-  const F = norm360(93.272095 + 483202.0175233 * d);
+  const Lp = norm360(218.3164477 + 481267.88123421 * T);
+  const D = norm360(297.8501921 + 445267.1114034 * T);
+  const M = norm360(357.5291092 + 35999.0502909 * T);
+  const Mp = norm360(134.9633964 + 477198.8675055 * T);
+  const F = norm360(93.272095 + 483202.0175233 * T);
 
   const s = (x: number) => Math.sin(x * DEG);
 
@@ -72,11 +74,11 @@ export function getSubLunarPoint(date: Date = new Date()): { lat: number; lon: n
     0.173238 * s(2 * D - F) -
     0.055413 * s(2 * D - Mp - F) -
     0.093951 * s(2 * D + Mp - F) +
-    0.032693 * s(2 * D + Mp + F) +
-    0.011098 * s(2 * D + Mp - F + M);
+     0.032693 * s(2 * D + Mp + F) +
+     0.011098 * s(2 * D + Mp - F - M);
 
-  // Нахил екліптики
-  const eps = (23.439 - 0.0000004 * d) * DEG;
+  // Нахил екліптики (Meeus, на юліанський вік)
+  const eps = (23.439291111 - 0.013004167 * T) * DEG;
 
   // Екліптичні → екваторіальні (RA, Dec)
   const lam = lambda * DEG;
