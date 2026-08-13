@@ -413,28 +413,28 @@ function Marker({
     g.visible = pop > 0.001;
     if (!g.visible) return;
 
-    // При наведенні маркер злегка збільшується; завжди — м'яке "дихання"
-    const hoverBoost = active ? 1.25 : 1;
-    const breathe = reducedMotion() ? 1 : 1 + 0.07 * Math.sin(t * 2.6 + position.x);
-    // Маркери мають лишатися помітними зі стартового ракурсу, але не закривати
-    // поверхню планети при zoom-in (масштаб пропорційний відстані до камери).
-    const scale = (dist / 13) * hoverBoost * (0.45 + 0.55 * easePop) * breathe;
+    // При наведенні маркер злегка збільшується; завжди — ледь помітне "дихання"
+    const hoverBoost = active ? 1.2 : 1;
+    const breathe = reducedMotion() ? 1 : 1 + 0.04 * Math.sin(t * 1.8 + position.x);
+    // Маркери компактні: не закривають поверхню планети, але лишаються помітними.
+    // Масштаб пропорційний відстані до камери, при zoom-in зменшується.
+    const scale = (dist / 15) * hoverBoost * (0.35 + 0.45 * easePop) * breathe;
     g.scale.setScalar(scale);
 
-    // Яскравіше сяйво та біле ядро при наведенні
+    // М'якше сяйво та біле ядро при наведенні
     if (glowMatRef.current) {
-      glowMatRef.current.opacity = active ? 0.55 : 0.32;
+      glowMatRef.current.opacity = active ? 0.4 : 0.2;
     }
     if (coreMatRef.current) {
       coreMatRef.current.color.set(active ? "#ffffff" : color);
     }
 
-    // Розширення "хвилі" навколо маркера — як сонер. Вимикається при reduced-motion.
+    // Повільне розширення "хвилі" навколо маркера — ледь помітне. Вимикається при reduced-motion.
     if (ringRef.current && ringMatRef.current) {
       if (!reducedMotion() && pop > 0.5) {
-        const cycle = (t * 0.55 + index * 0.37) % 1;
-        ringRef.current.scale.setScalar(0.9 + cycle * 2.1);
-        ringMatRef.current.opacity = (1 - cycle) * (active ? 0.55 : 0.3);
+        const cycle = (t * 0.3 + index * 0.37) % 1;
+        ringRef.current.scale.setScalar(0.8 + cycle * 1.6);
+        ringMatRef.current.opacity = (1 - cycle) * (active ? 0.3 : 0.12);
         ringRef.current.visible = true;
       } else {
         ringRef.current.visible = false;
@@ -446,23 +446,23 @@ function Marker({
     <group ref={groupRef} position={position}>
       {/* Сяйво навколо маркера */}
       <mesh>
-        <sphereGeometry args={[0.22, 12, 12]} />
+        <sphereGeometry args={[0.15, 12, 12]} />
         <meshBasicMaterial
           ref={glowMatRef}
           color={color}
           transparent
-          opacity={0.32}
+          opacity={0.2}
           depthWrite={false}
         />
       </mesh>
       {/* Ядро маркера */}
       <mesh>
-        <sphereGeometry args={[0.1, 10, 10]} />
+        <sphereGeometry args={[0.065, 10, 10]} />
         <meshBasicMaterial ref={coreMatRef} color={color} />
       </mesh>
       {/* Хвиля-кільце — декоративне, не перехоплює наведення */}
       <mesh ref={ringRef} visible={false} raycast={() => null}>
-        <sphereGeometry args={[0.4, 20, 20]} />
+        <sphereGeometry args={[0.26, 20, 20]} />
         <meshBasicMaterial
           ref={ringMatRef}
           color={color}
