@@ -680,7 +680,9 @@ function Scene({
         minDistance={8}
         maxDistance={18}
         enablePan={false}
-        autoRotate={false}
+        autoRotate
+        autoRotateSpeed={0.8}
+        enableDamping={false}
       />
     </>
   );
