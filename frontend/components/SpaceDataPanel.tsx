@@ -43,6 +43,7 @@ import {
   GeocodeResult,
   EarthquakesData,
   AuroraData,
+  SchumannData,
 } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { moonPhase } from "@/lib/moon";
@@ -137,6 +138,7 @@ export default function SpaceDataPanel() {
   const [astData, setAstData] = useState<AsteroidsData | null>(null);
   const [earthquakes, setEarthquakes] = useState<EarthquakesData | null>(null);
   const [aurora, setAurora] = useState<AuroraData | null>(null);
+  const [schumann, setSchumann] = useState<SchumannData | null>(null);
   const [geoLoading, setGeoLoading] = useState(false);
 
   // Local weather location selection
@@ -185,7 +187,7 @@ export default function SpaceDataPanel() {
     try {
       const wlat = weatherLocation?.lat ?? 50.45;
       const wlon = weatherLocation?.lon ?? 30.52;
-      const [geoRes, swRes, kpRes, xrayRes, scycleRes, windRes, astRes, eqRes, auroraRes] =
+      const [geoRes, swRes, kpRes, xrayRes, scycleRes, windRes, astRes, eqRes, auroraRes, schRes] =
         await Promise.allSettled([
           api.geomagnetic(),
           api.spaceWeather(7),
@@ -196,6 +198,7 @@ export default function SpaceDataPanel() {
           api.asteroids(7),
           api.earthquakes(),
           api.aurora(wlat, wlon),
+          api.schumann(),
         ]);
       setGeo(geoRes.status === "fulfilled" ? geoRes.value : null);
       setSwd(swRes.status === "fulfilled" ? swRes.value : null);
@@ -208,6 +211,7 @@ export default function SpaceDataPanel() {
       const eq = eqRes.status === "fulfilled" ? eqRes.value : null;
       setEarthquakes(eq && eq.earthquakes && eq.earthquakes.length > 0 ? eq : null);
       setAurora(auroraRes.status === "fulfilled" ? auroraRes.value : null);
+      setSchumann(schRes.status === "fulfilled" ? schRes.value : null);
       await loadLocalWeather();
     } catch {
       /* игнорируем */
@@ -297,7 +301,8 @@ export default function SpaceDataPanel() {
     !!(xray && xray.flare_class) ||
     !!(scycle && scycle.latest) ||
     !!solarWind ||
-    !!aurora;
+    !!aurora ||
+    !!schumann;
   const hasEarthData = !!earthquakes || !!weather;
 
   if (loading) return null;
@@ -406,43 +411,43 @@ export default function SpaceDataPanel() {
         <button
           type="button"
           onClick={() => setTab("space")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all ${
+          className={`flex-1 min-w-0 inline-flex items-center justify-center gap-1 px-1.5 py-1.5 rounded-lg text-[11px] font-medium transition-all ${
             tab === "space"
               ? "bg-emerald text-[#04211A]"
               : "bg-white/5 text-secondary hover:text-primary hover:bg-white/10"
           }`}
         >
-          <Sun className="w-3 h-3" />
-          {sw.title}
+          <Sun className="w-3 h-3 shrink-0" />
+          <span className="truncate">{sw.title}</span>
         </button>
         <button
           type="button"
           onClick={() => setTab("earth")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all ${
+          className={`flex-1 min-w-0 inline-flex items-center justify-center gap-1 px-1.5 py-1.5 rounded-lg text-[11px] font-medium transition-all ${
             tab === "earth"
               ? "bg-emerald text-[#04211A]"
               : "bg-white/5 text-secondary hover:text-primary hover:bg-white/10"
           }`}
         >
-          <Globe className="w-3 h-3" />
-          {ew.title}
+          <Globe className="w-3 h-3 shrink-0" />
+          <span className="truncate">{ew.title}</span>
           {earthquakes?.count != null && (
-            <span className="text-[9px] opacity-70">{earthquakes.count}</span>
+            <span className="text-[9px] opacity-70 shrink-0">{earthquakes.count}</span>
           )}
         </button>
         <button
           type="button"
           onClick={() => setTab("asteroids")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all ${
+          className={`flex-1 min-w-0 inline-flex items-center justify-center gap-1 px-1.5 py-1.5 rounded-lg text-[11px] font-medium transition-all ${
             tab === "asteroids"
               ? "bg-emerald text-[#04211A]"
               : "bg-white/5 text-secondary hover:text-primary hover:bg-white/10"
           }`}
         >
-          <Orbit className="w-3 h-3" />
-          {ast.title}
+          <Orbit className="w-3 h-3 shrink-0" />
+          <span className="truncate">{ast.title}</span>
           {astData?.objects?.length != null && (
-            <span className="text-[9px] opacity-70">{astData.objects.length}</span>
+            <span className="text-[9px] opacity-70 shrink-0">{astData.objects.length}</span>
           )}
         </button>
       </div>
@@ -801,19 +806,55 @@ export default function SpaceDataPanel() {
             </div>
           </div>
 
-          {/* Шумановский резонанс — честная заглушка */}
-          <div className="rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2.5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-1.5 text-[10px] uppercase tracking-[0.15em] text-secondary">
-                <Radio className="w-3 h-3 text-[#36A3FF]" />
-                <span>{sw.schumann}</span>
+          {/* Шуманівський резонанс — ResonanceOne (Томськ TSU) */}
+          {schumann && !schumann.error ? (
+            <div className="rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-1.5 text-[10px] uppercase tracking-[0.15em] text-secondary">
+                  <Radio className="w-3 h-3 text-[#36A3FF]" />
+                  <span>{sw.schumann}</span>
+                </div>
+                <span className="text-[9px] text-secondary/70">
+                  {schumann.updated_at ? fmtTime(new Date(schumann.updated_at).getTime()) : ""}
+                </span>
               </div>
-              <span className="px-1.5 py-px rounded bg-white/10 text-[8px] font-bold uppercase tracking-wider text-secondary">
-                {sw.notAvailable}
-              </span>
+              <div className="mt-2 grid grid-cols-3 gap-1.5">
+                <div className="px-2 py-1.5 rounded-lg bg-white/[0.03] border border-white/5 text-center">
+                  <div className="text-[8px] text-secondary uppercase tracking-wider">{sw.schumannFreq}</div>
+                  <div className="text-sm font-bold font-mono text-[#36A3FF]">
+                    {schumann.schumann_frequency_hz != null
+                      ? `${schumann.schumann_frequency_hz.toFixed(2)} Hz`
+                      : "—"}
+                  </div>
+                </div>
+                <div className="px-2 py-1.5 rounded-lg bg-white/[0.03] border border-white/5 text-center">
+                  <div className="text-[8px] text-secondary uppercase tracking-wider">{sw.schumannIndex}</div>
+                  <div className="text-sm font-bold font-mono text-primary">
+                    {schumann.schumann_index != null ? schumann.schumann_index : "—"}
+                  </div>
+                </div>
+                <div className="px-2 py-1.5 rounded-lg bg-white/[0.03] border border-white/5 text-center">
+                  <div className="text-[8px] text-secondary uppercase tracking-wider">{sw.activityIndex}</div>
+                  <div className="text-sm font-bold font-mono" style={{ color: auroraColorOf(schumann.activity_index ?? null) }}>
+                    {schumann.activity_index != null ? schumann.activity_index : "—"}
+                  </div>
+                </div>
+              </div>
+              <div className="mt-1.5 text-[9px] text-secondary/70">{sw.sourceResonance}</div>
             </div>
-            <div className="mt-1.5 text-[10px] text-secondary/80">{sw.schumannNote}</div>
-          </div>
+          ) : (
+            <div className="rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-1.5 text-[10px] uppercase tracking-[0.15em] text-secondary">
+                  <Radio className="w-3 h-3 text-[#36A3FF]" />
+                  <span>{sw.schumann}</span>
+                </div>
+                <span className="px-1.5 py-px rounded bg-white/10 text-[8px] font-bold uppercase tracking-wider text-secondary">
+                  {sw.notAvailable}
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       ) : tab === "earth" ? (
         <div className="px-4 py-3 max-h-[44vh] overflow-y-auto custom-scroll space-y-3">

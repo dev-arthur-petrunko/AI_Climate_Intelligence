@@ -273,6 +273,52 @@ export interface AuroraData {
   error?: boolean;
 }
 
+export interface SchumannData {
+  source: string;
+  activity_index?: number | null;
+  activity_index_label?: string | null;
+  schumann_index?: number | null;
+  schumann_frequency_hz?: number | null;
+  kp_index?: number | null;
+  kp_label?: string | null;
+  solar_flare_index?: number | null;
+  solar_flare_class?: string | null;
+  geomagnetic_status?: string | null;
+  summary?: string | null;
+  data_source?: string | null;
+  updated_at?: string | null;
+  observation_window?: { start?: string; end?: string } | null;
+  weighting?: { schumann_pct?: number; kp_pct?: number; solar_pct?: number } | null;
+  attribution?: Record<string, string> | null;
+  methodology_url?: string | null;
+  citation?: string | null;
+  error?: boolean;
+}
+
+export interface SourceStatusItem {
+  key: string;
+  name: string;
+  description?: string;
+  category?: string;
+  url: string;
+  needs_key?: boolean;
+  key_env?: string;
+  status: "online" | "offline";
+  reason?: string | null;
+  latency_ms?: number | null;
+  checked_at?: string;
+}
+
+export interface SourcesData {
+  source?: string;
+  checked_at?: string;
+  online?: number;
+  offline?: number;
+  total?: number;
+  sources: SourceStatusItem[];
+  error?: boolean;
+}
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 async function getJSON<T>(path: string, params?: Record<string, string | number>): Promise<T> {
@@ -317,4 +363,6 @@ export const api = {
   earthquakes: () => getJSON<EarthquakesData>("/api/earthquakes"),
   aurora: (lat?: number, lon?: number) =>
     getJSON<AuroraData>("/api/aurora", { lat: lat ?? 50.45, lon: lon ?? 30.52 }),
+  schumann: () => getJSON<SchumannData>("/api/schumann"),
+  sources: () => getJSON<SourcesData>("/api/sources"),
 };

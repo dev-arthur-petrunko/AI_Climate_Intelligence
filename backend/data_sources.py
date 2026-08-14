@@ -26,6 +26,7 @@ import logging
 import random
 import re
 import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -1586,3 +1587,249 @@ def fetch_aurora(lat: float, lon: float) -> dict:
 
 def get_aurora(lat: float = 50.45, lon: float = 30.52) -> dict:
     return _cached(f"aurora:{lat:.2f}:{lon:.2f}", 10 * 60, lambda: fetch_aurora(lat, lon))
+
+
+# ---------------------------------------------------------------------------
+# ResonanceOne: Schumann resonance composite index (free, no key)
+# ---------------------------------------------------------------------------
+
+def fetch_schumann() -> dict:
+    """Schumann resonance + composite activity index from ResonanceOne.
+
+    Composite 0-100 metric: Schumann (Tomsk TSU) 70%, Kp (GFZ Potsdam) 25%,
+    solar flare activity (NOAA SWPC) 5%. Free JSON endpoint, no API key.
+    """
+    r = httpx.get(
+        "https://resonanceone.app/api/now",
+        timeout=httpx.Timeout(20.0),
+        headers=_HEADERS,
+    )
+    r.raise_for_status()
+    raw = r.json()
+    return {
+        "source": "ResonanceOne (Tomsk TSU)",
+        "activity_index": raw.get("activity_index"),
+        "activity_index_label": raw.get("activity_index_label"),
+        "schumann_index": raw.get("schumann_index"),
+        "schumann_frequency_hz": raw.get("schumann_frequency_hz"),
+        "kp_index": raw.get("kp_index"),
+        "kp_label": raw.get("kp_label"),
+        "solar_flare_index": raw.get("solar_flare_index"),
+        "solar_flare_class": raw.get("solar_flare_class"),
+        "geomagnetic_status": raw.get("geomagnetic_status"),
+        "summary": raw.get("summary"),
+        "data_source": raw.get("data_source"),
+        "updated_at": raw.get("updated_at"),
+        "observation_window": raw.get("observation_window"),
+        "weighting": raw.get("weighting"),
+        "methodology_url": raw.get("methodology_url"),
+        "attribution": raw.get("attribution"),
+        "citation": raw.get("citation"),
+    }
+
+
+def get_schumann() -> dict:
+    return _cached("schumann", 10 * 60, fetch_schumann)
+
+
+# ---------------------------------------------------------------------------
+# Data source availability status (for the "Sources" page)
+# ---------------------------------------------------------------------------
+
+_SOURCE_CHECKS = [
+    {
+        "key": "open_meteo",
+        "name": "Open-Meteo",
+        "description": "Local weather, forecast, marine & air quality",
+        "category": "Weather",
+        "url": "https://api.open-meteo.com/v1/forecast?latitude=50.45&longitude=30.52&current=temperature_2m",
+        "needs_key": False,
+    },
+    {
+        "key": "gistemp",
+        "name": "NASA GISTEMP",
+        "description": "Global surface temperature anomaly",
+        "category": "Temperature",
+        "url": "https://data.giss.nasa.gov/gistemp/tabledata_v4/GLB.Ts+dSST.csv",
+        "needs_key": False,
+    },
+    {
+        "key": "noaa_co2",
+        "name": "NOAA GML",
+        "description": "Global CO2 concentration (Mauna Loa)",
+        "category": "Atmosphere",
+        "url": "https://gml.noaa.gov/webdata/ccgg/trends/co2/co2_mm_gl.csv",
+        "needs_key": False,
+    },
+    {
+        "key": "nsidc_arctic",
+        "name": "NSIDC Sea Ice Index",
+        "description": "Arctic sea ice extent (daily)",
+        "category": "Cryosphere",
+        "url": "https://noaadata.apps.nsidc.org/NOAA/G02135/north/daily/data/N_seaice_extent_daily_v4.0.csv",
+        "needs_key": False,
+    },
+    {
+        "key": "nsidc_antarctic",
+        "name": "NSIDC Sea Ice Index (south)",
+        "description": "Antarctic sea ice extent (daily)",
+        "category": "Cryosphere",
+        "url": "https://noaadata.apps.nsidc.org/NOAA/G02135/south/daily/data/S_seaice_extent_daily_v4.0.csv",
+        "needs_key": False,
+    },
+    {
+        "key": "noaa_nhc",
+        "name": "NOAA NHC",
+        "description": "Active tropical cyclones (Atlantic)",
+        "category": "Storms",
+        "url": "https://www.nhc.noaa.gov/index-at.xml",
+        "needs_key": False,
+    },
+    {
+        "key": "nasa_firms",
+        "name": "NASA FIRMS",
+        "description": "Active fire hotspots (MODIS/VIIRS)",
+        "category": "Fires",
+        "url": "https://firms.modaps.eosdis.nasa.gov/api/area/csv",
+        "needs_key": True,
+        "key_env": "FIRMS_API_KEY",
+    },
+    {
+        "key": "usgs",
+        "name": "USGS",
+        "description": "Global earthquakes (4.5+ / significant)",
+        "category": "Geology",
+        "url": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_week.geojson",
+        "needs_key": False,
+    },
+    {
+        "key": "eonet",
+        "name": "NASA EONET",
+        "description": "Natural disaster events worldwide",
+        "category": "Natural events",
+        "url": "https://eonet.gsfc.nasa.gov/api/v3/events?status=ongoing",
+        "needs_key": False,
+    },
+    {
+        "key": "swpc",
+        "name": "NOAA SWPC",
+        "description": "Space weather: Kp, solar wind, flares, aurora",
+        "category": "Space weather",
+        "url": "https://services.swpc.noaa.gov/json/planetary_k_index_1m.json",
+        "needs_key": False,
+    },
+    {
+        "key": "neo",
+        "name": "NASA NeoWs",
+        "description": "Near-Earth asteroid approaches",
+        "category": "Asteroids",
+        "url": "https://api.nasa.gov/neo/rest/v1/feed",
+        "needs_key": True,
+        "key_env": "NASA_API_KEY",
+    },
+    {
+        "key": "donki",
+        "name": "NASA DONKI",
+        "description": "Solar flares & coronal mass ejections",
+        "category": "Space weather",
+        "url": "https://api.nasa.gov/DONKI/FLR",
+        "needs_key": True,
+        "key_env": "NASA_API_KEY",
+    },
+    {
+        "key": "sea_level",
+        "name": "University of Colorado",
+        "description": "Global sea level rise (altimetry)",
+        "category": "Oceans",
+        "url": "https://sealevel.colorado.edu/files/2026_rel1/gmsl_2026rel1_seasons_rmvd.txt",
+        "needs_key": False,
+    },
+    {
+        "key": "ocean_heat",
+        "name": "OWID Ocean Heat",
+        "description": "Ocean heat content, top 2000 m (NOAA)",
+        "category": "Oceans",
+        "url": "https://ourworldindata.org/grapher/ocean-heat-top-2000m.csv",
+        "needs_key": False,
+    },
+    {
+        "key": "ocean_ph",
+        "name": "University of Hawaii (HOT)",
+        "description": "Seawater pH, station ALOHA",
+        "category": "Oceans",
+        "url": "https://hahana.soest.hawaii.edu/hot/hotco2/HOT_surface_CO2.txt",
+        "needs_key": False,
+    },
+    {
+        "key": "resonanceone",
+        "name": "ResonanceOne (Schumann)",
+        "description": "Schumann resonance + composite activity index",
+        "category": "Space weather",
+        "url": "https://resonanceone.app/api/now",
+        "needs_key": False,
+    },
+]
+
+
+def _check_source(src: dict) -> dict:
+    needs_key = bool(src.get("needs_key"))
+    has_key = not needs_key or bool(os.getenv(src.get("key_env") or ""))
+    if needs_key and not has_key:
+        return {
+            **src,
+            "status": "offline",
+            "reason": "missing API key",
+            "latency_ms": None,
+            "checked_at": datetime.now(timezone.utc).isoformat(),
+        }
+    start = time.time()
+    try:
+        r = httpx.get(
+            src["url"],
+            timeout=httpx.Timeout(8.0),
+            headers=_HEADERS,
+            follow_redirects=True,
+        )
+        ms = int((time.time() - start) * 1000)
+        if r.status_code < 500:
+            return {
+                **src,
+                "status": "online",
+                "reason": None,
+                "latency_ms": ms,
+                "checked_at": datetime.now(timezone.utc).isoformat(),
+            }
+        return {
+            **src,
+            "status": "offline",
+            "reason": f"HTTP {r.status_code}",
+            "latency_ms": ms,
+            "checked_at": datetime.now(timezone.utc).isoformat(),
+        }
+    except Exception as exc:
+        return {
+            **src,
+            "status": "offline",
+            "reason": type(exc).__name__,
+            "latency_ms": None,
+            "checked_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+
+def fetch_sources_status() -> dict:
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        results = list(pool.map(_check_source, _SOURCE_CHECKS))
+    online = sum(1 for r in results if r["status"] == "online")
+    return {
+        "source": "live upstream checks",
+        "checked_at": datetime.now(timezone.utc).isoformat(),
+        "online": online,
+        "offline": len(results) - online,
+        "total": len(results),
+        "sources": results,
+    }
+
+
+def get_sources_status() -> dict:
+    """Проверяє живі upstream-джерела раз на 30 хв (без спаму)."""
+    return _cached("sources_status", 30 * 60, fetch_sources_status)

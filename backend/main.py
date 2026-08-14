@@ -33,6 +33,8 @@ from data_sources import (
     get_solar_wind,
     get_earthquakes,
     get_aurora,
+    get_schumann,
+    get_sources_status,
 )
 from ai_groq import get_ai_analysis, get_ai_predictions
 from analytics import describe as analyze
@@ -306,6 +308,18 @@ async def aurora(lat: float = Query(DEFAULT_LAT), lon: float = Query(DEFAULT_LON
     """Ймовірність полярного сяйва в точці (NOAA SWPC OVATION, без ключа;
     фолбек — оцінка за Kp-індексом)."""
     return _safe(lambda: get_aurora(lat, lon), {"probability": None, "source": "fallback", "error": True})
+
+
+@app.get("/api/schumann")
+async def schumann():
+    """Шуманівський резонанс + складовий індекс активності (ResonanceOne, без ключа)."""
+    return _safe(get_schumann, {"error": True, "source": "ResonanceOne"})
+
+
+@app.get("/api/sources")
+async def sources():
+    """Статус усіх джерел даних: онлайн/офлайн. Жива перевірка кешується 30 хв."""
+    return _safe(get_sources_status, {"sources": [], "error": True, "source": "fallback"})
 
 
 def _safe(fetcher, default=None):

@@ -42,6 +42,7 @@ interface EventPoint {
   time?: string;
   confidence?: string;
   satellite?: string;
+  ongoing?: boolean;
 }
 
 /** Службовий об'єкт під курсором — подія Землі або астероїд (для тултіпа).
@@ -57,6 +58,7 @@ interface HoveredPoint {
   frp?: number;
   confidence?: string;
   satellite?: string;
+  ongoing?: boolean;
   // Поля астероїда
   name?: string;
   hazardous?: boolean;
@@ -77,6 +79,7 @@ interface RawEonetEvent {
   title?: string;
   location?: string;
   time?: string;
+  status?: string;
 }
 
 /** Записи у реєстрах для hover-контролера (screen-space proximity) */
@@ -110,7 +113,8 @@ function reducedMotion(): boolean {
 /** Свіжість даних: live (подія/резервні дані) або за віком дати */
 type Freshness = "live" | "fresh" | "stale" | "outdated";
 
-function freshnessOf(time?: string): Freshness {
+function freshnessOf(time?: string, ongoing?: boolean): Freshness {
+  if (ongoing) return "live";
   if (!time) return "live";
   const t = Date.parse(time);
   if (Number.isNaN(t)) return "live";
@@ -1092,6 +1096,7 @@ export default function EarthGlobe() {
             severity: e.severity || "medium",
             location: e.title || e.location || "",
             time: e.time,
+            ongoing: e.status === "ongoing",
           }));
         points.push(...eonetPoints);
       }
@@ -1139,7 +1144,7 @@ export default function EarthGlobe() {
   const screen = hovered?._screen;
 
   // Свіжість даних маркера (для індикатора актуальності)
-  const hoverFresh = freshnessOf(hovered?.time);
+  const hoverFresh = freshnessOf(hovered?.time, hovered?.ongoing);
   const hoverFreshLabel =
     hoverFresh === "live"
       ? t.globe.liveTag
@@ -1147,7 +1152,7 @@ export default function EarthGlobe() {
   const hoverFreshColor = freshnessColor[hoverFresh];
 
   // Свіжість даних вибраного маркера (для вікна інформації)
-  const selectedFresh = freshnessOf(selected?.time);
+  const selectedFresh = freshnessOf(selected?.time, selected?.ongoing);
   const selectedFreshLabel =
     selectedFresh === "live"
       ? t.globe.liveTag
@@ -1321,7 +1326,7 @@ export default function EarthGlobe() {
                 <div className="flex items-center space-x-1.5 min-w-0">
                   <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: hoverFreshColor }} />
                   <span className="text-[10px] text-secondary truncate">
-                    {t.globe.updatedAt}: {hovered.time || "—"}
+                    {hovered.ongoing ? `${t.globe.since}:` : `${t.globe.updatedAt}:`} {hovered.time || "—"}
                   </span>
                 </div>
                 <span className="text-[10px] font-semibold shrink-0" style={{ color: hoverFreshColor }}>
@@ -1414,7 +1419,7 @@ export default function EarthGlobe() {
                 <div className="flex items-center space-x-1.5 min-w-0">
                   <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: freshnessColor[selectedFresh] }} />
                   <span className="text-[11px] text-secondary truncate">
-                    {t.globe.updatedAt}: {selected.time || "—"}
+                    {selected.ongoing ? `${t.globe.since}:` : `${t.globe.updatedAt}:`} {selected.time || "—"}
                   </span>
                 </div>
                 <span className="text-[11px] font-semibold shrink-0" style={{ color: freshnessColor[selectedFresh] }}>
