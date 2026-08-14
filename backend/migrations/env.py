@@ -38,7 +38,7 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    """Run migrations in 'online' mode with a sync engine."""
+    """Запуск міграцій у режимі 'online' із синхронним рушієм."""
     url = _database_url()
     connectable = create_engine(url)
     with connectable.connect() as connection:

@@ -1,20 +1,20 @@
-"""Data source adapters for the Climate Intelligence backend.
+"""Адаптери джерел даних для бекенду Climate Intelligence.
 
-Each adapter fetches from a real public climate data provider and normalizes
-the response to a JSON-serializable dict. Responses are cached in-memory with
-TTLs matched to how often each dataset changes.
+Кожен адаптер отримує дані від реального публічного кліматичного провайдера
+та нормалізує відповідь у JSON-серіалізований словник. Відповіді кешуються
+в пам'яті з TTL, що відповідає частоті оновлення кожного набору даних.
 
-Providers (no API key required unless noted):
-  - Open-Meteo:      weather, marine (SST/waves), air quality
-  - NASA GISTEMP:    global surface temperature anomaly (1880 - present)
-  - NOAA GML:        global CO2 concentration (monthly)
-  - NSIDC:           Arctic sea ice extent (daily, v4.0)
-  - NSIDC:           Antarctic sea ice extent (daily, v4.0)
-  - OWID:            global sea level rise (Church & White + UHSLC)
-  - OWID:            ocean heat content, top 2000 m (NOAA GML)
-  - OWID:            ocean acidification (seawater pH, Hawaii station)
-  - NOAA NHC:        active tropical cyclones (Atlantic RSS)
-  - NASA FIRMS:      active fire hotspots (requires FIRMS_API_KEY env var)
+Провайдери (ключ API не потрібен, якщо не вказано):
+  - Open-Meteo:      погода, морські дані (SST/хвилі), якість повітря
+  - NASA GISTEMP:    глобальна температурна аномалія (1880 - тепер)
+  - NOAA GML:        глобальна концентрація CO2 (щомісячно)
+  - NSIDC:           протяжність арктичного морського льоду (щоденно, v4.0)
+  - NSIDC:           протяжність антарктичного морського льоду (щоденно, v4.0)
+  - OWID:            глобальний рівень моря (Church & White + UHSLC)
+  - OWID:            тепло океану, верхні 2000 м (NOAA GML)
+  - OWID:            закислення океану (pH морської води, станція Гаваї)
+  - NOAA NHC:        активні тропічні циклони (Atlantic RSS)
+  - NASA FIRMS:      активні гарячі точки пожеж (потребує FIRMS_API_KEY)
 """
 
 import os
@@ -58,7 +58,7 @@ def _cached(key: str, ttl_seconds: int, fetcher):
 
 
 # ---------------------------------------------------------------------------
-# Open-Meteo: weather
+# Open-Meteo: погода
 # ---------------------------------------------------------------------------
 
 def _fetch_weather_openmeteo(lat: float, lon: float) -> dict:
@@ -177,7 +177,7 @@ def get_weather(lat: float, lon: float) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Open-Meteo: marine (sea surface temperature, waves)
+# Open-Meteo: морські дані (температура поверхні моря, хвилі)
 # ---------------------------------------------------------------------------
 
 def fetch_marine(lat: float, lon: float) -> dict:
@@ -202,7 +202,7 @@ def get_marine(lat: float, lon: float) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Open-Meteo: air quality
+# Open-Meteo: якість повітря
 # ---------------------------------------------------------------------------
 
 def fetch_air_quality(lat: float, lon: float) -> dict:
@@ -229,7 +229,7 @@ def get_air_quality(lat: float, lon: float) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# NASA GISTEMP: global temperature anomaly
+# NASA GISTEMP: глобальна температурна аномалія
 # ---------------------------------------------------------------------------
 
 def fetch_gistemp() -> dict:
@@ -257,7 +257,7 @@ def fetch_gistemp() -> dict:
         cols = [c.strip() for c in line.split(",")]
         if not cols or not cols[0].isdigit():
             continue
-        # Columns: Year,Jan..Dec,J-D,D-N,DJF,MAM,JJA,SON -> annual mean is idx 13
+        # Колонки: Year,Jan..Dec,J-D,D-N,DJF,MAM,JJA,SON -> річне середнє — індекс 13
         if len(cols) <= 13:
             continue
         year = int(cols[0])
@@ -303,7 +303,7 @@ def get_gistemp() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# NOAA GML: global CO2 (monthly)
+# NOAA GML: глобальний CO2 (щомісячно)
 # ---------------------------------------------------------------------------
 
 def fetch_co2() -> dict:
@@ -343,7 +343,7 @@ def get_co2() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# NSIDC: Arctic sea ice extent (daily)
+# NSIDC: протяжність арктичного морського льоду (щоденно)
 # ---------------------------------------------------------------------------
 
 def fetch_sea_ice() -> dict:
@@ -377,7 +377,7 @@ def fetch_sea_ice() -> dict:
 
     latest = records[-1]
 
-    # Annual September minimum (classic sea ice metric) for trend line
+    # Річний мінімум за вересень (класичний показник морського льоду) для лінії тренду
     yearly_min = {}
     for rec in records:
         year = int(rec["date"][:4])
@@ -385,7 +385,7 @@ def fetch_sea_ice() -> dict:
         if month == 9:
             yearly_min[year] = min(yearly_min.get(year, 1e9), rec["extent"])
 
-    # 1981-2010 baseline monthly means for anomaly computation
+    # Базові середньомісячні 1981-2010 для обчислення аномалії
     baseline = {}
     for rec in records:
         year = int(rec["date"][:4])
@@ -401,7 +401,7 @@ def fetch_sea_ice() -> dict:
     if latest_month in baseline_mean:
         anomaly = round(latest["extent"] - baseline_mean[latest_month], 3)
 
-    # Current season daily curve (last ~12 months)
+    # Крива поточного сезону за днями (останні ~12 місяців)
     cutoff = (datetime.strptime(latest["date"], "%Y-%m-%d") - timedelta(days=365)).isoformat()[:10]
     recent = [rec for rec in records if rec["date"] >= cutoff]
 
@@ -423,7 +423,7 @@ def get_sea_ice() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# NSIDC: Antarctic sea ice extent (daily, v4.0)
+# NSIDC: протяжність антарктичного морського льоду (щоденно, v4.0)
 # ---------------------------------------------------------------------------
 
 def fetch_sea_ice_south() -> dict:
@@ -457,7 +457,7 @@ def fetch_sea_ice_south() -> dict:
 
     latest = records[-1]
 
-    # Annual February minimum (peak melt season in the Southern Hemisphere)
+    # Річний мінімум за лютий (пік сезону танення у Південній півкулі)
     yearly_min = {}
     for rec in records:
         year = int(rec["date"][:4])
@@ -465,7 +465,7 @@ def fetch_sea_ice_south() -> dict:
         if month == 2:
             yearly_min[year] = min(yearly_min.get(year, 1e9), rec["extent"])
 
-    # 1981-2010 baseline monthly means for anomaly computation
+    # Базові середньомісячні 1981-2010 для обчислення аномалії
     baseline = {}
     for rec in records:
         year = int(rec["date"][:4])
@@ -502,7 +502,7 @@ def get_sea_ice_south() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# University of Colorado: global mean sea level (altimetry, 2026_rel1)
+# University of Colorado: глобальний середній рівень моря (альтиметрія, 2026_rel1)
 # ---------------------------------------------------------------------------
 
 def fetch_sea_level() -> dict:
@@ -561,7 +561,7 @@ def get_sea_level() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# OWID: ocean heat content, top 2000 m (NOAA GML)
+# OWID: тепло океану, верхні 2000 м (NOAA GML)
 # ---------------------------------------------------------------------------
 
 def fetch_ocean_heat() -> dict:
@@ -604,7 +604,7 @@ def get_ocean_heat() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Hawaii Ocean Time-series (HOT): surface seawater pH, Station ALOHA
+# Hawaii Ocean Time-series (HOT): pH поверхневої морської води, станція ALOHA
 # ---------------------------------------------------------------------------
 
 def fetch_ocean_ph() -> dict:
@@ -621,7 +621,7 @@ def fetch_ocean_ph() -> dict:
                 data_started = True
             continue
         cols = [c.strip() for c in line.split("\t")]
-        # Columns: cruise, days, date, temp, sal, phos, sil, DIC, TA, nDIC, nTA,
+        # Колонки: cruise, days, date, temp, sal, phos, sil, DIC, TA, nDIC, nTA,
         # pHmeas_25C, pHmeas_insitu, pHcalc_25C, pHcalc_insitu, ...
         if len(cols) < 15:
             continue
@@ -673,7 +673,7 @@ def get_ocean_ph() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# NOAA NHC: active tropical cyclones (Atlantic RSS)
+# NOAA NHC: активні тропічні циклони (Atlantic RSS)
 # ---------------------------------------------------------------------------
 
 def fetch_hurricanes() -> dict:
@@ -730,10 +730,10 @@ def get_hurricanes() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# NASA FIRMS: active fires (requires FIRMS_API_KEY)
+# NASA FIRMS: активні пожежі (потребує FIRMS_API_KEY)
 # ---------------------------------------------------------------------------
 
-# Realistic hotspot clusters used when FIRMS_API_KEY is not configured
+# Реалістичні кластери гарячих точок, якщо FIRMS_API_KEY не налаштований
 _FALLBACK_FIRES = [
     # Canada / British Columbia
     [-124.0, 51.5], [-123.0, 52.0], [-122.5, 51.2], [-120.8, 53.0],
@@ -757,7 +757,7 @@ _FALLBACK_FIRES = [
 # ---------------------------------------------------------------------------
 
 _MAJOR_CITIES = [
-    # (lat, lon, city, country)
+    # (lat, lon, місто, країна)
     (49.28, -123.12, "Vancouver", "Canada"),
     (47.61, -122.33, "Seattle", "USA"),
     (37.77, -122.42, "San Francisco", "USA"),
@@ -912,7 +912,7 @@ def get_fires(days: int = 1) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# NASA NeoWs: near-Earth asteroids (requires NASA_API_KEY)
+# NASA NeoWs: навколоземні астероїди (потребує NASA_API_KEY)
 # ---------------------------------------------------------------------------
 
 def fetch_neo(days: int = 7) -> dict:
@@ -975,11 +975,11 @@ def get_neo(days: int = 7) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# NOAA SWPC: geomagnetic activity (Kp index, real time)
+# NOAA SWPC: геомагнітна активність (Kp-індекс, реальний час)
 # ---------------------------------------------------------------------------
 
 def fetch_geomagnetic() -> dict:
-    """Planetary Kp index from NOAA SWPC, latest values + derived G-scale storm level."""
+    """Планетарний Kp-індекс від NOAA SWPC, останні значення + похідний рівень шторму за G-шкалою."""
     try:
         r = httpx.get(
             "https://services.swpc.noaa.gov/json/planetary_k_index_1m.json",
@@ -1037,7 +1037,7 @@ def _gscale_from_kp(kp: float | None) -> str:
 
 
 # ---------------------------------------------------------------------------
-# NASA DONKI: solar events (flares, CME, geomagnetic storms)
+# NASA DONKI: сонячні події (спалахи, CME, геомагнітні шторми)
 # ---------------------------------------------------------------------------
 
 def fetch_solar_events(days: int = 7) -> dict:
@@ -1131,7 +1131,7 @@ def _normalize_solar_event(kind: str, item: dict) -> dict | None:
 
 
 def _num(value) -> float | None:
-    """Safe numeric conversion that returns None on empty/invalid input."""
+    """Безпечне перетворення числа, повертає None для порожнього/некоректного вводу."""
     if value in (None, ""):
         return None
     try:
@@ -1144,7 +1144,7 @@ def _num(value) -> float | None:
 
 
 # ---------------------------------------------------------------------------
-# NASA EONET: unified global natural events feed (no API key)
+# NASA EONET: об'єднана стрічка глобальних природних подій (без ключа API)
 # ---------------------------------------------------------------------------
 
 # Маппінг категорій EONET -> наші типи подій для глобуса/легенди
@@ -1230,11 +1230,11 @@ def get_eonet(days: int = 10) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Open-Meteo geocoding: city/country search (no API key)
+# Open-Meteo геокодування: пошук міста/країни (без ключа API)
 # ---------------------------------------------------------------------------
 
 def fetch_geocode(query: str, count: int = 8, language: str = "en") -> dict:
-    """Search cities by name/country via Open-Meteo Geocoding (free, no key)."""
+    """Пошук міст за назвою/країною через Open-Meteo Geocoding (безкоштовно, без ключа)."""
     if not query or not query.strip():
         return {"results": [], "source": "Open-Meteo Geocoding"}
     try:
@@ -1278,7 +1278,7 @@ def get_geocode(query: str, count: int = 8, language: str = "en") -> dict:
 
 
 # ---------------------------------------------------------------------------
-# NOAA SWPC: free real-time space weather (no API key)
+# NOAA SWPC: безкоштовні дані космічної погоди в реальному часі (без ключа API)
 # ---------------------------------------------------------------------------
 
 def fetch_kp_forecast() -> dict:
@@ -1328,7 +1328,7 @@ def fetch_goes_xray(days: int = 1) -> dict:
         logger.warning("GOES X-ray failed: %s", exc)
         return {"series": [], "current": None, "source": "fallback", "error": True}
 
-    # Long-wavelength band (0.1-0.8nm) drives flare classification
+    # Довгохвильовий діапазон (0.1-0.8nm) визначає класифікацію спалахів
     band = [row for row in rows or [] if row.get("energy") == "0.1-0.8nm"]
     band.sort(key=lambda r: r.get("time_tag") or "")
     series = [
@@ -1404,14 +1404,14 @@ def get_solar_cycle() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# NOAA SWPC: solar wind (plasma speed + Bz magnetic field) — free, live
+# NOAA SWPC: сонячний вітер (швидкість плазми + магнітне поле Bz) — безкоштовно, наживо
 # ---------------------------------------------------------------------------
 
 def fetch_solar_wind() -> dict:
-    """Current solar wind speed, proton density and IMF Bz from NOAA SWPC.
+    """Поточна швидкість сонячного вітру, густина протонів та IMF Bz від NOAA SWPC.
 
-    Combines the near-real-time solar wind plasma and magnetometer products so the
-    space panel can show the key stream-driving indicators for geomagnetic storms.
+    Поєднує плазмові та магнітометричні продукти сонячного вітру майже в реальному
+    часі, щоб космічна панель показувала ключові індикатори геомагнітних штормів.
     """
     result = {
         "source": "fallback",
@@ -1492,7 +1492,7 @@ def get_solar_wind() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# USGS: significant earthquakes (no API key)
+# USGS: значні землетруси (без ключа API)
 # ---------------------------------------------------------------------------
 
 def fetch_earthquakes(days: int = 7, limit: int = 12) -> dict:
@@ -1549,7 +1549,7 @@ def get_earthquakes(days: int = 7, limit: int = 12) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# NOAA SWPC: aurora probability (OVATION + Kp fallback)
+# NOAA SWPC: ймовірність полярного сяйва (OVATION + фолбек Kp)
 # ---------------------------------------------------------------------------
 
 def fetch_aurora(lat: float, lon: float) -> dict:
@@ -1581,7 +1581,7 @@ def fetch_aurora(lat: float, lon: float) -> dict:
     source = "NOAA SWPC OVATION"
 
     if grid and len(grid) > 0:
-        # Grid rows: [lon, lat, aurora]. Longitude wraps 0..360 → normalize to -180..180.
+        # Рядки сітки: [lon, lat, aurora]. Довгота загортається 0..360 → нормалізуємо до -180..180.
         values = []
         target_lat = max(-90.0, min(90.0, lat))
         for row in grid:
@@ -1597,7 +1597,7 @@ def fetch_aurora(lat: float, lon: float) -> dict:
             nearest = min(values, key=lambda v: v[0])
             probability = round(max(0.0, min(100.0, nearest[1])), 1)
     else:
-        # Fallback: Kp-driven aurora oval estimate.
+        # Фолбек: оцінка овалу полярного сяйва за Kp.
         try:
             geo = get_geomagnetic()
             kp = geo.get("current_kp")
@@ -1630,7 +1630,7 @@ def get_aurora(lat: float = 50.45, lon: float = 30.52) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# ResonanceOne: Schumann resonance composite index (free, no key)
+# ResonanceOne: композитний індекс резонансу Шумана (безкоштовно, без ключа)
 # ---------------------------------------------------------------------------
 
 def fetch_schumann() -> dict:
@@ -1673,7 +1673,7 @@ def get_schumann() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Data source availability status (for the "Sources" page)
+# Статус доступності джерел даних (для сторінки «Джерела»)
 # ---------------------------------------------------------------------------
 
 _SOURCE_CHECKS = [

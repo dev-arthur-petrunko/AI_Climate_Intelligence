@@ -1,15 +1,15 @@
-"""Groq-powered AI analysis and predictions for the Climate Intelligence backend.
+"""AI-аналіз та прогнози на основі Groq для бекенду Climate Intelligence.
 
-Uses the Groq API (OpenAI-compatible chat completions) to generate:
-  - Today's climate situation analysis — regenerated twice a day at
-    09:00 and 17:00 Kyiv time (EET/EEST)
-  - AI predictions / forecasts based on the latest live data
+Використовує Groq API (сумісний з OpenAI chat completions) для генерації:
+  - аналізу поточної кліматичної ситуації — генерується двічі на день о
+    09:00 та 17:00 за Київським часом (EET/EEST)
+  - AI-прогнозів на основі останніх живих даних
 
-The AI analysis is generated in the requested UI language (en/uk/de/pl/fr/it/ka).
+AI-аналіз генерується запитуваною мовою інтерфейсу (en/uk/de/pl/fr/it/ka).
 
-Requires the GROQ_API_KEY environment variable. If the key is missing or a
-request fails, the module falls back to deterministic template summaries so the
-frontend always receives a response.
+Потребує змінної середовища GROQ_API_KEY. Якщо ключ відсутній або запит
+не вдався, модуль повертається до детермінованих шаблонних підсумків, щоб
+фронтенд завжди отримував відповідь.
 """
 
 import json
@@ -31,7 +31,7 @@ _DEFAULT_MODEL = "llama-3.3-70b-versatile"
 try:
     _KYIV_TZ = ZoneInfo("Europe/Kyiv")
 except ZoneInfoNotFoundError:
-    # Fallback: 3h offset (Kyiv = UTC+2 in winter, UTC+3 in DST; use a fixed +3)
+    # Fallback: зсув 3 год (Київ = UTC+2 взимку, UTC+3 влітку; використовуємо фіксований +3)
     from datetime import timedelta
 
     _KYIV_TZ = timezone(timedelta(hours=3))
@@ -94,7 +94,7 @@ def _model() -> str:
 
 
 def _chat(messages: List[Dict[str, str]]) -> Optional[str]:
-    """Call the Groq chat completions API. Returns text or None on failure."""
+    """Виклик API Groq chat completions. Повертає текст або None у разі помилки."""
     key = _api_key()
     if not key:
         return None
@@ -121,11 +121,11 @@ def _chat(messages: List[Dict[str, str]]) -> Optional[str]:
 
 
 # ---------------------------------------------------------------------------
-# Data snapshot used to ground the AI prompts in real observations
+# Знімок даних, що використовується для «заземлення» AI-промптів реальними спостереженнями
 # ---------------------------------------------------------------------------
 
 def _data_snapshot() -> Dict[str, Any]:
-    """Collect the latest values from the data adapters into a compact snapshot."""
+    """Збирає останні значення з адаптерів даних у компактний знімок."""
     snapshot: Dict[str, Any] = {}
 
     try:
@@ -178,7 +178,7 @@ def _data_snapshot() -> Dict[str, Any]:
 
 
 def _snapshot_text(snapshot: Dict[str, Any]) -> str:
-    """Render the snapshot into a compact human-readable block for the prompt."""
+    """Перетворює знімок у компактний зрозумілий блок для промпту."""
     lines: List[str] = []
 
     weather = snapshot.get("weather") or {}
@@ -255,11 +255,11 @@ def _snapshot_text(snapshot: Dict[str, Any]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# AI analysis of today's situation (09:00 / 17:00 Kyiv, per language)
+ # AI-аналіз сьогоднішньої ситуації (09:00 / 17:00 за Києвом, кожною мовою)
 # ---------------------------------------------------------------------------
 
 def _generate_analysis(lang: str, slot_utc: datetime) -> Dict[str, Any]:
-    """Generate a fresh AI analysis of today's climate situation via Groq."""
+    """Генерує свіжий AI-аналіз поточної кліматичної ситуації через Groq."""
     lang = _normalize_lang(lang)
     snapshot = _data_snapshot()
     snapshot_block = _snapshot_text(snapshot)
@@ -296,7 +296,7 @@ def _generate_analysis(lang: str, slot_utc: datetime) -> Dict[str, Any]:
             "lang": lang,
         }
 
-    # Fallback template when Groq is unavailable
+    # Шаблонний фолбек, коли Groq недоступний
     return _template_analysis(snapshot, lang, slot_utc)
 
 
@@ -355,7 +355,7 @@ _TEMPLATE_ANALYSIS = {
 
 
 def _template_analysis(snapshot: Dict[str, Any], lang: str, slot_utc: datetime) -> Dict[str, Any]:
-    """Deterministic fallback used when the Groq key is missing or the call fails."""
+    """Детермінований фолбек, коли ключ Groq відсутній або виклик не вдався."""
     lang = _normalize_lang(lang)
     tpl = _TEMPLATE_ANALYSIS[lang]
     parts = []
@@ -385,10 +385,10 @@ def _template_analysis(snapshot: Dict[str, Any], lang: str, slot_utc: datetime) 
 
 
 def get_ai_analysis(lang: str = "en") -> Dict[str, Any]:
-    """Return today's AI analysis in the requested language.
+    """Повертає сьогоднішній AI-аналіз запитуваною мовою.
 
-    Regenerated at most twice per day: when the current Kyiv time has passed
-    the next scheduled slot (09:00 or 17:00).
+    Перегенеровується щонайбільше двічі на день: коли поточний Київський час
+    перевищив наступний запланований слот (09:00 або 17:00).
     """
     lang = _normalize_lang(lang)
     slot = _last_slot_utc()
@@ -407,11 +407,11 @@ def get_ai_analysis(lang: str = "en") -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# AI predictions (used by /api/predictions)
+# AI-прогнози (використовуються ендпоінтом /api/predictions)
 # ---------------------------------------------------------------------------
 
 def _parse_predictions(text: str) -> Optional[List[Dict[str, Any]]]:
-    """Try to extract a JSON list of predictions from the Groq response."""
+    """Спроба витягти JSON-список прогнозів із відповіді Groq."""
     try:
         start = text.index("[")
         end = text.rindex("]") + 1
@@ -424,7 +424,7 @@ def _parse_predictions(text: str) -> Optional[List[Dict[str, Any]]]:
 
 
 def _horizon_text(days: int) -> str:
-    """Human-readable forecast horizon used in the Groq prompt."""
+    """Зрозумілий людині горизонт прогнозу, що використовується у промпті Groq."""
     if days <= 7:
         return "the next 7 days (short-term)"
     if days <= 30:
@@ -445,7 +445,7 @@ def _horizon_text(days: int) -> str:
 
 
 def _generate_predictions(lang: str, days: int = 30) -> List[Dict[str, Any]]:
-    """Generate AI predictions tailored to the requested forecast horizon via Groq."""
+    """Генерує AI-прогнози для запитуваного горизонту прогнозу через Groq."""
     lang = _normalize_lang(lang)
     days = max(7, min(int(days or 30), 3650))
     snapshot = _data_snapshot()
@@ -542,7 +542,7 @@ _TEMPLATE_PREDICTIONS = {
 
 
 def _template_predictions(snapshot: Dict[str, Any], lang: str, days: int = 30) -> List[Dict[str, Any]]:
-    """Deterministic fallback predictions when Groq is unavailable."""
+    """Детерміновані фолбек-прогнози, коли Groq недоступний."""
     lang = _normalize_lang(lang)
     days = max(7, min(int(days or 30), 3650))
     tpl = _TEMPLATE_PREDICTIONS[lang]
@@ -635,7 +635,7 @@ def _template_predictions(snapshot: Dict[str, Any], lang: str, days: int = 30) -
 
 
 def get_ai_predictions(lang: str = "en", days: int = 30) -> List[Dict[str, Any]]:
-    """Return Groq-powered predictions in the requested language and horizon."""
+    """Повертає прогнози на основі Groq запитуваною мовою та горизонтом."""
     lang = _normalize_lang(lang)
     days = max(7, min(int(days or 30), 3650))
     key = f"ai_predictions:{lang}:{days}"
