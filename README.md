@@ -13,7 +13,7 @@
 
 Real-time global climate monitoring powered by Python, Artificial Intelligence, satellite observations, and interactive 3D visualization.
 
-[🚀 Live Demo](https://aiclimateintelligence.vercel.app) · [📡 API Docs](https://climate-intelligence-api.onrender.com/docs) · [📧 Contact](#support)
+[🚀 Live Demo](https://aiclimateintelligence.vercel.app) · [📡 API Docs](https://ai-climate-intelligence.onrender.com/docs) · [📧 Contact](#support)
 
 </div>
 

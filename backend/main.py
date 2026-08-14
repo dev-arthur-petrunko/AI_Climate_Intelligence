@@ -36,7 +36,7 @@ from data_sources import (
     get_schumann,
     get_sources_status,
 )
-from ai_groq import get_ai_analysis, get_ai_predictions
+from ai_groq import get_ai_analysis, get_ai_predictions, get_ai_summary_text
 from analytics import describe as analyze
 from scheduler import start_scheduler, stop_scheduler
 
@@ -777,61 +777,19 @@ async def ai_analysis(lang: str = Query("en")):
 
 
 @app.get("/api/ai-summary")
-async def get_ai_summary():
-    """Згенероване аналітичне резюме стану клімату Землі"""
-    summary_parts = []
+async def get_ai_summary(lang: str = Query("en", max_length=2)):
+    """Кліматичне резюме мовою інтерфейсу (lang: en/uk/de/pl/fr/it/ka)."""
     try:
         overview_data = await get_overview_safe()
-        if overview_data:
-            anomaly = (overview_data.get("temperature_anomaly") or {}).get("value")
-            if anomaly is not None:
-                summary_parts.append(
-                    f"Global temperature anomaly stands at {anomaly:+.2f}°C relative to the 1951-1980 baseline."
-                )
-            co2_latest = (overview_data.get("co2") or {})
-            if co2_latest.get("value") is not None:
-                summary_parts.append(
-                    f"Atmospheric CO₂ reached {co2_latest['value']:.1f} ppm (NOAA GML)."
-                )
-            ice = overview_data.get("sea_ice") or {}
-            if ice.get("anomaly") is not None:
-                summary_parts.append(
-                    f"Arctic sea ice extent is {ice['anomaly']:+.2f}M km² versus the 1981-2010 baseline (NSIDC)."
-                )
-            ocean_climate = overview_data.get("ocean_climate") or {}
-            sl = ocean_climate.get("sea_level") or {}
-            if sl.get("value") is not None:
-                summary_parts.append(
-                    f"Global mean sea level stands at {sl['value']:+.0f} mm relative to the TOPEX/Jason reference mean."
-                )
-            oh = ocean_climate.get("ocean_heat") or {}
-            if oh.get("value") is not None:
-                summary_parts.append(
-                    f"Ocean heat content (0-2000 m) reached {oh['value']:.0f} zettajoules."
-                )
-            ph = ocean_climate.get("ocean_ph") or {}
-            if ph.get("value") is not None:
-                summary_parts.append(
-                    f"Surface ocean pH fell to {ph['value']:.3f}, reflecting continued acidification (Station ALOHA)."
-                )
-            fires = (overview_data.get("fires") or {}).get("count", 0)
-            summary_parts.append(f"Satellites are currently tracking {fires} active fire hotspots globally.")
-            storms = (overview_data.get("hurricanes") or {}).get("count", 0)
-            if storms:
-                summary_parts.append(f"{storms} tropical cyclone(s) active in the Atlantic basin.")
+        summary = get_ai_summary_text(overview_data or {}, lang)
     except Exception:
-        pass
-
-    if not summary_parts:
-        summary_parts = [
-            "Satellite observations indicate continuing above-average global temperatures.",
-            "Arctic sea ice remains below its long-term seasonal baseline.",
-        ]
+        summary = get_ai_summary_text({}, lang)
 
     return {
-        "summary": " ".join(summary_parts),
+        "summary": summary,
         "last_updated": "live",
         "confidence": 0.91,
+        "lang": lang,
     }
 
 

@@ -354,6 +354,140 @@ _TEMPLATE_ANALYSIS = {
 }
 
 
+# Шаблони короткого кліматичного резюме для всіх 7 мов інтерфейсу
+_SUMMARY_TEMPLATES = {
+    "en": {
+        "temp": "Global temperature anomaly stands at {v}°C relative to the 1951–1980 baseline.",
+        "co2": "Atmospheric CO₂ reached {v} ppm (NOAA GML).",
+        "ice": "Arctic sea ice extent is {v}M km² versus the 1981–2010 baseline (NSIDC).",
+        "sea_level": "Global mean sea level stands at {v} mm relative to the TOPEX/Jason reference mean.",
+        "ocean_heat": "Ocean heat content (0–2000 m) reached {v} zettajoules.",
+        "ocean_ph": "Surface ocean pH fell to {v}, reflecting continued acidification (Station ALOHA).",
+        "fires": "Satellites are currently tracking {n} active fire hotspots globally.",
+        "storms": "{n} tropical cyclone(s) active in the Atlantic basin.",
+        "fallback_1": "Satellite observations indicate continuing above-average global temperatures.",
+        "fallback_2": "Arctic sea ice remains below its long-term seasonal baseline.",
+    },
+    "uk": {
+        "temp": "Глобальна температурна аномалія становить {v}°C відносно базового періоду 1951–1980.",
+        "co2": "Концентрація CO₂ в атмосфері досягла {v} ppm (NOAA GML).",
+        "ice": "Площа арктичного морського льоду становить {v} млн км² проти базового періоду 1981–2010 (NSIDC).",
+        "sea_level": "Глобальний середній рівень моря становить {v} мм відносно середнього значення супутників TOPEX/Jason.",
+        "ocean_heat": "Тепловміст океану (0–2000 м) досяг {v} зетаджоулів.",
+        "ocean_ph": "pH поверхневих вод океану знизився до {v}, що відображає продовження закислення (станція ALOHA).",
+        "fires": "Супутники відстежують {n} активних осередків пожеж у світі.",
+        "storms": "В Атлантичному басейні активні {n} тропічних циклонів.",
+        "fallback_1": "Супутникові спостереження вказують на подальші вищі за середні глобальні температури.",
+        "fallback_2": "Площа арктичного морського льоду залишається нижчою за довгостроковий сезонний базовий рівень.",
+    },
+    "de": {
+        "temp": "Die globale Temperaturanomalie beträgt {v}°C gegenüber der Referenzperiode 1951–1980.",
+        "co2": "Der atmosphärische CO₂-Gehalt erreichte {v} ppm (NOAA GML).",
+        "ice": "Die arktische Meereisausdehnung beträgt {v} Mio. km² gegenüber der Referenz 1981–2010 (NSIDC).",
+        "sea_level": "Der globale mittlere Meeresspiegel liegt bei {v} mm gegenüber dem TOPEX/Jason-Referenzmittel.",
+        "ocean_heat": "Der Wärmeinhalt der Ozeane (0–2000 m) erreichte {v} Zettajoule.",
+        "ocean_ph": "Der pH-Wert der ozeanischen Oberflächengewässer fiel auf {v} — ein Zeichen anhaltender Versauerung (Station ALOHA).",
+        "fires": "Satelliten erfassen derzeit {n} aktive Brandherde weltweit.",
+        "storms": "{n} tropische(r) Wirbelsturm (Wirbelstürme) ist (sind) im Atlantikbecken aktiv.",
+        "fallback_1": "Satellitenbeobachtungen deuten auf weiterhin überdurchschnittliche globale Temperaturen hin.",
+        "fallback_2": "Die arktische Meereisausdehnung bleibt unter ihrem langfristigen saisonalen Niveau.",
+    },
+    "pl": {
+        "temp": "Globalna anomalia temperatury wynosi {v}°C względem linii bazowej 1951–1980.",
+        "co2": "Stężenie CO₂ w atmosferze osiągnęło {v} ppm (NOAA GML).",
+        "ice": "Zasięg arktycznego lodu morskiego wynosi {v} mln km² wobec linii bazowej 1981–2010 (NSIDC).",
+        "sea_level": "Globalny średni poziom morza wynosi {v} mm względem średniej referencyjnej TOPEX/Jason.",
+        "ocean_heat": "Zawartość ciepła w oceanie (0–2000 m) osiągnęła {v} zettadżuli.",
+        "ocean_ph": "pH wód powierzchniowych oceanu spadło do {v}, co odzwierciedla postępującą zakwaszenie (stacja ALOHA).",
+        "fires": "Satelity obecnie śledzą {n} aktywnych ognisk pożarów na świecie.",
+        "storms": "{n} cyklon(y) tropikalne jest/są aktywne w basenie atlantyckim.",
+        "fallback_1": "Obserwacje satelitarne wskazują na utrzymujące się ponadprzeciętne globalne temperatury.",
+        "fallback_2": "Zasięg arktycznego lodu morskiego pozostaje poniżej długoterminowego poziomu sezonowego.",
+    },
+    "fr": {
+        "temp": "L'anomalie de température mondiale est de {v}°C par rapport à la référence 1951–1980.",
+        "co2": "Le CO₂ atmosphérique a atteint {v} ppm (NOAA GML).",
+        "ice": "L'étendue de la glace de mer arctique est de {v} M km² par rapport à la référence 1981–2010 (NSIDC).",
+        "sea_level": "Le niveau moyen mondial de la mer s'établit à {v} mm par rapport à la moyenne de référence TOPEX/Jason.",
+        "ocean_heat": "Le contenu thermique des océans (0–2000 m) a atteint {v} zettajoules.",
+        "ocean_ph": "Le pH des eaux de surface de l'océan a baissé à {v}, reflétant une acidification continue (station ALOHA).",
+        "fires": "Les satellites suivent actuellement {n} foyers d'incendie actifs dans le monde.",
+        "storms": "{n} cyclone(s) tropical(aux) est/sont actif(s) dans le bassin atlantique.",
+        "fallback_1": "Les observations par satellite indiquent des températures mondiales toujours supérieures à la moyenne.",
+        "fallback_2": "L'étendue de la glace de mer arctique reste inférieure à son niveau saisonnier à long terme.",
+    },
+    "it": {
+        "temp": "L'anomalia di temperatura globale è di {v}°C rispetto alla linea di base 1951–1980.",
+        "co2": "La CO₂ atmosferica ha raggiunto {v} ppm (NOAA GML).",
+        "ice": "L'estensione del ghiaccio marino artico è di {v} M km² rispetto alla linea di base 1981–2010 (NSIDC).",
+        "sea_level": "Il livello medio globale del mare è di {v} mm rispetto alla media di riferimento TOPEX/Jason.",
+        "ocean_heat": "Il contenuto termico degli oceani (0–2000 m) ha raggiunto {v} zettajoule.",
+        "ocean_ph": "Il pH delle acque oceaniche superficiali è sceso a {v}, riflettendo la continua acidificazione (stazione ALOHA).",
+        "fires": "I satelliti attualmente tracciano {n} focolai di incendio attivi nel mondo.",
+        "storms": "{n} ciclone(i) tropicale(i) attivo(i) nel bacino atlantico.",
+        "fallback_1": "Le osservazioni satellitari indicano temperature globali continuamente superiori alla media.",
+        "fallback_2": "L'estensione del ghiaccio marino artico rimane al di sotto del livello stagionale a lungo termine.",
+    },
+    "ka": {
+        "temp": "გლობალური ტემპერატურული ანომალია შეადგენს {v}°C საბაზო პერიოდთან 1951–1980 შედარებით.",
+        "co2": "ატმოსფეროში CO₂-ის კონცენტრაციამ მიაღწია {v} ppm-ს (NOAA GML).",
+        "ice": "არქტიკული ზღვის ყინულის ფართობია {v} მლნ კმ² საბაზო პერიოდთან 1981–2010 შედარებით (NSIDC).",
+        "sea_level": "გლობალური საშუალო ზღვის დონეა {v} მმ TOPEX/Jason საცნობარო საშუალოსთან შედარებით.",
+        "ocean_heat": "ოკეანის სითბოშემცველობამ (0–2000 მ) მიაღწია {v} ზეტაჯოულს.",
+        "ocean_ph": "ოკეანის ზედაპირული წყლების pH დაეცა {v}-მდე, რაც ასახავს მჟავიანობის გაგრძელებას (ALOHA სადგური).",
+        "fires": "სატელიტები ამჟამად აკვირდებიან {n} აქტიურ ხანძრის კერას მსოფლიოში.",
+        "storms": "ატლანტიკის აუზში აქტიურია {n} ტროპიკული ციკლონი.",
+        "fallback_1": "სატელიტური დაკვირვებები მიუთითებს საშუალოზე მაღალ გლობალურ ტემპერატურებზე.",
+        "fallback_2": "არქტიკული ზღვის ყინულის ფართობი გრძელვადიან სეზონურ საბაზო დონეზე დაბალია.",
+    },
+}
+
+
+def get_ai_summary_text(overview_data: Dict[str, Any], lang: str = "en") -> str:
+    """Форматує коротке кліматичне резюме мовою інтерфейсу."""
+    lang = _normalize_lang(lang)
+    tpl = _SUMMARY_TEMPLATES[lang]
+    parts = []
+
+    anomaly = (overview_data.get("temperature_anomaly") or {}).get("value")
+    if anomaly is not None:
+        parts.append(tpl["temp"].format(v=f"{anomaly:+.2f}"))
+
+    co2_value = (overview_data.get("co2") or {}).get("value")
+    if co2_value is not None:
+        parts.append(tpl["co2"].format(v=f"{co2_value:.1f}"))
+
+    ice_anomaly = (overview_data.get("sea_ice") or {}).get("anomaly")
+    if ice_anomaly is not None:
+        parts.append(tpl["ice"].format(v=f"{ice_anomaly:+.2f}"))
+
+    ocean = overview_data.get("ocean_climate") or {}
+    sl_value = (ocean.get("sea_level") or {}).get("value")
+    if sl_value is not None:
+        parts.append(tpl["sea_level"].format(v=f"{sl_value:+.0f}"))
+
+    oh_value = (ocean.get("ocean_heat") or {}).get("value")
+    if oh_value is not None:
+        parts.append(tpl["ocean_heat"].format(v=f"{oh_value:.0f}"))
+
+    ph_value = (ocean.get("ocean_ph") or {}).get("value")
+    if ph_value is not None:
+        parts.append(tpl["ocean_ph"].format(v=f"{ph_value:.3f}"))
+
+    fires = (overview_data.get("fires") or {}).get("count", 0)
+    if fires:
+        parts.append(tpl["fires"].format(n=fires))
+
+    storms = (overview_data.get("hurricanes") or {}).get("count", 0)
+    if storms:
+        parts.append(tpl["storms"].format(n=storms))
+
+    if not parts:
+        parts = [tpl["fallback_1"], tpl["fallback_2"]]
+
+    return " ".join(parts)
+
+
 def _template_analysis(snapshot: Dict[str, Any], lang: str, slot_utc: datetime) -> Dict[str, Any]:
     """Детермінований фолбек, коли ключ Groq відсутній або виклик не вдався."""
     lang = _normalize_lang(lang)

@@ -171,18 +171,18 @@ export function KPICards() {
 export function AIClimateSummary() {
   const [summary, setSummary] = useState<string | null>(null);
   const [updated, setUpdated] = useState<string>("live");
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
 
-  /** Завантаження резюме з API */
+  /** Завантаження резюме з API (мовою інтерфейсу) */
   const load = useCallback(async () => {
     try {
-      const res = await api.aiSummary();
+      const res = await api.aiSummary(locale);
       setSummary(res.summary);
       setUpdated(res.last_updated);
     } catch {
       /* зберігаємо попереднє резюме */
     }
-  }, []);
+  }, [locale]);
 
   useEffect(() => {
     load();

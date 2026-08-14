@@ -368,7 +368,11 @@ export const api = {
   seaLevel: () => getJSON<SeaLevelData>("/api/sea-level"),
   oceanHeat: () => getJSON<OceanHeatData>("/api/ocean-heat"),
   oceanPh: () => getJSON<OceanPhData>("/api/ocean-ph"),
-  aiSummary: () => getJSON<{ summary: string; last_updated: string; confidence: number }>("/api/ai-summary"),
+  aiSummary: (lang?: string) =>
+    getJSON<{ summary: string; last_updated: string; confidence: number; lang?: string }>(
+      "/api/ai-summary",
+      lang ? { lang } : undefined
+    ),
   aiAnalysis: (lang?: string) =>
     getJSON<AIAnalysis>("/api/ai-analysis", lang ? { lang } : undefined),
   predictions: (lang?: string, days?: number) =>

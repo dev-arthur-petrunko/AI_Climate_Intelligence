@@ -53,6 +53,11 @@ def _cached(key: str, ttl_seconds: int, fetcher):
     if hit and now - hit["ts"] < ttl_seconds:
         return hit["data"]
     data = fetcher()
+    # Не кешуємо помилки upstream: при тимчасовому збої (стартовий сплеск,
+    # троттлінг NOAA/NASA) фолбек не повинен лишатися в кеші на весь TTL —
+    # наступний запит повторить звернення до джерела.
+    if isinstance(data, dict) and data.get("error"):
+        return data
     _CACHE[key] = {"ts": now, "data": data}
     return data
 
@@ -845,45 +850,59 @@ def nearest_place(lat: float, lon: float, max_km: float = 400.0) -> Optional[str
     return best
 
 
+# Продукти FIRMS NRT по порядку: SNPP, потім NOAA-21, потім NOAA-20.
+# Набір даних публікується не синхронно — використовуємо перший продукт із даними.
+_FIRMS_PRODUCTS = ("VIIRS_SNPP_NRT", "VIIRS_NOAA21_NRT", "VIIRS_NOAA20_NRT")
+
+
 def fetch_fires(days: int = 1) -> dict:
     api_key = os.getenv("FIRMS_API_KEY", "").strip()
     if not api_key:
         return _fallback_fires_data()
 
-    url = (
-        f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/{api_key}/"
-        f"VIIRS_SNPP_NRT/world/{days}"
-    )
-    r = httpx.get(url, timeout=_TIMEOUT, headers=_HEADERS)
-    if r.status_code == 401 or r.status_code == 403:
-        return _fallback_fires_data()
-    r.raise_for_status()
-
-    fires = []
-    reader = csv.DictReader(io.StringIO(r.text))
-    for row in reader:
+    for product in _FIRMS_PRODUCTS:
         try:
-            lat = float(row["latitude"])
-            lon = float(row["longitude"])
-            frp = float(row.get("frp", 0) or 0)
-        except (ValueError, KeyError):
+            url = (
+                f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/{api_key}/"
+                f"{product}/world/{days}"
+            )
+            r = httpx.get(url, timeout=_TIMEOUT, headers=_HEADERS)
+            if r.status_code == 401 or r.status_code == 403:
+                return _fallback_fires_data()
+            r.raise_for_status()
+        except Exception as exc:
+            logger.warning("FIRMS %s failed: %s", product, exc)
             continue
-        fires.append(
-            {
-                "coordinates": [lon, lat],
-                "frp": round(frp, 1),
-                "confidence": row.get("confidence", ""),
-                "acq_date": row.get("acq_date", ""),
-                "satellite": row.get("satellite", ""),
-            }
-        )
 
-    return {
-        "source": "NASA FIRMS (VIIRS)",
-        "count": len(fires),
-        "days": days,
-        "fires": fires,
-    }
+        fires = []
+        reader = csv.DictReader(io.StringIO(r.text))
+        for row in reader:
+            try:
+                lat = float(row["latitude"])
+                lon = float(row["longitude"])
+                frp = float(row.get("frp", 0) or 0)
+            except (ValueError, KeyError):
+                continue
+            fires.append(
+                {
+                    "coordinates": [lon, lat],
+                    "frp": round(frp, 1),
+                    "confidence": row.get("confidence", ""),
+                    "acq_date": row.get("acq_date", ""),
+                    "satellite": row.get("satellite", ""),
+                }
+            )
+        if fires:
+            return {
+                "source": "NASA FIRMS (VIIRS)",
+                "count": len(fires),
+                "days": days,
+                "fires": fires,
+            }
+
+    # Жоден із продуктів не повернув точок — повертаємо реалістичний фолбек,
+    # щоб панель ніколи не показувала оманливі 0
+    return _fallback_fires_data()
 
 
 def _fallback_fires_data() -> dict:
@@ -1381,21 +1400,24 @@ def fetch_solar_cycle() -> dict:
     for row in reversed(rows or []):
         tag = row.get("time-tag")
         if tag and tag >= "2020-01" and latest is None:
+            ssn = row.get("observed_swpc_ssn")
+            f107 = row.get("f10.7")
             latest = {
                 "time_tag": tag,
-                "ssn": row.get("observed_swpc_ssn"),
-                "f10_7": row.get("f10.7"),
+                "ssn": None if ssn is None or ssn < 0 else ssn,
+                "f10_7": None if f107 is None or f107 < 0 else f107,
             }
     for row in rows or []:
         tag = row.get("time-tag")
         if tag and tag >= "1990-01":
-            series.append(
-                {
-                    "time_tag": tag,
-                    "ssn": row.get("observed_swpc_ssn"),
-                    "f10_7": row.get("f10.7"),
-                }
-            )
+            ssn = row.get("observed_swpc_ssn")
+            f107 = row.get("f10.7")
+            ssn = None if ssn is None or ssn < 0 else ssn
+            f107 = None if f107 is None or f107 < 0 else f107
+            # Пропускаємо місяці без жодного значення (відсутні дані)
+            if ssn is None and f107 is None:
+                continue
+            series.append({"time_tag": tag, "ssn": ssn, "f10_7": f107})
     return {"latest": latest, "series": series, "source": "NOAA SWPC"}
 
 

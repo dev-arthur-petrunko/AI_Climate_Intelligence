@@ -132,6 +132,18 @@ function freshnessOf(time?: string, ongoing?: boolean): Freshness {
   return "outdated";
 }
 
+/** Чи дата події збігається із сьогоднішньою (локальна дата користувача) */
+function isTodayDate(time?: string): boolean {
+  if (!time) return false;
+  const m = String(time).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return false;
+  const now = new Date();
+  const y = now.getFullYear();
+  const mo = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${m[1]}-${m[2]}-${m[3]}` === `${y}-${mo}-${d}`;
+}
+
 /** Колір індикатора свіжості (Aurora палітра) */
 const freshnessColor: Record<Freshness, string> = {
   live: "#2EE6A6",
@@ -419,9 +431,11 @@ function Marker({
     g.visible = pop > 0.001;
     if (!g.visible) return;
 
-    // При наведенні маркер злегка збільшується; завжди — ледь помітне "дихання"
+    // При наведенні маркер злегка збільшується; "дихання" (пульсація розміру)
+    // лише у подій з сьогоднішньою датою — решта лишається статичною.
     const hoverBoost = active ? 1.2 : 1;
-    const breathe = reducedMotion() ? 1 : 1 + 0.04 * Math.sin(t * 1.8 + position.x);
+    const today = isTodayDate(ev.time);
+    const breathe = reducedMotion() || !today ? 1 : 1 + 0.04 * Math.sin(t * 1.8 + position.x);
     // Маркери компактні: не закривають поверхню планети, але лишаються помітними.
     // Масштаб пропорційний відстані до камери, при zoom-in зменшується.
     const scale = (dist / 15) * hoverBoost * (0.35 + 0.45 * easePop) * breathe;
@@ -435,9 +449,10 @@ function Marker({
       coreMatRef.current.color.set(active ? "#ffffff" : color);
     }
 
-    // Повільне розширення "хвилі" навколо маркера — ледь помітне. Вимикається при reduced-motion.
+    // Розширення "хвилі"-кільця — блимання лише для подій із сьогоднішньою
+    // датою (актуальні сьогодні); вимикається при reduced-motion.
     if (ringRef.current && ringMatRef.current) {
-      if (!reducedMotion() && pop > 0.5) {
+      if (!reducedMotion() && today && pop > 0.5) {
         const cycle = (t * 0.3 + index * 0.37) % 1;
         ringRef.current.scale.setScalar(0.8 + cycle * 1.6);
         ringMatRef.current.opacity = (1 - cycle) * (active ? 0.3 : 0.12);
