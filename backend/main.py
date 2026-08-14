@@ -596,6 +596,43 @@ async def get_kpi_metrics():
     return kpis
 
 
+@app.get("/api/indicators")
+async def indicators():
+    """Зведена Python-аналітика всіх кліматичних індикаторів.
+
+    Централізований розрахунок на бекенді (numpy/scipy): тренд на рік,
+    R², p-value, year-over-year, z-score аномалії та прогноз на наступний рік
+    для кожного ряду — без дублювання логіки у фронтенді.
+    """
+    jobs = {
+        "temperature": (get_gistemp, "series", "year"),
+        "co2": (get_co2, "series", "year"),
+        "sea_ice_arctic": (get_sea_ice, "annual_minimum", "year"),
+        "sea_ice_antarctic": (get_sea_ice_south, "annual_minimum", "year"),
+        "sea_level": (get_sea_level, "series", "date"),
+        "ocean_heat": (get_ocean_heat, "series", "year"),
+        "ocean_ph": (get_ocean_ph, "series", "date"),
+    }
+    fetched = await asyncio.gather(
+        *(asyncio.to_thread(lambda fn=fn: _safe(fn, {})) for fn, _, _ in jobs.values())
+    )
+    indicators_data = {}
+    for (key, (_, series_key, time_key)), data in zip(jobs.items(), fetched):
+        series = data.get(series_key) or []
+        analysis = analyze(series, "value", time_key) if len(series) >= 3 else {}
+        indicators_data[key] = {
+            "latest": data.get("latest"),
+            "unit": data.get("unit"),
+            "source": data.get("source"),
+            **analysis,
+        }
+    return {
+        "source": "Climate Intelligence · Python numpy/scipy analytics",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "indicators": indicators_data,
+    }
+
+
 async def get_overview_safe() -> dict:
     """Локальний виклик overview без мережевого шляху, з фолбеком."""
     try:

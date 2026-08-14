@@ -18,6 +18,7 @@ import {
   SolarCycleData,
   EarthquakesData,
   SchumannData,
+  TrendAnalysis,
 } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 
@@ -795,6 +796,63 @@ export default function AnalyticsCharts() {
             </div>
           ))}
         </div>
+        {(() => {
+          const statsRows: { name: string; a?: TrendAnalysis }[] = [
+            { name: ch.temperature, a: gistemp?.analysis },
+            { name: ch.co2, a: co2?.analysis },
+            { name: ch.seaIceShort, a: seaIce?.analysis },
+            { name: ch.seaIceSouthShort, a: seaIceSouth?.analysis },
+            { name: ch.seaLevelShort, a: seaLevel?.analysis },
+            { name: ch.oceanHeatShort, a: oceanHeat?.analysis },
+            { name: ch.oceanPhShort, a: oceanPh?.analysis },
+          ];
+          const hasAny = statsRows.some((r) => r.a?.trend_analysis);
+          if (!hasAny) return null;
+          const fmtNum = (v?: number, digits = 3, sign = true) =>
+            v == null ? "—" : (sign && v > 0 ? "+" : "") + v.toFixed(digits);
+          const fmtP = (p?: number) => (p == null ? "—" : p < 0.001 ? "<0.001" : p.toFixed(4));
+          return (
+            <div className="glass p-5 mt-6">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold">{ch.statTitle}</h3>
+                <span className="text-[10px] text-secondary font-mono">numpy/scipy · Python</span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-secondary text-left">
+                      <th className="pb-2 pr-3 font-medium" />
+                      <th className="pb-2 pr-3 font-medium">{ch.statSlope}</th>
+                      <th className="pb-2 pr-3 font-medium">{ch.statR2}</th>
+                      <th className="pb-2 pr-3 font-medium">{ch.statP}</th>
+                      <th className="pb-2 pr-3 font-medium">{ch.statYoy}</th>
+                      <th className="pb-2 pr-3 font-medium">{ch.statZ}</th>
+                      <th className="pb-2 font-medium">{ch.statProj}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {statsRows.map((r) => {
+                      const tr = r.a?.trend_analysis;
+                      return (
+                        <tr key={r.name} className="border-t border-white/5">
+                          <td className="py-2 pr-3 text-primary whitespace-nowrap">{r.name}</td>
+                          <td className="py-2 pr-3 font-mono text-[#36A3FF] whitespace-nowrap">
+                            {fmtNum(tr?.slope_per_year, 4)}
+                          </td>
+                          <td className="py-2 pr-3 font-mono whitespace-nowrap">{fmtNum(tr?.r_squared, 4, false)}</td>
+                          <td className="py-2 pr-3 font-mono whitespace-nowrap">{fmtP(tr?.p_value)}</td>
+                          <td className="py-2 pr-3 font-mono text-emerald whitespace-nowrap">{fmtNum(r.a?.year_over_year, 3)}</td>
+                          <td className="py-2 pr-3 font-mono whitespace-nowrap">{fmtNum(r.a?.z_score_anomaly, 2)}</td>
+                          <td className="py-2 font-mono text-[#29F2FF] whitespace-nowrap">{fmtNum(tr?.projected_next_year, 2)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })()}
       </Section>
 
       {/* Розділ 2: Космічна погода */}

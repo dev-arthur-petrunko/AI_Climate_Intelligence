@@ -67,11 +67,26 @@ export interface OverviewData {
   fires: { count?: number; live?: boolean };
 }
 
+export interface TrendAnalysis {
+  trend_analysis?: {
+    slope_per_year?: number;
+    intercept?: number;
+    r_squared?: number;
+    p_value?: number;
+    std_error?: number;
+    projected_next_year?: number;
+    n?: number;
+  };
+  z_score_anomaly?: number;
+  year_over_year?: number;
+}
+
 export interface GISTEMPSeries {
   source: string;
   reference: string;
   series: { year: number; value: number }[];
   latest: { year: number; month?: number; value: number } | null;
+  analysis?: TrendAnalysis;
 }
 
 export interface CO2Series {
@@ -79,6 +94,7 @@ export interface CO2Series {
   unit: string;
   series: { year: number; month: number; value: number }[];
   latest: { year: number; month: number; value: number } | null;
+  analysis?: TrendAnalysis;
 }
 
 export interface SeaIceData {
@@ -89,6 +105,7 @@ export interface SeaIceData {
   baseline_period: string;
   annual_minimum: { year: number; value: number }[];
   recent: { date: string; extent: number }[];
+  analysis?: TrendAnalysis;
 }
 
 export interface SeaLevelData {
@@ -98,6 +115,7 @@ export interface SeaLevelData {
   series: { date: string; value: number }[];
   latest: { date: string; value: number } | null;
   trend: number | null;
+  analysis?: TrendAnalysis;
 }
 
 export interface OceanHeatData {
@@ -106,6 +124,7 @@ export interface OceanHeatData {
   reference: string;
   series: { year: number; value: number }[];
   latest: { year: number; value: number } | null;
+  analysis?: TrendAnalysis;
 }
 
 export interface OceanPhData {
@@ -114,6 +133,7 @@ export interface OceanPhData {
   reference: string;
   series: { date: string; value: number }[];
   latest: { date: string; value: number } | null;
+  analysis?: TrendAnalysis;
 }
 
 export interface ClimateEvent {
