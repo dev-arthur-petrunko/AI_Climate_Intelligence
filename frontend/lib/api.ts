@@ -240,6 +240,7 @@ export interface SolarWindData {
   density?: number | null;
   bt?: number | null;
   bz?: number | null;
+  series?: { time_tag?: string; speed?: number | null }[];
   error?: boolean;
 }
 

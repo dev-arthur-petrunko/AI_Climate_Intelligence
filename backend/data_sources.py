@@ -1135,9 +1135,12 @@ def _num(value) -> float | None:
     if value in (None, ""):
         return None
     try:
-        return round(float(value), 3)
+        num = float(value)
     except (TypeError, ValueError):
         return None
+    if not math.isfinite(num):
+        return None
+    return round(num, 3)
 
 
 # ---------------------------------------------------------------------------
@@ -1374,16 +1377,26 @@ def fetch_solar_cycle() -> dict:
         return {"latest": None, "source": "fallback", "error": True}
 
     latest = None
+    series = []
     for row in reversed(rows or []):
         tag = row.get("time-tag")
-        if tag and tag >= "2020-01":
+        if tag and tag >= "2020-01" and latest is None:
             latest = {
                 "time_tag": tag,
                 "ssn": row.get("observed_swpc_ssn"),
                 "f10_7": row.get("f10.7"),
             }
-            break
-    return {"latest": latest, "source": "NOAA SWPC"}
+    for row in rows or []:
+        tag = row.get("time-tag")
+        if tag and tag >= "1990-01":
+            series.append(
+                {
+                    "time_tag": tag,
+                    "ssn": row.get("observed_swpc_ssn"),
+                    "f10_7": row.get("f10.7"),
+                }
+            )
+    return {"latest": latest, "series": series, "source": "NOAA SWPC"}
 
 
 def get_solar_cycle() -> dict:
@@ -1407,10 +1420,11 @@ def fetch_solar_wind() -> dict:
         "density": None,
         "bt": None,
         "bz": None,
+        "series": [],
         "error": True,
     }
 
-    def _latest(key: str) -> dict | None:
+    def _rows(key: str) -> list | None:
         try:
             r = httpx.get(
                 f"https://services.swpc.noaa.gov/json/rtsw/rtsw_{key}_1m.json",
@@ -1418,17 +1432,22 @@ def fetch_solar_wind() -> dict:
                 headers=_HEADERS,
             )
             r.raise_for_status()
-            rows = r.json()
+            return r.json()
         except Exception as exc:
             logger.warning("SWPC solar wind (rtsw_%s) failed: %s", key, exc)
             return None
+
+    plasma_rows = _rows("wind")
+    mag_rows = _rows("mag")
+
+    def _latest_of(rows: list | None) -> dict | None:
         if not rows:
             return None
         active = [row for row in rows if row.get("active") is True]
         return (active[-1] if active else rows[-1]) or None
 
-    plasma = _latest("wind")
-    mag = _latest("mag")
+    plasma = _latest_of(plasma_rows)
+    mag = _latest_of(mag_rows)
 
     if plasma:
         result["time_tag"] = (plasma.get("time_tag") or "").strip()
@@ -1439,6 +1458,27 @@ def fetch_solar_wind() -> dict:
         result["bz"] = _num(mag.get("bz_gsm") if "bz_gsm" in mag else mag.get("bz_gse"))
         if not result["time_tag"]:
             result["time_tag"] = (mag.get("time_tag") or "").strip()
+
+    # Часовий даунсемплінг швидкості сонячного вітру за останні ~7 діб
+    if plasma_rows:
+        buckets: dict[str, list[float]] = {}
+        for row in plasma_rows:
+            tag = (row.get("time_tag") or "").strip()
+            speed = _num(row.get("proton_speed"))
+            if len(tag) < 13 or speed is None:
+                continue
+            buckets.setdefault(tag[:13], []).append(speed)
+        hourly = []
+        for key in sorted(buckets.keys()):
+            vals = buckets[key]
+            if vals:
+                hourly.append(
+                    {
+                        "time_tag": key + ":00:00",
+                        "speed": round(sum(vals) / len(vals), 1),
+                    }
+                )
+        result["series"] = hourly[-170:]
 
     if result["speed"] is not None or result["bz"] is not None:
         result["source"] = "NOAA SWPC"
