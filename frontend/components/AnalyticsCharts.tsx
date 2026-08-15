@@ -155,15 +155,27 @@ export default function AnalyticsCharts() {
     paper_bgcolor: "rgba(0,0,0,0)",
     plot_bgcolor: "rgba(0,0,0,0)",
     font: { color: "#8B9AB5", size: 11 },
+    dragmode: false,
     xaxis: {
       gridcolor: "rgba(255,255,255,0.05)",
       zerolinecolor: "rgba(255,255,255,0.05)",
+      fixedrange: true,
     },
     yaxis: {
       gridcolor: "rgba(255,255,255,0.05)",
       zerolinecolor: "rgba(255,255,255,0.05)",
+      fixedrange: true,
     },
+    legend: { itemclick: false, itemdoubleclick: false },
     margin: { t: 40, r: 30, b: 60, l: 70 },
+  };
+
+  const plotConfig = {
+    responsive: true,
+    displayModeBar: false,
+    scrollZoom: false,
+    doubleClick: false,
+    staticPlot: false,
   };
 
   const charts = [
@@ -198,7 +210,7 @@ export default function AnalyticsCharts() {
           }}
           style={{ width: "100%", height: "420px" }}
           useResizeHandler
-          config={{ responsive: true, displayModeBar: false }}
+          config={plotConfig}
         />
       );
     }
@@ -223,7 +235,7 @@ export default function AnalyticsCharts() {
           }}
           style={{ width: "100%", height: "420px" }}
           useResizeHandler
-          config={{ responsive: true, displayModeBar: false }}
+          config={plotConfig}
         />
       );
     }
@@ -247,7 +259,7 @@ export default function AnalyticsCharts() {
           }}
           style={{ width: "100%", height: "420px" }}
           useResizeHandler
-          config={{ responsive: true, displayModeBar: false }}
+          config={plotConfig}
         />
       );
     }
@@ -271,7 +283,7 @@ export default function AnalyticsCharts() {
           }}
           style={{ width: "100%", height: "420px" }}
           useResizeHandler
-          config={{ responsive: true, displayModeBar: false }}
+          config={plotConfig}
         />
       );
     }
@@ -296,7 +308,7 @@ export default function AnalyticsCharts() {
           }}
           style={{ width: "100%", height: "420px" }}
           useResizeHandler
-          config={{ responsive: true, displayModeBar: false }}
+          config={plotConfig}
         />
       );
     }
@@ -321,7 +333,7 @@ export default function AnalyticsCharts() {
           }}
           style={{ width: "100%", height: "420px" }}
           useResizeHandler
-          config={{ responsive: true, displayModeBar: false }}
+          config={plotConfig}
         />
       );
     }
@@ -346,7 +358,7 @@ export default function AnalyticsCharts() {
           }}
           style={{ width: "100%", height: "420px" }}
           useResizeHandler
-          config={{ responsive: true, displayModeBar: false }}
+          config={plotConfig}
         />
       );
     }
@@ -366,7 +378,7 @@ export default function AnalyticsCharts() {
           layout={{ ...plotStyle, margin: { t: 10, r: 10, b: 30, l: 45 }, showlegend: false }}
           style={{ width: "100%", height: "200px" }}
           useResizeHandler
-          config={{ responsive: true, displayModeBar: false }}
+          config={plotConfig}
         />
       );
     }
@@ -378,7 +390,7 @@ export default function AnalyticsCharts() {
           layout={{ ...plotStyle, margin: { t: 10, r: 10, b: 30, l: 45 }, showlegend: false }}
           style={{ width: "100%", height: "200px" }}
           useResizeHandler
-          config={{ responsive: true, displayModeBar: false }}
+          config={plotConfig}
         />
       );
     }
@@ -390,7 +402,7 @@ export default function AnalyticsCharts() {
           layout={{ ...plotStyle, margin: { t: 10, r: 10, b: 30, l: 45 }, showlegend: false }}
           style={{ width: "100%", height: "200px" }}
           useResizeHandler
-          config={{ responsive: true, displayModeBar: false }}
+          config={plotConfig}
         />
       );
     }
@@ -402,7 +414,7 @@ export default function AnalyticsCharts() {
           layout={{ ...plotStyle, margin: { t: 10, r: 10, b: 30, l: 45 }, showlegend: false }}
           style={{ width: "100%", height: "200px" }}
           useResizeHandler
-          config={{ responsive: true, displayModeBar: false }}
+          config={plotConfig}
         />
       );
     }
@@ -414,7 +426,7 @@ export default function AnalyticsCharts() {
           layout={{ ...plotStyle, margin: { t: 10, r: 10, b: 30, l: 45 }, showlegend: false }}
           style={{ width: "100%", height: "200px" }}
           useResizeHandler
-          config={{ responsive: true, displayModeBar: false }}
+          config={plotConfig}
         />
       );
     }
@@ -426,7 +438,7 @@ export default function AnalyticsCharts() {
           layout={{ ...plotStyle, margin: { t: 10, r: 10, b: 30, l: 45 }, showlegend: false }}
           style={{ width: "100%", height: "200px" }}
           useResizeHandler
-          config={{ responsive: true, displayModeBar: false }}
+          config={plotConfig}
         />
       );
     }
@@ -438,7 +450,7 @@ export default function AnalyticsCharts() {
           layout={{ ...plotStyle, margin: { t: 10, r: 10, b: 30, l: 45 }, showlegend: false }}
           style={{ width: "100%", height: "200px" }}
           useResizeHandler
-          config={{ responsive: true, displayModeBar: false }}
+          config={plotConfig}
         />
       );
     }
@@ -475,7 +487,7 @@ export default function AnalyticsCharts() {
         }}
         style={{ width: "100%", height: "260px" }}
         useResizeHandler
-        config={{ responsive: true, displayModeBar: false }}
+        config={plotConfig}
       />
     );
   };
@@ -503,7 +515,7 @@ export default function AnalyticsCharts() {
         }}
         style={{ width: "100%", height: "260px" }}
         useResizeHandler
-        config={{ responsive: true, displayModeBar: false }}
+        config={plotConfig}
       />
     );
   };
@@ -531,7 +543,7 @@ export default function AnalyticsCharts() {
         }}
         style={{ width: "100%", height: "260px" }}
         useResizeHandler
-        config={{ responsive: true, displayModeBar: false }}
+        config={plotConfig}
       />
     );
   };
@@ -572,12 +584,13 @@ export default function AnalyticsCharts() {
             side: "right",
             gridcolor: "rgba(0,0,0,0)",
             color: "#8B9AB5",
+            fixedrange: true,
           },
           hovermode: "x unified",
         }}
         style={{ width: "100%", height: "260px" }}
         useResizeHandler
-        config={{ responsive: true, displayModeBar: false }}
+        config={plotConfig}
       />
     );
   };
@@ -611,7 +624,7 @@ export default function AnalyticsCharts() {
         }}
         style={{ width: "100%", height: "260px" }}
         useResizeHandler
-        config={{ responsive: true, displayModeBar: false }}
+        config={plotConfig}
       />
     );
   };
@@ -644,7 +657,7 @@ export default function AnalyticsCharts() {
         }}
         style={{ width: "100%", height: "260px" }}
         useResizeHandler
-        config={{ responsive: true, displayModeBar: false }}
+        config={plotConfig}
       />
     );
   };
@@ -668,7 +681,7 @@ export default function AnalyticsCharts() {
         }}
         style={{ width: "100%", height: "260px" }}
         useResizeHandler
-        config={{ responsive: true, displayModeBar: false }}
+        config={plotConfig}
       />
     );
   };
@@ -699,7 +712,7 @@ export default function AnalyticsCharts() {
         }}
         style={{ width: "100%", height: "260px" }}
         useResizeHandler
-        config={{ responsive: true, displayModeBar: false }}
+        config={plotConfig}
       />
     );
   };
@@ -736,7 +749,7 @@ export default function AnalyticsCharts() {
         }}
         style={{ width: "100%", height: "260px" }}
         useResizeHandler
-        config={{ responsive: true, displayModeBar: false }}
+        config={plotConfig}
       />
     );
   };
@@ -760,7 +773,7 @@ export default function AnalyticsCharts() {
         }}
         style={{ width: "100%", height: "260px" }}
         useResizeHandler
-        config={{ responsive: true, displayModeBar: false }}
+        config={plotConfig}
       />
     );
   };
