@@ -1,7 +1,6 @@
 fastapi
 uvicorn[standard]
 pydantic
-python-multipart
 httpx
 python-dotenv
 tzdata
@@ -9,6 +8,5 @@ sqlalchemy[asyncio]
 asyncpg
 alembic
 numpy
-pandas
 scipy
 apscheduler

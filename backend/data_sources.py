@@ -824,8 +824,6 @@ _MAJOR_CITIES = [
     (50.45, 30.52, "Kyiv", "Ukraine"),
 ]
 
-# Париж залишається єдиним: видалено дублікат із пунктом 49.0/2.55
-
 
 def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Відстань між двома координатами у кілометрах (сфера)."""
@@ -1359,7 +1357,7 @@ def fetch_goes_xray(days: int = 1) -> dict:
     ]
     current = series[-1] if series else None
 
-    # NOAА flare class from max flux in the window (A/B/C/M/X)
+    # NOAA flare class from max flux in the window (A/B/C/M/X)
     max_flux = max((s.get("flux") or 0) for s in series) if series else None
     flare_class = None
     if max_flux is not None:
@@ -1893,5 +1891,5 @@ def fetch_sources_status() -> dict:
 
 
 def get_sources_status() -> dict:
-    """Проверяє живі upstream-джерела раз на 30 хв (без спаму)."""
+    """Перевіряє живі upstream-джерела раз на 30 хв (без спаму)."""
     return _cached("sources_status", 30 * 60, fetch_sources_status)
