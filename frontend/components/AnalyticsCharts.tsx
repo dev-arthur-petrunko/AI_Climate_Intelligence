@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, ReactNode } from "react";
+import { useState, useEffect, useCallback, useRef, ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { Globe, Sun, Orbit, Activity } from "lucide-react";
 import {
@@ -108,6 +108,8 @@ export default function AnalyticsCharts() {
   const [scycle, setScycle] = useState<SolarCycleData | null>(null);
   const [eqs, setEqs] = useState<EarthquakesData | null>(null);
   const [schumann, setSchumann] = useState<SchumannData | null>(null);
+  const attemptsRef = useRef(0);
+  const aliveRef = useRef(true);
   const { t } = useI18n();
   const ch = t.charts;
   const sw = t.spaceWeather;
@@ -145,10 +147,38 @@ export default function AnalyticsCharts() {
     setScycle(settle(sc));
     setEqs(settle(eq));
     setSchumann(settle(sch));
+
+    const hasRows = <T,>(r: PromiseSettledResult<T>, pick: (v: T) => unknown): boolean =>
+      r.status === "fulfilled" && Array.isArray(pick(r.value)) && (pick(r.value) as unknown[]).length > 0;
+
+    const missing =
+      !hasRows(g, (v) => v.series) ||
+      !hasRows(c, (v) => v.series) ||
+      !hasRows(s, (v) => v.annual_minimum) ||
+      !hasRows(ss, (v) => v.annual_minimum) ||
+      !hasRows(sl, (v) => v.series) ||
+      !hasRows(oh, (v) => v.series) ||
+      !hasRows(ph, (v) => v.series) ||
+      !hasRows(astr, (v) => v.objects) ||
+      !hasRows(kpr, (v) => v.forecast) ||
+      !hasRows(flr, (v) => v.series) ||
+      !hasRows(wnd, (v) => v.series) ||
+      !hasRows(sc, (v) => v.series) ||
+      !hasRows(eq, (v) => v.earthquakes) ||
+      !(sch.status === "fulfilled" && !sch.value.error);
+
+    attemptsRef.current += 1;
+    if (missing && aliveRef.current && attemptsRef.current < 12) {
+      window.setTimeout(load, 5000);
+    }
   }, []);
 
   useEffect(() => {
+    aliveRef.current = true;
     load();
+    return () => {
+      aliveRef.current = false;
+    };
   }, [load]);
 
   const plotStyle = {
