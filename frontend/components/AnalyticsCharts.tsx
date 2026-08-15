@@ -332,6 +332,7 @@ export default function AnalyticsCharts() {
           }]}
           layout={{
             ...plotStyle,
+            xaxis: { ...plotStyle.xaxis, type: "date" },
             yaxis: { ...plotStyle.yaxis, title: ch.seaLevelAxis },
             hovermode: "x unified",
             annotations: [{ xref: "paper", yref: "paper", x: 0, y: 1.08, showarrow: false, text: ch.seaLevelSource, font: { size: 11, color: "#8B9AB5" } }],
@@ -382,6 +383,7 @@ export default function AnalyticsCharts() {
           }]}
           layout={{
             ...plotStyle,
+            xaxis: { ...plotStyle.xaxis, type: "date" },
             yaxis: { ...plotStyle.yaxis, title: ch.oceanPhAxis },
             hovermode: "x unified",
             annotations: [{ xref: "paper", yref: "paper", x: 0, y: 1.08, showarrow: false, text: ch.oceanPhSource, font: { size: 11, color: "#8B9AB5" } }],
@@ -453,7 +455,7 @@ export default function AnalyticsCharts() {
       return (
         <Plot
           data={[{ x: series.map((d) => d.date), y: series.map((d) => d.value), type: "scatter", mode: "lines", line: { color: "#FFC24D", width: 2 } }]}
-          layout={{ ...plotStyle, margin: { t: 10, r: 10, b: 30, l: 45 }, showlegend: false }}
+          layout={{ ...plotStyle, xaxis: { ...plotStyle.xaxis, type: "date" }, margin: { t: 10, r: 10, b: 30, l: 45 }, showlegend: false }}
           style={{ width: "100%", height: "200px" }}
           useResizeHandler
           config={plotConfig}
@@ -477,7 +479,7 @@ export default function AnalyticsCharts() {
       return (
         <Plot
           data={[{ x: series.map((d) => d.date), y: series.map((d) => d.value), type: "scatter", mode: "lines", line: { color: "#7C4DFF", width: 2 } }]}
-          layout={{ ...plotStyle, margin: { t: 10, r: 10, b: 30, l: 45 }, showlegend: false }}
+          layout={{ ...plotStyle, xaxis: { ...plotStyle.xaxis, type: "date" }, margin: { t: 10, r: 10, b: 30, l: 45 }, showlegend: false }}
           style={{ width: "100%", height: "200px" }}
           useResizeHandler
           config={plotConfig}
@@ -512,6 +514,7 @@ export default function AnalyticsCharts() {
         }]}
         layout={{
           ...plotStyle,
+          xaxis: { ...plotStyle.xaxis, type: "date" },
           yaxis: { ...plotStyle.yaxis, title: sw.kp },
           bargap: 0.35,
         }}
@@ -540,6 +543,7 @@ export default function AnalyticsCharts() {
         }]}
         layout={{
           ...plotStyle,
+          xaxis: { ...plotStyle.xaxis, type: "date" },
           yaxis: { ...plotStyle.yaxis, type: "log", title: sw.xrayFlux },
           hovermode: "x unified",
         }}
@@ -568,6 +572,7 @@ export default function AnalyticsCharts() {
         }]}
         layout={{
           ...plotStyle,
+          xaxis: { ...plotStyle.xaxis, type: "date" },
           yaxis: { ...plotStyle.yaxis, title: sw.windSpeed },
           hovermode: "x unified",
         }}
@@ -607,6 +612,7 @@ export default function AnalyticsCharts() {
         ]}
         layout={{
           ...plotStyle,
+          xaxis: { ...plotStyle.xaxis, type: "date" },
           yaxis: { ...plotStyle.yaxis, title: sw.sunspot },
           yaxis2: {
             title: sw.f107,
