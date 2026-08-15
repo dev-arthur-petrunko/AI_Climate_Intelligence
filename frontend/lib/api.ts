@@ -347,11 +347,24 @@ async function getJSON<T>(path: string, params?: Record<string, string | number>
   if (params) {
     Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, String(v)));
   }
-  const res = await fetch(url.toString(), { cache: "no-store" });
-  if (!res.ok) {
-    throw new Error(`API ${path} failed: ${res.status}`);
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetch(url.toString(), { cache: "no-store" });
+      if (!res.ok) {
+        throw new Error(`API ${path} failed: ${res.status}`);
+      }
+      const data = (await res.json()) as T;
+      if (data && typeof data === "object" && (data as { error?: boolean }).error === true) {
+        throw new Error(`API ${path} returned fallback error`);
+      }
+      return data;
+    } catch (err) {
+      lastError = err;
+      if (attempt < 2) await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+    }
   }
-  return res.json() as Promise<T>;
+  throw lastError as Error;
 }
 
 export const api = {
