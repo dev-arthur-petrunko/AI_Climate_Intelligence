@@ -44,6 +44,14 @@ Dedicated pages break out historical climate series into interactive Plotly char
 
 ---
 
+## Screenshots
+
+| Interactive 3D Globe | AI Predictions | Analytics |
+|:---:|:---:|:---:|
+| ![Interactive 3D Globe](photo/1.png) | ![AI Predictions](photo/2.png) | ![Analytics](photo/3.png) |
+
+---
+
 ## At a Glance
 
 | Capability | Detail |
