@@ -121,15 +121,15 @@ function freshnessOf(time?: string, ongoing?: boolean): Freshness {
   const t = Date.parse(time);
   if (Number.isNaN(t)) return "live";
   const days = (Date.now() - t) / 86400000;
-  // Кліматичні індикатори (ocean heat/pH/sea level) оновлюються рідко —
-  // найсвіжіше значення може мати дату попереднього року. Точку з датою
-  // у поточному або минулому році вважаємо актуальною, а не "outdated".
+  // Кліматичні індикатори (ocean heat, pH, CO₂, sea ice, sea level)
+  // оновлюються рідко: річні дані можуть відставати на 1–2 роки,
+  // ship-based вимірювання — на місяці. Пороги розширені відповідно.
+  if (days <= 545) return "fresh";
+  if (days <= 800) return "stale";
   const years = new Date(t).getFullYear();
   const currentYear = new Date().getFullYear();
-  if (years < currentYear - 1) return "outdated";
-  if (days <= 400) return "fresh";
-  if (days <= 800) return "stale";
-  return "outdated";
+  if (years < currentYear - 2) return "outdated";
+  return "stale";
 }
 
 /** Чи дата події збігається із сьогоднішньою (локальна дата користувача) */

@@ -1204,6 +1204,7 @@ def fetch_eonet(days: int = 10) -> dict:
         logger.warning("EONET request failed: %s", exc)
         return {"events": [], "source": "fallback", "error": True}
 
+    cutoff = datetime.now(timezone.utc) - timedelta(days=90)
     for item in payload.get("events") or []:
         categories = item.get("categories") or []
         cat_title = (categories[0].get("title") or "") if categories else ""
@@ -1220,13 +1221,22 @@ def fetch_eonet(days: int = 10) -> dict:
             continue
         lon, lat = float(coords[0]), float(coords[1])
         date = (item.get("geometry") or [{}])[0].get("date") or item.get("sources", [{}])[0].get("id") or ""
+        raw_time = (geom.get("date") or "").strip()
+        # Пропускаємо події старіші за 90 днів — вони вже не актуальні
+        if raw_time:
+            try:
+                event_dt = datetime.fromisoformat(raw_time.replace("Z", "+00:00"))
+                if event_dt < cutoff:
+                    continue
+            except (ValueError, TypeError):
+                pass
         events.append(
             {
                 "id": item.get("id"),
                 "event_type": event_type,
                 "title": item.get("title"),
                 "location": item.get("title"),
-                "time": (geom.get("date") or "").strip(),
+                "time": raw_time,
                 "severity": "high" if event_type in ("Wildfire", "Cyclone", "Earthquake") else "medium",
                 "coordinates": [lon, lat],
                 "status": item.get("status", "ongoing"),
