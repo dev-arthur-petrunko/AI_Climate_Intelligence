@@ -1628,6 +1628,8 @@ def fetch_aurora(lat: float, lon: float) -> dict:
             probability = round(max(0.0, min(100.0, nearest[1])), 1)
     else:
         # Фолбек: оцінка овалу полярного сяйва за Kp.
+        # Використовуємо магнітну широту: магнітний полюс ≈ 80°N географічної,
+        # тому магнітна широта ≈ geographic_lat − ~10° (наближення dipole).
         try:
             geo = get_geomagnetic()
             kp = geo.get("current_kp")
@@ -1635,8 +1637,10 @@ def fetch_aurora(lat: float, lon: float) -> dict:
             kp = None
         if kp is not None:
             source = "NOAA SWPC (Kp estimate)"
+            MAGNETIC_LAT_OFFSET = 10.0
+            magnetic_lat = abs(lat) - MAGNETIC_LAT_OFFSET
             boundary = 65.0 - 2.4 * float(kp)  # equatorward auroral boundary, magnetic lat
-            distance = abs(lat) - boundary
+            distance = magnetic_lat - boundary
             if distance >= 0:
                 probability = round(min(100.0, 35.0 + float(kp) * 12.0 + distance * 3.0), 1)
             else:

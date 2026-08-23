@@ -76,14 +76,27 @@ def linear_trend(
 def z_score_anomaly(
     series: list[dict], value_key: str = "value", time_key: str = "year"
 ) -> Optional[float]:
-    """Наскільки остання точка аномальна відносно історії (в σ)."""
+    """Z-оцінка аномалії останньої точки відносно тренду (в σ).
+
+    Правильний підхід: спочатку будуємо МНК-регресію, потім обчислюємо
+    залишки (факт − прогноз_по_тренду), і z-score рахуємо від цих залишків,
+    а не від «сирого» середнього. Це гарантує, що для рядів з міцним
+    трендом (CO₂, температура, рівень моря) z не росте «сам по собі».
+    """
+    x = _x_values(series, time_key)
     y = _y_values(series, value_key)
-    if y is None or len(y) < 3:
+    if x is None or y is None or len(x) < 4 or len(x) != len(y):
         return None
-    std = y[:-1].std(ddof=1)
+    try:
+        slope, intercept, *_ = stats.linregress(x, y)
+    except Exception:
+        return None
+    residuals = y - (slope * x + intercept)
+    hist = residuals[:-1]
+    std = float(hist.std(ddof=1))
     if std == 0 or not np.isfinite(std):
         return None
-    return round(float((y[-1] - y[:-1].mean()) / std), 2)
+    return round(float(residuals[-1] / std), 2)
 
 
 def year_over_year(
@@ -99,13 +112,10 @@ def year_over_year(
         x = _x_values(series, time_key)
         if x is not None and len(x) >= 2:
             gaps = np.diff(x)
-            gaps = gaps[np.isfinite(gaps)]
+            gaps = gaps[np.isfinite(gaps) & (gaps > 0)]
             if gaps.size:
                 median_gap = float(np.median(gaps))
-                if median_gap > 0:
-                    steps = max(1, int(round(1.0 / median_gap)))
-                else:
-                    steps = 12
+                steps = max(1, int(round(1.0 / median_gap))) if median_gap > 0 else 12
             else:
                 steps = 12
         else:
