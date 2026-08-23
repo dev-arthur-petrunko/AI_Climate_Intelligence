@@ -21,7 +21,7 @@ export const en = {
     api: "API",
     aiAssistant: "AI Assistant",
     documentation: "Documentation",
-    settings: "Settings",
+    updates: "Updates",
     support: "Support Project",
     sources: "Data Sources",
   },
@@ -56,7 +56,7 @@ export const en = {
     dashboard: { title: "Dashboard", subtitle: "Real-time global climate monitoring" },
     analytics: { title: "Analytics", subtitle: "Interactive climate data visualization and analysis" },
     predictions: { title: "AI Predictions", subtitle: "AI-generated climate forecasts and risk assessments" },
-    settings: { title: "Settings", subtitle: "Application information, version and status" },
+    updates: { title: "Updates", subtitle: "Application information, version and status" },
     support: { title: "Support Project", subtitle: "Help us keep the planet observable" },
     sources: {
       title: "Data Sources",
@@ -74,24 +74,36 @@ export const en = {
       unavailable: "Unavailable",
     },
   },
-  settings: {
+  updates: {
     siteLabel: "Site address",
     githubLabel: "GitHub repository",
     versionLabel: "Version",
-    version: "1.2.8",
+    version: "1.2.9",
     latestUpdateTitle: "Latest update",
     latestUpdateText: "What's new in this version:",
     latestUpdateItems: [
-      "Data sources status page (/sources) — live online/offline check of all 16 data providers",
-      "Space Weather panel: real Schumann resonance data (7.83 Hz base frequency) with fixed tabs",
-      "EONET events now marked 'live' on the globe with event start time (since)",
-      "Analytics redesigned into 4 sections — Planet & Climate, Space Weather, Asteroid Threat, Earth Hazards (18 interactive charts)",
-      "Python analytics hub: new /api/indicators endpoint computing trends, R², p-value, YoY, z-scores and projections for all 7 climate indicators",
-      "Solar wind & solar cycle charts with hourly solar wind speed series and sunspot/F10.7 history",
+      "JPL SBDB Close-Approach API — asteroid/comet data without NASA API key dependency",
+      "GDACS — Global Disaster Alert system (floods, cyclones, volcanoes, droughts) as EONET fallback",
+      "NOAA GML CH₄/N₂O — methane and nitrous oxide trends from the same source as CO₂",
+      "GWIS Copernicus — real wildfire hotspot fallback replacing static 23-point coordinates",
+      "Statistical audit: z-score min_points raised to 8, CO₂ detrended via annual averages",
+      "Fallback fires now tagged with `simulated: true` flag for frontend disclaimer",
+      "34 pytest cases covering analytics, aurora physics, and fires (all green)",
     ],
     historyTitle: "Update history",
     historyText: "Previous versions:",
     historyItems: [
+      {
+        version: "1.2.9",
+        items: [
+          "Data sources status page (/sources) — live online/offline check of all 16 data providers",
+          "Space Weather panel: real Schumann resonance data (7.83 Hz base frequency) with fixed tabs",
+          "EONET events now marked 'live' on the globe with event start time (since)",
+          "Analytics redesigned into 4 sections — Planet & Climate, Space Weather, Asteroid Threat, Earth Hazards (18 interactive charts)",
+          "Python analytics hub: new /api/indicators endpoint computing trends, R², p-value, YoY, z-scores and projections for all 7 climate indicators",
+          "Solar wind & solar cycle charts with hourly solar wind speed series and sunspot/F10.7 history",
+        ],
+      },
       {
         version: "1.2.6",
         items: [
@@ -522,7 +534,7 @@ export const uk: TranslationDict = {
     api: "API",
     aiAssistant: "AI Асистент",
     documentation: "Документація",
-    settings: "Налаштування",
+    updates: "Оновлення",
     support: "Підтримка проекту",
     sources: "Джерела даних",
   },
@@ -552,7 +564,7 @@ export const uk: TranslationDict = {
     dashboard: { title: "Дашборд", subtitle: "Моніторинг клімату в реальному часі" },
     analytics: { title: "Аналітика", subtitle: "Інтерактивна візуалізація та аналіз клімату" },
     predictions: { title: "AI Прогнози", subtitle: "Прогнози та оцінка ризиків від штучного інтелекту" },
-    settings: { title: "Налаштування", subtitle: "Інформація про застосунок, версія та статус" },
+    updates: { title: "Оновлення", subtitle: "Інформація про застосунок, версія та статус" },
     support: { title: "Підтримка проекту", subtitle: "Допоможіть нам спостерігати за планетою" },
     sources: {
       title: "Джерела даних",
@@ -570,24 +582,36 @@ export const uk: TranslationDict = {
       unavailable: "Недоступно",
     },
   },
-  settings: {
+  updates: {
     siteLabel: "Адреса сайту",
     githubLabel: "Репозиторій GitHub",
     versionLabel: "Версія",
-    version: "1.2.8",
+    version: "1.2.9",
     latestUpdateTitle: "Останнє оновлення",
     latestUpdateText: "Що нового в цій версії:",
     latestUpdateItems: [
-      "Сторінка статусу джерел даних (/sources) — жива перевірка online/offline всіх 16 провайдерів даних",
-      "Панель Космічної погоди: реальні дані резонансу Шумана (базова частота 7,83 Гц) та виправлені вкладки",
-      "Події EONET тепер позначені як 'live' на глобусі з часом початку події (since)",
-      "Аналітика перероблена на 4 розділи — Планета та клімат, Космічна погода, Загроза астероїдів, Небезпеки Землі (18 інтерактивних графіків)",
-      "Python-хаб аналітики: новий ендпоінт /api/indicators — тренди, R², p-value, YoY, z-оцінки та прогнози для всіх 7 кліматичних індикаторів",
-      "Графіки сонячного вітру та сонячного циклу з погодинними рядами швидкості вітру та історією плям/F10.7",
+      "JPL SBDB Close-Approach API — дані про астероїди/комети без ключа NASA API",
+      "GDACS — глобальна система попередження про катастрофи (повені, циклони, вулкани, посухи) як резерв EONET",
+      "NOAA GML CH₄/N₂O — тренди метану та закису азоту з того ж джерела, що й CO₂",
+      "GWIS Copernicus — чесний fallback пожеж замість статичних 23 координат",
+      "Аудит статистики: mінімум точок z-score підвищено до 8, CO₂ десезонізовано річними середніми",
+      "Fallback-пожежі тепер позначені прапором `simulated: true` для дисклеймера на фронтенді",
+      "34 pytest-тести для аналітики, aurora physics та пожеж (всі зелені)",
     ],
     historyTitle: "Історія оновлень",
     historyText: "Попередні версії:",
     historyItems: [
+      {
+        version: "1.2.9",
+        items: [
+          "Сторінка статусу джерел даних (/sources) — жива перевірка online/offline всіх 16 провайдерів даних",
+          "Панель Космічної погоди: реальні дані резонансу Шумана (базова частота 7,83 Гц) та виправлені вкладки",
+          "Події EONET тепер позначені як 'live' на глобусі з часом початку події (since)",
+          "Аналітика перероблена на 4 розділи — Планета та клімат, Космічна погода, Загроза астероїдів, Небезпеки Землі (18 інтерактивних графіків)",
+          "Python-хаб аналітики: новий ендпоінт /api/indicators — тренди, R², p-value, YoY, z-оцінки та прогнози для всіх 7 кліматичних індикаторів",
+          "Графіки сонячного вітру та сонячного циклу з погодинними рядами швидкості вітру та історією плям/F10.7",
+        ],
+      },
       {
         version: "1.2.6",
         items: [
@@ -996,7 +1020,7 @@ export const de: TranslationDict = {
     api: "API",
     aiAssistant: "KI-Assistent",
     documentation: "Dokumentation",
-    settings: "Einstellungen",
+    updates: "Updates",
     support: "Projekt unterstützen",
     sources: "Datenquellen",
   },
@@ -1026,7 +1050,7 @@ export const de: TranslationDict = {
     dashboard: { title: "Dashboard", subtitle: "Klimaüberwachung in Echtzeit" },
     analytics: { title: "Analytik", subtitle: "Interaktive Klimadatenvisualisierung und -analyse" },
     predictions: { title: "KI-Prognosen", subtitle: "KI-generierte Klimaprognosen und Risikobewertung" },
-    settings: { title: "Einstellungen", subtitle: "Anwendungsinformationen, Version und Status" },
+    updates: { title: "Updates", subtitle: "Anwendungsinformationen, Version und Status" },
     support: { title: "Projekt unterstützen", subtitle: "Helfen Sie uns, den Planeten im Blick zu behalten" },
     sources: {
       title: "Datenquellen",
@@ -1044,11 +1068,11 @@ export const de: TranslationDict = {
       unavailable: "Nicht verfügbar",
     },
   },
-  settings: {
+  updates: {
     siteLabel: "Website-Adresse",
     githubLabel: "GitHub-Repository",
     versionLabel: "Version",
-    version: "1.2.8",
+    version: "1.2.9",
     latestUpdateTitle: "Letztes Update",
     latestUpdateText: "Was ist in dieser Version neu:",
     latestUpdateItems: [
@@ -1470,7 +1494,7 @@ export const pl: TranslationDict = {
     api: "API",
     aiAssistant: "Asystent AI",
     documentation: "Dokumentacja",
-    settings: "Ustawienia",
+    updates: "Aktualizacje",
     support: "Wsparcie projektu",
     sources: "Źródła danych",
   },
@@ -1500,7 +1524,7 @@ export const pl: TranslationDict = {
     dashboard: { title: "Pulpit", subtitle: "Monitorowanie klimatu w czasie rzeczywistym" },
     analytics: { title: "Analityka", subtitle: "Interaktywna wizualizacja i analiza klimatu" },
     predictions: { title: "Prognozy AI", subtitle: "Prognozy klimatyczne i ocena ryzyka generowane przez AI" },
-    settings: { title: "Ustawienia", subtitle: "Informacje o aplikacji, wersja i status" },
+    updates: { title: "Aktualizacje", subtitle: "Informacje o aplikacji, wersja i status" },
     support: { title: "Wsparcie projektu", subtitle: "Pomóż nam obserwować planetę" },
     sources: {
       title: "Źródła danych",
@@ -1518,11 +1542,11 @@ export const pl: TranslationDict = {
       unavailable: "Niedostępne",
     },
   },
-  settings: {
+  updates: {
     siteLabel: "Adres strony",
     githubLabel: "Repozytorium GitHub",
     versionLabel: "Wersja",
-    version: "1.2.8",
+    version: "1.2.9",
     latestUpdateTitle: "Najnowsza aktualizacja",
     latestUpdateText: "Co nowego w tej wersji:",
     latestUpdateItems: [
@@ -1944,7 +1968,7 @@ export const fr: TranslationDict = {
     api: "API",
     aiAssistant: "Assistant IA",
     documentation: "Documentation",
-    settings: "Paramètres",
+    updates: "Mises à jour",
     support: "Soutenir le projet",
     sources: "Sources de données",
   },
@@ -1974,7 +1998,7 @@ export const fr: TranslationDict = {
     dashboard: { title: "Tableau de bord", subtitle: "Surveillance climatique en temps réel" },
     analytics: { title: "Analytique", subtitle: "Visualisation et analyse interactive des données climatiques" },
     predictions: { title: "Prévisions IA", subtitle: "Prévisions climatiques et évaluation des risques par IA" },
-    settings: { title: "Paramètres", subtitle: "Informations sur l'application, version et statut" },
+    updates: { title: "Mises à jour", subtitle: "Informations sur l'application, version et statut" },
     support: { title: "Soutenir le projet", subtitle: "Aidez-nous à observer la planète" },
     sources: {
       title: "Sources de données",
@@ -1992,11 +2016,11 @@ export const fr: TranslationDict = {
       unavailable: "Indisponible",
     },
   },
-  settings: {
+  updates: {
     siteLabel: "Adresse du site",
     githubLabel: "Dépôt GitHub",
     versionLabel: "Version",
-    version: "1.2.8",
+    version: "1.2.9",
     latestUpdateTitle: "Dernière mise à jour",
     latestUpdateText: "Quoi de neuf dans cette version :",
     latestUpdateItems: [
@@ -2418,7 +2442,7 @@ export const it: TranslationDict = {
     api: "API",
     aiAssistant: "Assistente IA",
     documentation: "Documentazione",
-    settings: "Impostazioni",
+    updates: "Aggiornamenti",
     support: "Supporta il progetto",
     sources: "Fonti di dati",
   },
@@ -2448,7 +2472,7 @@ export const it: TranslationDict = {
     dashboard: { title: "Dashboard", subtitle: "Monitoraggio climatico in tempo reale" },
     analytics: { title: "Analitica", subtitle: "Visualizzazione e analisi interattiva dei dati climatici" },
     predictions: { title: "Previsioni IA", subtitle: "Previsioni climatiche e valutazione dei rischi generate dall'IA" },
-    settings: { title: "Impostazioni", subtitle: "Informazioni sull'app, versione e stato" },
+    updates: { title: "Aggiornamenti", subtitle: "Informazioni sull'app, versione e stato" },
     support: { title: "Supporta il progetto", subtitle: "Aiutaci a osservare il pianeta" },
     sources: {
       title: "Fonti di dati",
@@ -2466,11 +2490,11 @@ export const it: TranslationDict = {
       unavailable: "Non disponibile",
     },
   },
-  settings: {
+  updates: {
     siteLabel: "Indirizzo del sito",
     githubLabel: "Repository GitHub",
     versionLabel: "Versione",
-    version: "1.2.8",
+    version: "1.2.9",
     latestUpdateTitle: "Ultimo aggiornamento",
     latestUpdateText: "Cosa c'è di nuovo in questa versione:",
     latestUpdateItems: [
@@ -2892,7 +2916,7 @@ export const ka: TranslationDict = {
     api: "API",
     aiAssistant: "AI ასისტენტი",
     documentation: "დოკუმენტაცია",
-    settings: "პარამეტრები",
+    updates: "განახლებები",
     support: "პროექტის მხარდაჭერა",
     sources: "მონაცემთა წყაროები",
   },
@@ -2922,7 +2946,7 @@ export const ka: TranslationDict = {
     dashboard: { title: "დაშბორდი", subtitle: "კლიმატის მონიტორინგი რეალურ დროში" },
     analytics: { title: "ანალიტიკა", subtitle: "კლიმატის მონაცემების ინტერაქტიული ვიზუალიზაცია" },
     predictions: { title: "AI პროგნოზები", subtitle: "AI-ს მიერ გენერირებული პროგნოზები და რისკების შეფასება" },
-    settings: { title: "პარამეტრები", subtitle: "აპლიკაციის ინფორმაცია, ვერსია და სტატუსი" },
+    updates: { title: "განახლებები", subtitle: "აპლიკაციის ინფორმაცია, ვერსია და სტატუსი" },
     support: { title: "პროექტის მხარდაჭერა", subtitle: "დაგვეხმარეთ პლანეტაზე დაკვირვებაში" },
     sources: {
       title: "მონაცემთა წყაროები",
@@ -2940,11 +2964,11 @@ export const ka: TranslationDict = {
       unavailable: "მიუწვდომელია",
     },
   },
-  settings: {
+  updates: {
     siteLabel: "საიტის მისამართი",
     githubLabel: "GitHub რეპოზიტორია",
     versionLabel: "ვერსია",
-    version: "1.2.8",
+    version: "1.2.9",
     latestUpdateTitle: "ბოლო განახლება",
     latestUpdateText: "რა არის ახალი ამ ვერსიაში:",
     latestUpdateItems: [

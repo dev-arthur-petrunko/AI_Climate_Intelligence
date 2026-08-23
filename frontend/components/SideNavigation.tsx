@@ -22,7 +22,7 @@ export default function SideNavigation() {
     { id: "analytics", label: t.nav.analytics, icon: Layers, path: "/analytics" },
     { id: "predictions", label: t.nav.predictions, icon: Sparkles, path: "/predictions" },
     { id: "sources", label: t.nav.sources, icon: Database, path: "/sources" },
-    { id: "settings", label: t.nav.settings, icon: Settings, path: "/settings" },
+    { id: "settings", label: t.nav.updates, icon: Settings, path: "/settings" },
     { id: "support", label: t.nav.support, icon: Heart, path: "/support" },
   ];
 

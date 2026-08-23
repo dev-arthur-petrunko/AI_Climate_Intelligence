@@ -14,6 +14,8 @@ from data_sources import (
     get_air_quality,
     get_gistemp,
     get_co2,
+    get_ch4,
+    get_n2o,
     get_sea_ice,
     get_sea_ice_south,
     get_sea_level,
@@ -25,6 +27,7 @@ from data_sources import (
     get_geomagnetic,
     get_solar_events,
     get_eonet,
+    get_gdacs,
     get_geocode,
     get_kp_forecast,
     get_goes_xray,
@@ -34,6 +37,7 @@ from data_sources import (
     get_earthquakes,
     get_aurora,
     get_schumann,
+    get_coral_reef,
     get_sources_status,
 )
 from ai_groq import get_ai_analysis, get_ai_predictions, get_ai_summary_text
@@ -325,6 +329,42 @@ async def schumann():
 async def sources():
     """Статус усіх джерел даних: онлайн/офлайн. Жива перевірка кешується 30 хв."""
     return _safe(get_sources_status, {"sources": [], "error": True, "source": "fallback"})
+
+
+@app.get("/api/ch4")
+async def ch4():
+    """Глобальний метан (CH₄) — NOAA GML, похвилинні серії + analyze()."""
+    data = _safe(lambda: get_ch4(), {})
+    if not data or not data.get("series"):
+        return data
+    series = data["series"]
+    values = [p["value"] for p in series if p.get("value") is not None]
+    data["analysis"] = analyze(values) if values else {}
+    return data
+
+
+@app.get("/api/n2o")
+async def n2o():
+    """Глобальний закис азоту (N₂O) — NOAA GML, похвилинні серії + analyze()."""
+    data = _safe(lambda: get_n2o(), {})
+    if not data or not data.get("series"):
+        return data
+    series = data["series"]
+    values = [p["value"] for p in series if p.get("value") is not None]
+    data["analysis"] = analyze(values) if values else {}
+    return data
+
+
+@app.get("/api/gdacs")
+async def gdacs(event_type: str = Query("")):
+    """Природні катастрофи GDACS (UN OCHA + EU JRC) — повені, циклони, вулкани, пожежі, землетруси."""
+    return _safe(lambda: get_gdacs(event_type), {"events": [], "source": "GDACS (fallback)", "error": True})
+
+
+@app.get("/api/coral-reef")
+async def coral_reef():
+    """NOAA Coral Reef Watch — термічний стрес коралів та ризик блікування."""
+    return _safe(lambda: get_coral_reef(), {"source": "NOAA CRW (fallback)", "error": True})
 
 
 def _safe(fetcher, default=None):

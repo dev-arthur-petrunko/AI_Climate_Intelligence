@@ -22,15 +22,15 @@ export default function SettingsPage() {
       <div className="pt-24 px-6 pb-8">
         <div className="max-w-4xl mx-auto space-y-6">
           <div className="mb-8">
-            <h1 className="text-4xl font-bold text-gradient mb-2">{t.pages.settings.title}</h1>
-            <p className="text-secondary">{t.pages.settings.subtitle}</p>
+            <h1 className="text-4xl font-bold text-gradient mb-2">{t.pages.updates.title}</h1>
+            <p className="text-secondary">{t.pages.updates.subtitle}</p>
           </div>
 
           {/* Адреса сайту */}
           <div className="glass-strong p-6">
             <div className="flex items-center space-x-2 mb-4">
               <Globe className="w-5 h-5 text-emerald" />
-              <h2 className="text-xl font-semibold">{t.settings.siteLabel}</h2>
+              <h2 className="text-xl font-semibold">{t.updates.siteLabel}</h2>
             </div>
             <a
               href={siteUrl}
@@ -46,7 +46,7 @@ export default function SettingsPage() {
           <div className="glass-strong p-6">
             <div className="flex items-center space-x-2 mb-4">
               <Github className="w-5 h-5 text-violet" />
-              <h2 className="text-xl font-semibold">{t.settings.githubLabel}</h2>
+              <h2 className="text-xl font-semibold">{t.updates.githubLabel}</h2>
             </div>
             <a
               href={githubUrl}
@@ -62,10 +62,10 @@ export default function SettingsPage() {
           <div className="glass-strong p-6">
             <div className="flex items-center space-x-2 mb-4">
               <Info className="w-5 h-5 text-violet" />
-              <h2 className="text-xl font-semibold">{t.settings.versionLabel}</h2>
+              <h2 className="text-xl font-semibold">{t.updates.versionLabel}</h2>
             </div>
             <div className="flex items-center space-x-3">
-              <span className="text-3xl font-bold text-gradient">{t.settings.version}</span>
+              <span className="text-3xl font-bold text-gradient">{t.updates.version}</span>
               <span className="text-xs px-2.5 py-1 rounded-full bg-emerald/10 text-emerald border border-emerald/20">
                 stable
               </span>
@@ -76,14 +76,14 @@ export default function SettingsPage() {
           <div className="glass-strong p-6 border border-emerald/20">
             <div className="flex items-center space-x-2 mb-2">
               <Sparkles className="w-5 h-5 text-emerald" />
-              <h2 className="text-xl font-semibold">{t.settings.latestUpdateTitle}</h2>
+              <h2 className="text-xl font-semibold">{t.updates.latestUpdateTitle}</h2>
               <span className="ml-auto text-xs px-2.5 py-1 rounded-full bg-emerald/10 text-emerald border border-emerald/20">
-                {t.settings.version}
+                {t.updates.version}
               </span>
             </div>
-            <p className="text-secondary text-sm mb-4">{t.settings.latestUpdateText}</p>
+            <p className="text-secondary text-sm mb-4">{t.updates.latestUpdateText}</p>
             <ul className="space-y-3">
-              {t.settings.latestUpdateItems.map((item, index) => (
+              {t.updates.latestUpdateItems.map((item, index) => (
                 <li key={index} className="flex items-start space-x-3">
                   <CheckCircle2 className="w-4 h-4 text-emerald mt-0.5 shrink-0" />
                   <span className="text-sm text-primary leading-relaxed">{item}</span>
@@ -96,11 +96,11 @@ export default function SettingsPage() {
           <div className="glass-strong p-6">
             <div className="flex items-center space-x-2 mb-2">
               <History className="w-5 h-5 text-violet" />
-              <h2 className="text-xl font-semibold">{t.settings.historyTitle}</h2>
+              <h2 className="text-xl font-semibold">{t.updates.historyTitle}</h2>
             </div>
-            <p className="text-secondary text-sm mb-4">{t.settings.historyText}</p>
+            <p className="text-secondary text-sm mb-4">{t.updates.historyText}</p>
             <div className="space-y-6">
-              {t.settings.historyItems.map((entry, gi) => (
+              {t.updates.historyItems.map((entry, gi) => (
                 <div key={gi}>
                   <div className="flex items-center space-x-2 mb-2">
                     <span className="text-xs px-2.5 py-0.5 rounded-full bg-violet/10 text-violet border border-violet/20">
@@ -124,11 +124,11 @@ export default function SettingsPage() {
           <div className="glass-strong p-6">
             <div className="flex items-center space-x-2 mb-2">
               <Settings className="w-5 h-5 text-pink" />
-              <h2 className="text-xl font-semibold">{t.settings.currentTitle}</h2>
+              <h2 className="text-xl font-semibold">{t.updates.currentTitle}</h2>
             </div>
-            <p className="text-secondary text-sm mb-4">{t.settings.currentText}</p>
+            <p className="text-secondary text-sm mb-4">{t.updates.currentText}</p>
             <ul className="space-y-3">
-              {t.settings.items.map((item, index) => (
+              {t.updates.items.map((item, index) => (
                 <li key={index} className="flex items-start space-x-3">
                   <CheckCircle2 className="w-4 h-4 text-emerald mt-0.5 shrink-0" />
                   <span className="text-sm text-primary leading-relaxed">{item}</span>

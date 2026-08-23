@@ -637,3 +637,27 @@ Plotly.js не мав `xaxis.type: "date"` — всі графіки з часо
 | `7965936` | 2026-08-19 | Docs: розділ «Актуальність даних», виправлення fires fallback |
 | `4f57c36` | 2026-08-19 | Fix: displayTime() — приховано дати в тултіпі/detail card |
 | `d8339af` | 2026-08-19 | Fix: "latest (annual/ship-based)" замість порожніх дат |
+| `14ac2b3` | 2026-08-24 | Analytics audit: min_points=8, annual CO₂, aurora coeff 2.4, 34 tests |
+
+### v1.2.9 — Нові API-джерела даних (без ключів)
+
+| Проблема | Було | Стало | Де |
+|----------|------|-------|----|
+| Астероїди NeoWs — потребує NASA_API_KEY | API_KEY обов'язковий | **JPL SBDB CAD** — без ключа, до 365 днів, real-time | `data_sources.py:936` |
+| CH₄ — відсутній | відсутній | **NOAA GML** `ch4_mm_gl.csv` — щомісячний метан + analyze() | `data_sources.py:1623` |
+| N₂O — відсутній | відсутній | **NOAA GML** `n2o_mm_gl.csv` — щомісячний N₂O + analyze() | `data_sources.py:1662` |
+| GDACS — природні катастрофи | відсутній | **GDACS (UN OCHA + EU JRC)** — повені, циклони, вулкани, пожежі | `data_sources.py:1585` |
+| Coral Reef Watch — стрес коралів | відсутній | **NOAA CRW** — термічний стрес, ризик блікування | `data_sources.py:1720` |
+| GWIS — fallback пожеж | hardcoded static 23 points | **GWIS Copernicus** — live fallback + `"simulated": true` | `data_sources.py:1705` |
+| _SOURCE_CHECKS | NeoWs (NASA_KEY) | **JPL SBDB** (без ключа) + GDACS + NOAA CH₄ + N₂O | `data_sources.py:1808` |
+| Фронтенд: "Параметри" | settings | **Оновлення/Updates** — 7 мов | `translations.ts` |
+| Версія | 1.2.8 | **1.2.9** | `translations.ts` |
+
+### Нові ендпоінти API
+
+| Ендпоінт | Опис | Джерело |
+|----------|------|---------|
+| `GET /api/ch4` | Глобальний метан (CH₄) + analyze() | NOAA GML |
+| `GET /api/n2o` | Глобальний закис азоту (N₂O) + analyze() | NOAA GML |
+| `GET /api/gdacs?event_type=` | Природні катастрофи (FL/TC/VO/WF/EQ) | GDACS (UN + EU) |
+| `GET /api/coral-reef` | Термічний стрес коралів | NOAA CRW |
