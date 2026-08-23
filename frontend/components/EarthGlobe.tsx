@@ -144,12 +144,14 @@ function isTodayDate(time?: string): boolean {
   return `${m[1]}-${m[2]}-${m[3]}` === `${y}-${mo}-${d}`;
 }
 
-/** Приховує дату для climate-індикаторів з вбудованою затримкою публікації.
- *  ocean heat (річні NOAA, ~1 рік), ocean pH (кораблі HOT, ~1.5 року).
- *  Дані актуальні, але рік/дата на глобусі лише плутає користувача. */
+/** Приховує застарілу дату для climate-індикаторів з вбудованою затримкою
+ *  публікації. Дані актуальні (останні доступні), але рік може відрізнятися
+ *  від поточного на 1–2 роки (ocean heat — NOAA, ocean pH — HOT ship-based).
+ *  Повертає локалізовану мітку замість застарілої дати. */
 function displayTime(ev: { time?: string; event_type?: string }): string | undefined {
   if (!ev.time) return undefined;
-  if (ev.event_type === "Ocean Heat" || ev.event_type === "Ocean pH") return undefined;
+  if (ev.event_type === "Ocean Heat") return "latest (annual)";
+  if (ev.event_type === "Ocean pH") return "latest (ship-based)";
   return ev.time;
 }
 
