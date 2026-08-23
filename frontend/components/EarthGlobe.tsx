@@ -144,6 +144,15 @@ function isTodayDate(time?: string): boolean {
   return `${m[1]}-${m[2]}-${m[3]}` === `${y}-${mo}-${d}`;
 }
 
+/** Приховує дату для climate-індикаторів з вбудованою затримкою публікації.
+ *  ocean heat (річні NOAA, ~1 рік), ocean pH (кораблі HOT, ~1.5 року).
+ *  Дані актуальні, але рік/дата на глобусі лише плутає користувача. */
+function displayTime(ev: { time?: string; event_type?: string }): string | undefined {
+  if (!ev.time) return undefined;
+  if (ev.event_type === "Ocean Heat" || ev.event_type === "Ocean pH") return undefined;
+  return ev.time;
+}
+
 /** Колір індикатора свіжості (Aurora палітра) */
 const freshnessColor: Record<Freshness, string> = {
   live: "#2EE6A6",
@@ -1337,7 +1346,7 @@ export default function EarthGlobe() {
                 <div className="flex items-center space-x-1.5 min-w-0">
                   <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: hoverFreshColor }} />
                   <span className="text-[10px] text-secondary truncate">
-                    {hovered.ongoing ? `${t.globe.since}:` : `${t.globe.updatedAt}:`} {hovered.time || "—"}
+                    {hovered.ongoing ? `${t.globe.since}:` : `${t.globe.updatedAt}:`} {displayTime(hovered) || "—"}
                   </span>
                 </div>
                 <span className="text-[10px] font-semibold shrink-0" style={{ color: hoverFreshColor }}>
@@ -1430,7 +1439,7 @@ export default function EarthGlobe() {
                 <div className="flex items-center space-x-1.5 min-w-0">
                   <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: freshnessColor[selectedFresh] }} />
                   <span className="text-[11px] text-secondary truncate">
-                    {selected.ongoing ? `${t.globe.since}:` : `${t.globe.updatedAt}:`} {selected.time || "—"}
+                    {selected.ongoing ? `${t.globe.since}:` : `${t.globe.updatedAt}:`} {displayTime(selected) || "—"}
                   </span>
                 </div>
                 <span className="text-[11px] font-semibold shrink-0" style={{ color: freshnessColor[selectedFresh] }}>
