@@ -1003,9 +1003,7 @@ export default function EarthGlobe() {
             coordinates: [lon, lat],
             event_type: "Ocean Heat",
             severity: "high",
-            location: `${ohValue.toFixed(0)} ZJ · ${t.globe.legend.oceanHeat}${
-              oh?.latest?.year != null ? ` · ${oh.latest.year}` : ""
-            }`,
+            location: `${ohValue.toFixed(0)} ZJ · ${t.globe.legend.oceanHeat}`,
             time: oh?.latest?.year != null ? String(oh.latest.year) : undefined,
           });
         });
@@ -1019,9 +1017,7 @@ export default function EarthGlobe() {
           coordinates: [-155.28, 19.42],
           event_type: "Ocean pH",
           severity: "medium",
-          location: `pH ${phValue.toFixed(3)} · ${t.globe.legend.ph}${
-            phDate ? ` · ${String(phDate).slice(0, 4)}` : ""
-          }`,
+          location: `pH ${phValue.toFixed(3)} · ${t.globe.legend.ph}`,
           time: phDate ? String(phDate) : undefined,
         });
       }
