@@ -37,6 +37,28 @@ def _x_values(series: list[dict], time_key: str = "year") -> Optional[np.ndarray
     return np.asarray(xs, dtype=float)
 
 
+def to_annual_average(series: list[dict], value_key: str = "value") -> list[dict]:
+    """Агрегує місячні дані в річні середні (для CO₂, температури тощо).
+
+    Причина: МНК-регресія на місячних даних CO₂ (крива Келінга) має
+    автокорельовані залишки — p_value/std_err scipy.stats.linregress
+    будуть занижені (тренд виглядає більш значимим, ніж є).
+    Річні середні знімають сезонність природним шляхом."""
+    by_year: dict[int, list[float]] = {}
+    for p in series:
+        y = p.get("year")
+        v = p.get(value_key)
+        if isinstance(y, (int, float)) and isinstance(v, (int, float)):
+            by_year.setdefault(int(y), []).append(float(v))
+    if not by_year:
+        return []
+    result = []
+    for y in sorted(by_year):
+        vals = by_year[y]
+        result.append({"year": y, "value": round(sum(vals) / len(vals), 2)})
+    return result
+
+
 def _y_values(series: list[dict], value_key: str = "value") -> Optional[np.ndarray]:
     if not series:
         return None
@@ -85,7 +107,7 @@ def z_score_anomaly(
     """
     x = _x_values(series, time_key)
     y = _y_values(series, value_key)
-    if x is None or y is None or len(x) < 4 or len(x) != len(y):
+    if x is None or y is None or len(x) < 8 or len(x) != len(y):
         return None
     try:
         slope, intercept, *_ = stats.linregress(x, y)

@@ -913,6 +913,7 @@ def _fallback_fires_data() -> dict:
                 "confidence": "nominal" if i % 3 else "high",
                 "acq_date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
                 "satellite": "VIIRS_SNPP",
+                "simulated": True,
             }
         )
     return {
@@ -1639,6 +1640,12 @@ def fetch_aurora(lat: float, lon: float) -> dict:
             source = "NOAA SWPC (Kp estimate)"
             MAGNETIC_LAT_OFFSET = 10.0
             magnetic_lat = abs(lat) - MAGNETIC_LAT_OFFSET
+            # Лінійна апроксимація південної межі аврорального овалу.
+            # Literature: Feldstein & Starkov (1967), Starkov (1994), Holzworth & Meng (1975):
+            #   equatorward boundary ≈ 67° geomagnetic lat for Kp=0,
+            #   shift ≈ 2.4–2.5° equatorward per Kp unit (midnight sector).
+            # Troyer et al. (2021, DMSP 28yr): A0 ≈ 1.444·Kp + 20.315 (co-latitude)
+            #   → latitude ≈ 69.7 − 1.4·Kp (nightside), averaged to ~65° for all MLT.
             boundary = 65.0 - 2.4 * float(kp)  # equatorward auroral boundary, magnetic lat
             distance = magnetic_lat - boundary
             if distance >= 0:

@@ -38,6 +38,7 @@ from data_sources import (
 )
 from ai_groq import get_ai_analysis, get_ai_predictions, get_ai_summary_text
 from analytics import describe as analyze
+from analytics import to_annual_average
 from scheduler import start_scheduler, stop_scheduler
 
 # Створення основного додатка FastAPI з описом та версією
@@ -183,7 +184,11 @@ async def gistemp():
 async def co2():
     """Глобальна концентрація CO2, щомісяця (NOAA GML)"""
     data = get_co2()
-    data["analysis"] = analyze(data.get("series", []))
+    # Для статистики (trend/z-score) використовуємо річні середні, а не сірі місячні:
+    # сезонний цикл CO₂ (крива Келінга) створює автокорельовані залишки,
+    # через що p_value scipy.stats.linregress занижується.
+    annual = to_annual_average(data.get("series", []))
+    data["analysis"] = analyze(annual)
     return data
 
 

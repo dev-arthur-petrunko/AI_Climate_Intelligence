@@ -1,0 +1,42 @@
+{
+  "_meta": {
+    "generated": "2026-08-24",
+    "description": "Baseline після виправлень analytics.py: detrended z-score, min_points=8, CO₂ annual avg",
+    "gistemp_series_length": 146,
+    "co2_annual_length": 48,
+    "sea_level_series_length": 1189
+  },
+  "gistemp": {
+    "trend_analysis": {
+      "slope_per_year": 0.0083,
+      "r_squared": 0.7647,
+      "p_value": 0.0,
+      "projected_next_year": 0.692,
+      "n": 146
+    },
+    "z_score_anomaly": 2.66,
+    "year_over_year": -0.09
+  },
+  "co2_annual": {
+    "trend_analysis": {
+      "slope_per_year": 1.9077,
+      "r_squared": 0.9884,
+      "p_value": 0.0,
+      "projected_next_year": 423.769,
+      "n": 48
+    },
+    "z_score_anomaly": 2.4,
+    "year_over_year": 2.86
+  },
+  "sea_level": {
+    "trend_analysis": {
+      "slope_per_year": 3.3582,
+      "r_squared": 0.9789,
+      "p_value": 0.0,
+      "projected_next_year": 94.588,
+      "n": 1189
+    },
+    "z_score_anomaly": 0.88,
+    "year_over_year": 1.48
+  }
+}
