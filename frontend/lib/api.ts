@@ -97,6 +97,32 @@ export interface CO2Series {
   analysis?: TrendAnalysis;
 }
 
+export interface GasSeries {
+  source: string;
+  unit: string;
+  series: { year: number; month: number; value: number }[];
+  latest: { year: number; month: number; value: number } | null;
+  analysis?: TrendAnalysis;
+}
+
+export interface GDACSEvent {
+  event_type: string;
+  event_name: string;
+  location: string;
+  date: string;
+  severity: string;
+  alert_level: string;
+  coordinates?: [number, number] | null;
+  population_affected: number;
+}
+
+export interface GDACSData {
+  source: string;
+  count: number;
+  events: GDACSEvent[];
+  error?: boolean;
+}
+
 export interface SeaIceData {
   source: string;
   hemisphere: string;
@@ -403,4 +429,7 @@ export const api = {
     getJSON<AuroraData>("/api/aurora", { lat: lat ?? 50.45, lon: lon ?? 30.52 }),
   schumann: () => getJSON<SchumannData>("/api/schumann"),
   sources: () => getJSON<SourcesData>("/api/sources"),
+  ch4: () => getJSON<GasSeries>("/api/ch4"),
+  n2o: () => getJSON<GasSeries>("/api/n2o"),
+  gdacs: (eventType?: string) => getJSON<GDACSData>("/api/gdacs", eventType ? { event_type: eventType } : {}),
 };

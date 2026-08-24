@@ -7,11 +7,13 @@ import {
   api,
   GISTEMPSeries,
   CO2Series,
+  GasSeries,
   SeaIceData,
   SeaLevelData,
   OceanHeatData,
   OceanPhData,
   AsteroidsData,
+  GDACSData,
   KpForecastData,
   GoesXrayData,
   SolarWindData,
@@ -81,6 +83,8 @@ function kpColor(v: number | undefined | null): string {
 type ChartId =
   | "temperature"
   | "co2"
+  | "methane"
+  | "n2o"
   | "seaIce"
   | "seaIceSouth"
   | "seaLevel"
@@ -101,6 +105,9 @@ export default function AnalyticsCharts() {
   const [seaLevel, setSeaLevel] = useState<SeaLevelData | null>(null);
   const [oceanHeat, setOceanHeat] = useState<OceanHeatData | null>(null);
   const [oceanPh, setOceanPh] = useState<OceanPhData | null>(null);
+  const [ch4, setCh4] = useState<GasSeries | null>(null);
+  const [n2o, setN2o] = useState<GasSeries | null>(null);
+  const [gdacs, setGdacs] = useState<GDACSData | null>(null);
   const [asteroids, setAsteroids] = useState<AsteroidsData | null>(null);
   const [kp, setKp] = useState<KpForecastData | null>(null);
   const [flares, setFlares] = useState<GoesXrayData | null>(null);
@@ -117,14 +124,17 @@ export default function AnalyticsCharts() {
   const ew = t.earthWeather;
 
   const load = useCallback(async () => {
-    const [g, c, s, ss, sl, oh, ph, astr, kpr, flr, wnd, sc, eq, sch] = await Promise.allSettled([
+    const [g, c, ch4r, n2or, s, ss, sl, oh, ph, gdr, astr, kpr, flr, wnd, sc, eq, sch] = await Promise.allSettled([
       api.gistemp(),
       api.co2(),
+      api.ch4(),
+      api.n2o(),
       api.seaIce(),
       api.seaIceSouth(),
       api.seaLevel(),
       api.oceanHeat(),
       api.oceanPh(),
+      api.gdacs(),
       api.asteroids(7),
       api.kpForecast(),
       api.solarFlares(),
@@ -135,11 +145,14 @@ export default function AnalyticsCharts() {
     ]);
     setGistemp(settle(g));
     setCo2(settle(c));
+    setCh4(settle(ch4r));
+    setN2o(settle(n2or));
     setSeaIce(settle(s));
     setSeaIceSouth(settle(ss));
     setSeaLevel(settle(sl));
     setOceanHeat(settle(oh));
     setOceanPh(settle(ph));
+    setGdacs(settle(gdr));
     setAsteroids(settle(astr));
     setKp(settle(kpr));
     setFlares(settle(flr));
@@ -154,6 +167,8 @@ export default function AnalyticsCharts() {
     const missing =
       !hasRows(g, (v) => v.series) ||
       !hasRows(c, (v) => v.series) ||
+      !hasRows(ch4r, (v) => v.series) ||
+      !hasRows(n2or, (v) => v.series) ||
       !hasRows(s, (v) => v.annual_minimum) ||
       !hasRows(ss, (v) => v.annual_minimum) ||
       !hasRows(sl, (v) => v.series) ||
@@ -211,6 +226,8 @@ export default function AnalyticsCharts() {
   const charts = [
     { id: "temperature" as ChartId, label: ch.temperature },
     { id: "co2" as ChartId, label: ch.co2 },
+    { id: "methane" as ChartId, label: ch.methane },
+    { id: "n2o" as ChartId, label: ch.n2o },
     { id: "seaIce" as ChartId, label: ch.seaIce },
     { id: "seaIceSouth" as ChartId, label: ch.seaIceSouth },
     { id: "seaLevel" as ChartId, label: ch.seaLevel },
@@ -262,6 +279,56 @@ export default function AnalyticsCharts() {
             yaxis: { ...plotStyle.yaxis, title: ch.co2Axis },
             hovermode: "x unified",
             annotations: [{ xref: "paper", yref: "paper", x: 0, y: 1.08, showarrow: false, text: ch.co2Source, font: { size: 11, color: "#8B9AB5" } }],
+          }}
+          style={{ width: "100%", height: "420px" }}
+          useResizeHandler
+          config={plotConfig}
+        />
+      );
+    }
+    if (activeChart === "methane" && ch4?.series?.length) {
+      return (
+        <Plot
+          data={[{
+            x: ch4.series.map((d) => d.year + (d.month - 1) / 12),
+            y: ch4.series.map((d) => d.value),
+            type: "scatter",
+            mode: "lines",
+            line: { color: "#28E08F", width: 2 },
+            fill: "tozeroy",
+            fillcolor: "rgba(40, 224, 143, 0.12)",
+            name: ch.methaneShort,
+          }]}
+          layout={{
+            ...plotStyle,
+            yaxis: { ...plotStyle.yaxis, title: ch.methaneAxis },
+            hovermode: "x unified",
+            annotations: [{ xref: "paper", yref: "paper", x: 0, y: 1.08, showarrow: false, text: ch.methaneSource, font: { size: 11, color: "#8B9AB5" } }],
+          }}
+          style={{ width: "100%", height: "420px" }}
+          useResizeHandler
+          config={plotConfig}
+        />
+      );
+    }
+    if (activeChart === "n2o" && n2o?.series?.length) {
+      return (
+        <Plot
+          data={[{
+            x: n2o.series.map((d) => d.year + (d.month - 1) / 12),
+            y: n2o.series.map((d) => d.value),
+            type: "scatter",
+            mode: "lines",
+            line: { color: "#FFC24D", width: 2 },
+            fill: "tozeroy",
+            fillcolor: "rgba(255, 194, 77, 0.12)",
+            name: ch.n2oShort,
+          }]}
+          layout={{
+            ...plotStyle,
+            yaxis: { ...plotStyle.yaxis, title: ch.n2oAxis },
+            hovermode: "x unified",
+            annotations: [{ xref: "paper", yref: "paper", x: 0, y: 1.08, showarrow: false, text: ch.n2oSource, font: { size: 11, color: "#8B9AB5" } }],
           }}
           style={{ width: "100%", height: "420px" }}
           useResizeHandler
@@ -426,6 +493,30 @@ export default function AnalyticsCharts() {
         />
       );
     }
+    if (id === "methane" && ch4?.series?.length) {
+      const series = ch4.series.slice(-36);
+      return (
+        <Plot
+          data={[{ x: series.map((d) => d.year + (d.month - 1) / 12), y: series.map((d) => d.value), type: "scatter", mode: "lines", line: { color: "#28E08F", width: 2 } }]}
+          layout={{ ...plotStyle, margin: { t: 10, r: 10, b: 30, l: 45 }, showlegend: false }}
+          style={{ width: "100%", height: "200px" }}
+          useResizeHandler
+          config={plotConfig}
+        />
+      );
+    }
+    if (id === "n2o" && n2o?.series?.length) {
+      const series = n2o.series.slice(-36);
+      return (
+        <Plot
+          data={[{ x: series.map((d) => d.year + (d.month - 1) / 12), y: series.map((d) => d.value), type: "scatter", mode: "lines", line: { color: "#FFC24D", width: 2 } }]}
+          layout={{ ...plotStyle, margin: { t: 10, r: 10, b: 30, l: 45 }, showlegend: false }}
+          style={{ width: "100%", height: "200px" }}
+          useResizeHandler
+          config={plotConfig}
+        />
+      );
+    }
     if (id === "seaIce" && seaIce?.annual_minimum?.length) {
       const series = seaIce.annual_minimum.slice(-24);
       return (
@@ -492,6 +583,8 @@ export default function AnalyticsCharts() {
   const miniData = [
     { key: "temperature" as ChartId, name: ch.temperatureFull },
     { key: "co2" as ChartId, name: ch.co2 },
+    { key: "methane" as ChartId, name: ch.methaneShort },
+    { key: "n2o" as ChartId, name: ch.n2oShort },
     { key: "seaIce" as ChartId, name: ch.seaIceShort },
     { key: "seaIceSouth" as ChartId, name: ch.seaIceSouthShort },
     { key: "seaLevel" as ChartId, name: ch.seaLevelShort },
@@ -849,6 +942,8 @@ export default function AnalyticsCharts() {
           const statsRows: { name: string; a?: TrendAnalysis }[] = [
             { name: ch.temperature, a: gistemp?.analysis },
             { name: ch.co2, a: co2?.analysis },
+            { name: ch.methaneShort, a: ch4?.analysis },
+            { name: ch.n2oShort, a: n2o?.analysis },
             { name: ch.seaIceShort, a: seaIce?.analysis },
             { name: ch.seaIceSouthShort, a: seaIceSouth?.analysis },
             { name: ch.seaLevelShort, a: seaLevel?.analysis },
@@ -1033,6 +1128,45 @@ export default function AnalyticsCharts() {
             {renderEqHist()}
           </ChartCard>
         </div>
+        {gdacs && gdacs.events && gdacs.events.length > 0 && (
+          <div className="glass p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold">{ch.gdacsTitle}</h3>
+              <span className="text-[10px] text-secondary font-mono">{ch.gdacsTypes}</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-secondary/70 border-b border-white/5 text-left">
+                    <th className="py-2 pr-3 font-medium">Type</th>
+                    <th className="py-2 pr-3 font-medium">Event</th>
+                    <th className="py-2 pr-3 font-medium">Location</th>
+                    <th className="py-2 pr-3 font-medium">Date</th>
+                    <th className="py-2 font-medium">Severity</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {gdacs.events.slice(0, 12).map((ev, i) => (
+                    <tr key={i} className="border-b border-white/5 last:border-0">
+                      <td className="py-2 pr-3 text-primary font-mono">{ev.event_type}</td>
+                      <td className="py-2 pr-3 text-primary truncate max-w-[180px]">{ev.event_name}</td>
+                      <td className="py-2 pr-3 text-secondary truncate max-w-[140px]">{ev.location}</td>
+                      <td className="py-2 pr-3 text-secondary">{ev.date?.split("T")[0] || "—"}</td>
+                      <td className="py-2">
+                        <span className={`px-1.5 py-px rounded text-[9px] font-bold uppercase ${
+                          ev.alert_level === "Red" ? "bg-[#FF5D6C]/15 border border-[#FF5D6C]/30 text-[#FF5D6C]"
+                          : ev.alert_level === "Orange" ? "bg-[#FFB648]/15 border border-[#FFB648]/30 text-[#FFB648]"
+                          : "bg-[#36A3FF]/15 border border-[#36A3FF]/30 text-[#36A3FF]"
+                        }`}>{ev.alert_level || ev.severity || "—"}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="mt-2 text-[10px] text-secondary/70">{ch.gdacsSource}</div>
+          </div>
+        )}
       </Section>
     </div>
   );
