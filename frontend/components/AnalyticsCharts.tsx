@@ -10,6 +10,7 @@ import {
   GasSeries,
   SeaIceData,
   SeaLevelData,
+  SeaLevelPsmslData,
   OceanHeatData,
   OceanPhData,
   AsteroidsData,
@@ -88,6 +89,7 @@ type ChartId =
   | "seaIce"
   | "seaIceSouth"
   | "seaLevel"
+  | "seaLevelPsmsl"
   | "oceanHeat"
   | "oceanPh";
 
@@ -103,6 +105,7 @@ export default function AnalyticsCharts() {
   const [seaIce, setSeaIce] = useState<SeaIceData | null>(null);
   const [seaIceSouth, setSeaIceSouth] = useState<SeaIceData | null>(null);
   const [seaLevel, setSeaLevel] = useState<SeaLevelData | null>(null);
+  const [seaLevelPsmsl, setSeaLevelPsmsl] = useState<SeaLevelPsmslData | null>(null);
   const [oceanHeat, setOceanHeat] = useState<OceanHeatData | null>(null);
   const [oceanPh, setOceanPh] = useState<OceanPhData | null>(null);
   const [ch4, setCh4] = useState<GasSeries | null>(null);
@@ -124,7 +127,7 @@ export default function AnalyticsCharts() {
   const ew = t.earthWeather;
 
   const load = useCallback(async () => {
-    const [g, c, ch4r, n2or, s, ss, sl, oh, ph, gdr, astr, kpr, flr, wnd, sc, eq, sch] = await Promise.allSettled([
+    const [g, c, ch4r, n2or, s, ss, sl, slp, oh, ph, gdr, astr, kpr, flr, wnd, sc, eq, sch] = await Promise.allSettled([
       api.gistemp(),
       api.co2(),
       api.ch4(),
@@ -132,6 +135,7 @@ export default function AnalyticsCharts() {
       api.seaIce(),
       api.seaIceSouth(),
       api.seaLevel(),
+      api.seaLevelPsmsl(),
       api.oceanHeat(),
       api.oceanPh(),
       api.gdacs(),
@@ -150,6 +154,7 @@ export default function AnalyticsCharts() {
     setSeaIce(settle(s));
     setSeaIceSouth(settle(ss));
     setSeaLevel(settle(sl));
+    setSeaLevelPsmsl(settle(slp));
     setOceanHeat(settle(oh));
     setOceanPh(settle(ph));
     setGdacs(settle(gdr));
@@ -231,6 +236,7 @@ export default function AnalyticsCharts() {
     { id: "seaIce" as ChartId, label: ch.seaIce },
     { id: "seaIceSouth" as ChartId, label: ch.seaIceSouth },
     { id: "seaLevel" as ChartId, label: ch.seaLevel },
+    { id: "seaLevelPsmsl" as ChartId, label: ch.seaLevelPsmsl },
     { id: "oceanHeat" as ChartId, label: ch.oceanHeat },
     { id: "oceanPh" as ChartId, label: ch.oceanPh },
   ];
@@ -410,6 +416,33 @@ export default function AnalyticsCharts() {
         />
       );
     }
+    if (activeChart === "seaLevelPsmsl" && seaLevelPsmsl?.series?.length) {
+      return (
+        <Plot
+          data={[{
+            x: seaLevelPsmsl.series.map((d) => d.date),
+            y: seaLevelPsmsl.series.map((d) => d.value),
+            type: "scatter",
+            mode: "lines+markers",
+            line: { color: "#5B8FF9", width: 2 },
+            marker: { size: 4, color: "#5B8FF9" },
+            fill: "tozeroy",
+            fillcolor: "rgba(91, 143, 249, 0.12)",
+            name: ch.seaLevelPsmslShort,
+          }]}
+          layout={{
+            ...plotStyle,
+            xaxis: { ...plotStyle.xaxis, type: "date" },
+            yaxis: { ...plotStyle.yaxis, title: ch.seaLevelPsmslAxis },
+            hovermode: "x unified",
+            annotations: [{ xref: "paper", yref: "paper", x: 0, y: 1.08, showarrow: false, text: ch.seaLevelPsmslSource, font: { size: 11, color: "#8B9AB5" } }],
+          }}
+          style={{ width: "100%", height: "420px" }}
+          useResizeHandler
+          config={plotConfig}
+        />
+      );
+    }
     if (activeChart === "oceanHeat" && oceanHeat?.series?.length) {
       return (
         <Plot
@@ -553,6 +586,18 @@ export default function AnalyticsCharts() {
         />
       );
     }
+    if (id === "seaLevelPsmsl" && seaLevelPsmsl?.series?.length) {
+      const series = seaLevelPsmsl.series.slice(-40);
+      return (
+        <Plot
+          data={[{ x: series.map((d) => d.date), y: series.map((d) => d.value), type: "scatter", mode: "lines+markers", line: { color: "#5B8FF9", width: 2 }, marker: { size: 3, color: "#5B8FF9" } }]}
+          layout={{ ...plotStyle, xaxis: { ...plotStyle.xaxis, type: "date" }, margin: { t: 10, r: 10, b: 30, l: 45 }, showlegend: false }}
+          style={{ width: "100%", height: "200px" }}
+          useResizeHandler
+          config={plotConfig}
+        />
+      );
+    }
     if (id === "oceanHeat" && oceanHeat?.series?.length) {
       const series = oceanHeat.series.slice(-30);
       return (
@@ -588,6 +633,7 @@ export default function AnalyticsCharts() {
     { key: "seaIce" as ChartId, name: ch.seaIceShort },
     { key: "seaIceSouth" as ChartId, name: ch.seaIceSouthShort },
     { key: "seaLevel" as ChartId, name: ch.seaLevelShort },
+    { key: "seaLevelPsmsl" as ChartId, name: ch.seaLevelPsmslShort },
     { key: "oceanHeat" as ChartId, name: ch.oceanHeatShort },
     { key: "oceanPh" as ChartId, name: ch.oceanPhShort },
   ];
@@ -947,6 +993,7 @@ export default function AnalyticsCharts() {
             { name: ch.seaIceShort, a: seaIce?.analysis },
             { name: ch.seaIceSouthShort, a: seaIceSouth?.analysis },
             { name: ch.seaLevelShort, a: seaLevel?.analysis },
+            { name: ch.seaLevelPsmslShort, a: seaLevelPsmsl?.analysis },
             { name: ch.oceanHeatShort, a: oceanHeat?.analysis },
             { name: ch.oceanPhShort, a: oceanPh?.analysis },
           ];

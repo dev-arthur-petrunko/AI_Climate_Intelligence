@@ -38,6 +38,7 @@ from data_sources import (
     get_aurora,
     get_schumann,
     get_coral_reef,
+    get_sea_level_psmsl,
     get_sources_status,
 )
 from ai_groq import get_ai_analysis, get_ai_predictions, get_ai_summary_text
@@ -216,6 +217,14 @@ async def sea_ice_south():
 async def sea_level():
     """Глобальний рівень моря за даними супутникової альтиметрії (University of Colorado)"""
     data = get_sea_level()
+    data["analysis"] = analyze(data.get("series", []), time_key="date")
+    return data
+
+
+@app.get("/api/sea-level-psmsl")
+async def sea_level_psmsl():
+    """Рівень моря — мареографи (PSMSL, 12 еталонних станцій, незалежна перевірка альтиметрії)"""
+    data = get_sea_level_psmsl()
     data["analysis"] = analyze(data.get("series", []), time_key="date")
     return data
 

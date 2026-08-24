@@ -567,6 +567,128 @@ def get_sea_level() -> dict:
 
 
 # ---------------------------------------------------------------------------
+# PSMSL (Permanent Service for Mean Sea Level) — tide gauge cross-check
+# ---------------------------------------------------------------------------
+
+_PSMSL_STATIONS = [
+    (1, "Brest", "FRA"),
+    (10, "San Francisco", "USA"),
+    (12, "New York (The Battery)", "USA"),
+    (15, "Liverpool", "GBR"),
+    (20, "Vlissingen", "NLD"),
+    (32, "IJmuiden", "NLD"),
+    (52, "Cascais", "PRT"),
+    (61, "Marseille", "FRA"),
+    (62, "Oslo", "NOR"),
+    (78, "Stockholm", "SWE"),
+    (82, "Kobenhavn", "DNK"),
+    (95, "North Shields", "GBR"),
+]
+
+
+def fetch_sea_level_psmsl() -> dict:
+    """Fetch PSMSL RLR monthly data from key tide gauge stations,
+    compute annual means per station, then aggregate into a global mean series.
+    Values are in mm relative to each station's RLR datum."""
+    from collections import defaultdict
+
+    annual_by_year: dict[int, list[float]] = defaultdict(list)
+    station_meta: list[dict] = []
+
+    for stid, name, country in _PSMSL_STATIONS:
+        url = f"https://psmsl.org/data/obtaining/rlr.monthly.data/{stid}.rlrdata"
+        try:
+            r = httpx.get(url, timeout=_TIMEOUT, headers=_HEADERS, follow_redirects=True)
+            r.raise_for_status()
+        except Exception:
+            continue
+
+        yearly_vals: dict[int, list[float]] = defaultdict(list)
+        for raw_line in r.text.splitlines():
+            line = raw_line.strip()
+            if not line:
+                continue
+            parts = line.split(";")
+            if len(parts) < 2:
+                continue
+            try:
+                year_frac = float(parts[0])
+                value = float(parts[1])
+            except ValueError:
+                continue
+            if value <= -99900:
+                continue
+            year = int(year_frac)
+            if year < 1900:
+                continue
+            yearly_vals[year].append(value)
+
+        if not yearly_vals:
+            continue
+
+        # Compute annual means for this station
+        station_annual: dict[int, float] = {}
+        for yr, vals in sorted(yearly_vals.items()):
+            if len(vals) >= 6:
+                station_annual[yr] = round(sum(vals) / len(vals), 1)
+
+        station_meta.append({
+            "id": stid,
+            "name": name,
+            "country": country,
+            "years": [min(station_annual.keys()), max(station_annual.keys())],
+        })
+
+        for yr, mean_val in station_annual.items():
+            annual_by_year[yr].append(mean_val)
+
+    if not annual_by_year:
+        raise RuntimeError("No PSMSL station data parsed")
+
+    # Build global mean series (only years with >= 3 stations)
+    series = []
+    for year in sorted(annual_by_year.keys()):
+        vals = annual_by_year[year]
+        if len(vals) >= 3:
+            global_mean = round(sum(vals) / len(vals), 1)
+            series.append({
+                "date": f"{year}-07-01",
+                "value": global_mean,
+                "stations": len(vals),
+            })
+
+    if not series:
+        raise RuntimeError("No PSMSL years with >= 3 stations")
+
+    latest = series[-1]
+
+    # Trend over last 20 years
+    reference_year = latest["date"][:4]
+    ref_year_num = int(reference_year) - 20
+    ref_point = next(
+        (p for p in reversed(series) if int(p["date"][:4]) <= ref_year_num), None
+    )
+    trend = None
+    if ref_point:
+        years = max(1, int(latest["date"][:4]) - int(ref_point["date"][:4]))
+        trend = round((latest["value"] - ref_point["value"]) / years, 2)
+
+    return {
+        "source": "PSMSL (Permanent Service for Mean Sea Level)",
+        "unit": "mm",
+        "reference": "RLR monthly means, aggregated from 12 reference tide gauge stations",
+        "stations": station_meta,
+        "series": series,
+        "latest": latest,
+        "trend": trend,
+    }
+
+
+def get_sea_level_psmsl() -> dict:
+    return _cached("sea_level_psmsl", 6 * 3600, fetch_sea_level_psmsl)
+
+
+# ---------------------------------------------------------------------------
 # OWID: тепло океану, верхні 2000 м (NOAA GML)
 # ---------------------------------------------------------------------------
 
@@ -1877,6 +1999,14 @@ _SOURCE_CHECKS = [
         "description": "Global nitrous oxide concentration",
         "category": "Atmosphere",
         "url": "https://gml.noaa.gov/webdata/ccgg/trends/n2o/n2o_mm_gl.csv",
+        "needs_key": False,
+    },
+    {
+        "key": "psmsl",
+        "name": "PSMSL",
+        "description": "Tide gauge sea level (12 reference stations, independent altimetry cross-check)",
+        "category": "Oceans",
+        "url": "https://psmsl.org/data/obtaining/rlr.monthly.data/1.rlrdata",
         "needs_key": False,
     },
 ]

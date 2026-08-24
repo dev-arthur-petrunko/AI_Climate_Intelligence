@@ -144,6 +144,17 @@ export interface SeaLevelData {
   analysis?: TrendAnalysis;
 }
 
+export interface SeaLevelPsmslData {
+  source: string;
+  unit: string;
+  reference: string;
+  stations: { id: number; name: string; country: string; years: [number, number] }[];
+  series: { date: string; value: number; stations: number }[];
+  latest: { date: string; value: number; stations: number } | null;
+  trend: number | null;
+  analysis?: TrendAnalysis;
+}
+
 export interface OceanHeatData {
   source: string;
   unit: string;
@@ -405,6 +416,7 @@ export const api = {
   seaIce: () => getJSON<SeaIceData>("/api/sea-ice"),
   seaIceSouth: () => getJSON<SeaIceData>("/api/sea-ice-south"),
   seaLevel: () => getJSON<SeaLevelData>("/api/sea-level"),
+  seaLevelPsmsl: () => getJSON<SeaLevelPsmslData>("/api/sea-level-psmsl"),
   oceanHeat: () => getJSON<OceanHeatData>("/api/ocean-heat"),
   oceanPh: () => getJSON<OceanPhData>("/api/ocean-ph"),
   aiSummary: (lang?: string) =>
