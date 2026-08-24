@@ -123,6 +123,50 @@ export interface GDACSData {
   error?: boolean;
 }
 
+export interface OpenAQStationData {
+  name: string;
+  country: string;
+  lat: number;
+  lon: number;
+  location_id?: number;
+  distance_km?: number;
+  measurements: Record<string, number>;
+}
+
+export interface OpenAQData {
+  source: string;
+  unit: string;
+  description: string;
+  aqi_category: string;
+  global_averages: Record<string, number>;
+  station_count: number;
+  stations: OpenAQStationData[];
+}
+
+export interface DroughtCountryData {
+  name: string;
+  code: string;
+  max_level?: number;
+  avg_spi?: number;
+  min_spi?: number;
+  max_spi?: number;
+  avg_tws_cm?: number;
+  status: string;
+  area_percentages?: Record<string, number>;
+  sampled_points: number;
+}
+
+export interface DroughtData {
+  source: string;
+  indicator: string;
+  version?: string;
+  description?: string;
+  unit?: string;
+  cdi_levels?: Record<string, string>;
+  countries: DroughtCountryData[];
+  error?: string;
+}
+
 export interface SeaIceData {
   source: string;
   hemisphere: string;
@@ -444,4 +488,8 @@ export const api = {
   ch4: () => getJSON<GasSeries>("/api/ch4"),
   n2o: () => getJSON<GasSeries>("/api/n2o"),
   gdacs: (eventType?: string) => getJSON<GDACSData>("/api/gdacs", eventType ? { event_type: eventType } : {}),
+  openaq: () => getJSON<OpenAQData>("/api/air-quality-openaq"),
+  droughtCdi: () => getJSON<DroughtData>("/api/drought/cdi"),
+  droughtSpi: () => getJSON<DroughtData>("/api/drought/spi"),
+  droughtGrace: () => getJSON<DroughtData>("/api/drought/grace"),
 };

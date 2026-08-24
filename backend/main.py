@@ -39,6 +39,10 @@ from data_sources import (
     get_schumann,
     get_coral_reef,
     get_sea_level_psmsl,
+    get_air_quality_openaq,
+    get_drought_cdi,
+    get_drought_spi,
+    get_drought_grace,
     get_sources_status,
 )
 from ai_groq import get_ai_analysis, get_ai_predictions, get_ai_summary_text
@@ -227,6 +231,30 @@ async def sea_level_psmsl():
     data = get_sea_level_psmsl()
     data["analysis"] = analyze(data.get("series", []), time_key="date")
     return data
+
+
+@app.get("/api/air-quality-openaq")
+async def air_quality_openaq():
+    """Якість повітря — глобальні вимірювання (OpenAQ v3, регулятивні станції)"""
+    return _safe(lambda: get_air_quality_openaq(), {"source": "OpenAQ", "error": True})
+
+
+@app.get("/api/drought/cdi")
+async def drought_cdi():
+    """Засуха — Combined Drought Indicator (Copernicus EDO WCS, GeoTIFF)"""
+    return _safe(lambda: get_drought_cdi(), {"source": "Copernicus EDO", "indicator": "CDI", "error": True})
+
+
+@app.get("/api/drought/spi")
+async def drought_spi():
+    """Засуха — Standardized Precipitation Index, ERA5 (Copernicus EDO WCS)"""
+    return _safe(lambda: get_drought_spi(), {"source": "Copernicus EDO", "indicator": "SPI ERA5", "error": True})
+
+
+@app.get("/api/drought/grace")
+async def drought_grace():
+    """Засуха — GRACE Terrestrial Water Storage Anomaly (Copernicus EDO WCS)"""
+    return _safe(lambda: get_drought_grace(), {"source": "Copernicus EDO", "indicator": "GRACE TWS", "error": True})
 
 
 @app.get("/api/ocean-heat")

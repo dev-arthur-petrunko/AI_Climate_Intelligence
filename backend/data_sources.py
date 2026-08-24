@@ -1843,6 +1843,544 @@ def get_schumann() -> dict:
 
 
 # ---------------------------------------------------------------------------
+# OpenAQ v3: глобальна якість повітря (PM2.5, PM10, NO₂, O₃, SO₂)
+# ---------------------------------------------------------------------------
+
+OPENAQ_KEY = os.getenv("OPENAQ_API_KEY", "").strip()
+
+# Representative coordinates for global air quality stations
+_OPENAQ_STATIONS: list[dict] = [
+    {"name": "Beijing", "lat": 39.90, "lon": 116.40, "country": "CN"},
+    {"name": "Delhi", "lat": 28.61, "lon": 77.21, "country": "IN"},
+    {"name": "London", "lat": 51.51, "lon": -0.13, "country": "GB"},
+    {"name": "Paris", "lat": 48.86, "lon": 2.35, "country": "FR"},
+    {"name": "Berlin", "lat": 52.52, "lon": 13.41, "country": "DE"},
+    {"name": "Kyiv", "lat": 50.45, "lon": 30.52, "country": "UA"},
+    {"name": "New York", "lat": 40.71, "lon": -74.01, "country": "US"},
+    {"name": "Los Angeles", "lat": 34.05, "lon": -118.24, "country": "US"},
+    {"name": "Tokyo", "lat": 35.68, "lon": 139.69, "country": "JP"},
+    {"name": "São Paulo", "lat": -23.55, "lon": -46.63, "country": "BR"},
+    {"name": "Lagos", "lat": 6.52, "lon": 3.38, "country": "NG"},
+    {"name": "Cairo", "lat": 30.04, "lon": 31.24, "country": "EG"},
+    {"name": "Sydney", "lat": -33.87, "lon": 151.21, "country": "AU"},
+    {"name": "Moscow", "lat": 55.76, "lon": 37.62, "country": "RU"},
+    {"name": "Seoul", "lat": 37.57, "lon": 126.98, "country": "KR"},
+    {"name": "Mexico City", "lat": 19.43, "lon": -99.13, "country": "MX"},
+    {"name": "Jakarta", "lat": -6.21, "lon": 106.85, "country": "ID"},
+    {"name": "Istanbul", "lat": 41.01, "lon": 28.98, "country": "TR"},
+    {"name": "Mumbai", "lat": 19.08, "lon": 72.88, "country": "IN"},
+    {"name": "Warsaw", "lat": 52.23, "lon": 21.01, "country": "PL"},
+]
+
+# OpenAQ v3: nearest location search radius (km)
+_OPENAQ_RADIUS_KM = 50_000
+
+
+def fetch_air_quality_openaq() -> dict:
+    """OpenAQ v3 — global air quality measurements from reference stations.
+
+    Uses the /v3/locations endpoint with nearest-radius search to find
+    the closest station to each representative city, then fetches the
+    latest measurements for each. Returns aggregated global picture.
+    """
+    if not OPENAQ_KEY:
+        return _air_quality_openaq_fallback()
+
+    headers = {**_HEADERS, "X-API-Key": OPENAQ_KEY}
+    timeout = httpx.Timeout(15.0)
+
+    stations_data: list[dict] = []
+    for st in _OPENAQ_STATIONS:
+        try:
+            r = httpx.get(
+                "https://api.openaq.org/v3/locations",
+                params={
+                    "coordinates": f"{st['lat']},{st['lon']}",
+                    "radius": _OPENAQ_RADIUS_KM,
+                    "limit": 1,
+                    "order_by": "distance",
+                },
+                headers=headers,
+                timeout=timeout,
+            )
+            if r.status_code != 200:
+                continue
+            locs = r.json().get("results", [])
+            if not locs:
+                continue
+            loc = locs[0]
+            loc_id = loc.get("id")
+            # Get latest measurements for this location
+            mr = httpx.get(
+                f"https://api.openaq.org/v3/locations/{loc_id}/latest",
+                headers=headers,
+                timeout=timeout,
+            )
+            measurements = {}
+            if mr.status_code == 200:
+                for m in mr.json().get("results", []):
+                    param = m.get("parameter", {}).get("name", "")
+                    val = m.get("value")
+                    if param and val is not None:
+                        measurements[param.lower()] = round(float(val), 2)
+
+            stations_data.append({
+                "name": st["name"],
+                "country": st["country"],
+                "lat": st["lat"],
+                "lon": st["lon"],
+                "location_id": loc_id,
+                "distance_km": loc.get("distance", {}).get("value"),
+                "measurements": measurements,
+            })
+        except Exception:
+            continue
+
+    if not stations_data:
+        return _air_quality_openaq_fallback()
+
+    # Aggregate global averages
+    param_totals: dict[str, list[float]] = {}
+    for s in stations_data:
+        for p, v in s["measurements"].items():
+            param_totals.setdefault(p, []).append(v)
+    global_avg = {
+        k: round(sum(v) / len(v), 2)
+        for k, v in param_totals.items()
+        if v
+    }
+
+    # AQI-like categorization based on PM2.5 (US EPA breakpoints)
+    pm25 = global_avg.get("pm25", 0)
+    if pm25 <= 12:
+        aqi_category = "Good"
+    elif pm25 <= 35.4:
+        aqi_category = "Moderate"
+    elif pm25 <= 55.4:
+        aqi_category = "Unhealthy for Sensitive Groups"
+    elif pm25 <= 150.4:
+        aqi_category = "Unhealthy"
+    elif pm25 <= 250.4:
+        aqi_category = "Very Unhealthy"
+    else:
+        aqi_category = "Hazardous"
+
+    return {
+        "source": "OpenAQ v3",
+        "unit": "µg/m³",
+        "description": "Global air quality measurements from regulatory reference stations",
+        "aqi_category": aqi_category,
+        "global_averages": global_avg,
+        "station_count": len(stations_data),
+        "stations": stations_data,
+    }
+
+
+def _air_quality_openaq_fallback() -> dict:
+    """Fallback: aggregated Open-Meteo air quality data for default location."""
+    try:
+        data = fetch_air_quality(DEFAULT_LAT, DEFAULT_LON)
+        return {
+            "source": "Open-Meteo (fallback — OpenAQ key missing)",
+            "unit": "µg/m³",
+            "description": "Air quality for default location",
+            "aqi_category": "N/A",
+            "global_averages": data.get("current", {}),
+            "station_count": 0,
+            "stations": [],
+        }
+    except Exception:
+        return {
+            "source": "Open-Meteo (fallback)",
+            "error": True,
+            "aqi_category": "N/A",
+            "global_averages": {},
+            "station_count": 0,
+            "stations": [],
+        }
+
+
+def get_air_quality_openaq() -> dict:
+    return _cached("air_quality_openaq", 3600, fetch_air_quality_openaq)
+
+
+# ---------------------------------------------------------------------------
+# Copernicus EDO — засуха (CDI, SPI, GRACE TWS)
+# ---------------------------------------------------------------------------
+
+# Representative coordinates for country-level drought sampling
+# Using capital city + a secondary point for larger countries
+_DROUGHT_COUNTRIES: list[dict] = [
+    {"name": "Ukraine", "code": "UA", "points": [(50.45, 30.52), (48.38, 35.02)]},
+    {"name": "Germany", "code": "DE", "points": [(52.52, 13.41), (48.14, 11.58)]},
+    {"name": "France", "code": "FR", "points": [(48.86, 2.35), (45.76, 4.84)]},
+    {"name": "Poland", "code": "PL", "points": [(52.23, 21.01), (50.06, 19.94)]},
+    {"name": "Spain", "code": "ES", "points": [(40.42, -3.70), (37.39, -5.99)]},
+    {"name": "Italy", "code": "IT", "points": [(41.90, 12.50), (40.85, 14.27)]},
+    {"name": "UK", "code": "GB", "points": [(51.51, -0.13), (53.48, -2.24)]},
+    {"name": "Romania", "code": "RO", "points": [(44.43, 26.10), (46.77, 23.59)]},
+    {"name": "Greece", "code": "GR", "points": [(37.98, 23.73), (39.64, 22.41)]},
+    {"name": "Turkey", "code": "TR", "points": [(39.93, 32.85), (37.00, 35.32)]},
+    {"name": "USA", "code": "US", "points": [(38.90, -77.04), (41.88, -87.63), (34.05, -118.24)]},
+    {"name": "India", "code": "IN", "points": [(28.61, 77.21), (19.08, 72.88)]},
+    {"name": "China", "code": "CN", "points": [(39.90, 116.40), (31.23, 121.47)]},
+    {"name": "Brazil", "code": "BR", "points": [(-15.78, -47.93), (-23.55, -46.63)]},
+    {"name": "Australia", "code": "AU", "points": [(-33.87, 151.21), (-37.81, 144.96)]},
+    {"name": "Japan", "code": "JP", "points": [(35.68, 139.69), (34.69, 135.50)]},
+    {"name": "Egypt", "code": "EG", "points": [(30.04, 31.24), (29.98, 31.14)]},
+    {"name": "South Africa", "code": "ZA", "points": [(-33.93, 18.42), (-29.86, 31.02)]},
+    {"name": "Kenya", "code": "KE", "points": [(-1.29, 36.82), (-0.09, 34.77)]},
+    {"name": "Argentina", "code": "AR", "points": [(-34.60, -58.38), (-31.42, -64.18)]},
+]
+
+# CDI classification levels
+CDI_LEVELS = {
+    0: "No drought",
+    1: "Watch",
+    2: "Warning",
+    3: "Alert",
+    4: "Recovery",
+    5: "Temporary Soil Moisture Recovery",
+    6: "Temporary Vegetation Recovery",
+}
+
+CDI_STATUS_BY_LEVEL = {
+    0: "Normal",
+    1: "Watch",
+    2: "Warning",
+    3: "Alert",
+    4: "Recovery",
+    5: "Recovery",
+    6: "Recovery",
+}
+
+EDO_WCS_URL = "https://drought.emergency.copernicus.eu/api/wcs"
+
+
+def fetch_drought_cdi() -> dict:
+    """Copernicus European Drought Observatory — Combined Drought Indicator.
+
+    Downloads the CDI GeoTIFF via WCS, samples values at representative
+    country coordinates, and computes drought status per country.
+    No API key required (public WCS endpoint).
+    """
+    try:
+        import io
+        import rasterio
+        import numpy as np
+    except ImportError:
+        logger.warning("rasterio/numpy not installed — drought CDI unavailable")
+        return {
+            "source": "Copernicus EDO",
+            "indicator": "CDI",
+            "error": "rasterio not installed",
+            "countries": [],
+        }
+
+    params = {
+        "map": "DO_WCS",
+        "SERVICE": "WCS",
+        "VERSION": "2.0.0",
+        "REQUEST": "GetCoverage",
+        "coverageID": "cdiad",
+        "CRS": "EPSG:4326",
+        "format": "GEOTIFF",
+    }
+
+    try:
+        r = httpx.get(EDO_WCS_URL, params=params, timeout=120, headers=_HEADERS)
+        r.raise_for_status()
+    except Exception as exc:
+        logger.warning("Copernicus EDO WCS request failed: %s", exc)
+        return {
+            "source": "Copernicus EDO",
+            "indicator": "CDI",
+            "error": str(exc),
+            "countries": [],
+        }
+
+    try:
+        with rasterio.open(io.BytesIO(r.content)) as src:
+            band = src.read(1)
+            transform = src.transform
+            nodata = src.nodata
+
+            countries = []
+            for country in _DROUGHT_COUNTRIES:
+                cdi_values = []
+                for lat, lon in country["points"]:
+                    # Convert lat/lon to pixel coordinates
+                    row, col = rasterio.transform.rowcol(transform, lon, lat)
+                    if 0 <= row < band.shape[0] and 0 <= col < band.shape[1]:
+                        val = band[row, col]
+                        if nodata is not None and val == nodata:
+                            continue
+                        if np.isfinite(val):
+                            cdi_values.append(int(val))
+
+                if not cdi_values:
+                    continue
+
+                max_level = max(cdi_values)
+                status = CDI_STATUS_BY_LEVEL.get(max_level, "Unknown")
+                # Count pixels per level for area percentages
+                level_counts = {}
+                for v in cdi_values:
+                    level_counts[v] = level_counts.get(v, 0) + 1
+                total = len(cdi_values)
+                area_pcts = {
+                    CDI_LEVELS.get(k, f"Level {k}"): round(v / total * 100, 1)
+                    for k, v in sorted(level_counts.items())
+                }
+
+                countries.append({
+                    "name": country["name"],
+                    "code": country["code"],
+                    "max_level": max_level,
+                    "status": status,
+                    "area_percentages": area_pcts,
+                    "sampled_points": total,
+                })
+
+            return {
+                "source": "Copernicus EDO",
+                "indicator": "CDI",
+                "version": "4.1",
+                "description": "Combined Drought Indicator (soil moisture + vegetation + precipitation)",
+                "cdi_levels": CDI_LEVELS,
+                "countries": countries,
+            }
+    except Exception as exc:
+        logger.warning("Copernicus CDI raster processing failed: %s", exc)
+        return {
+            "source": "Copernicus EDO",
+            "indicator": "CDI",
+            "error": str(exc),
+            "countries": [],
+        }
+
+
+def get_drought_cdi() -> dict:
+    return _cached("drought_cdi", 12 * 3600, fetch_drought_cdi)
+
+
+def fetch_drought_spi() -> dict:
+    """Copernicus EDO — Standardized Precipitation Index (ERA5).
+
+    Uses the WCS endpoint to fetch SPI data from ERA5 reanalysis.
+    """
+    try:
+        import io
+        import rasterio
+        import numpy as np
+    except ImportError:
+        return {
+            "source": "Copernicus EDO",
+            "indicator": "SPI ERA5",
+            "error": "rasterio not installed",
+            "countries": [],
+        }
+
+    params = {
+        "map": "DO_WCS",
+        "SERVICE": "WCS",
+        "VERSION": "2.0.0",
+        "REQUEST": "GetCoverage",
+        "coverageID": "spi_era5",
+        "CRS": "EPSG:4326",
+        "format": "GEOTIFF",
+    }
+
+    try:
+        r = httpx.get(EDO_WCS_URL, params=params, timeout=120, headers=_HEADERS)
+        r.raise_for_status()
+    except Exception as exc:
+        logger.warning("Copernicus SPI WCS request failed: %s", exc)
+        return {
+            "source": "Copernicus EDO",
+            "indicator": "SPI ERA5",
+            "error": str(exc),
+            "countries": [],
+        }
+
+    try:
+        with rasterio.open(io.BytesIO(r.content)) as src:
+            band = src.read(1)
+            transform = src.transform
+            nodata = src.nodata
+
+            countries = []
+            for country in _DROUGHT_COUNTRIES:
+                spi_values = []
+                for lat, lon in country["points"]:
+                    row, col = rasterio.transform.rowcol(transform, lon, lat)
+                    if 0 <= row < band.shape[0] and 0 <= col < band.shape[1]:
+                        val = band[row, col]
+                        if nodata is not None and val == nodata:
+                            continue
+                        if np.isfinite(val):
+                            spi_values.append(round(float(val), 2))
+
+                if not spi_values:
+                    continue
+
+                avg_spi = round(sum(spi_values) / len(spi_values), 2)
+                min_spi = min(spi_values)
+                max_spi = max(spi_values)
+
+                # SPI classification
+                if avg_spi <= -2:
+                    status = "Extreme drought"
+                elif avg_spi <= -1.5:
+                    status = "Severe drought"
+                elif avg_spi <= -1:
+                    status = "Moderate drought"
+                elif avg_spi <= 0:
+                    status = "Mild drought"
+                elif avg_spi <= 1:
+                    status = "Normal"
+                elif avg_spi <= 1.5:
+                    status = "Moderately wet"
+                else:
+                    status = "Extremely wet"
+
+                countries.append({
+                    "name": country["name"],
+                    "code": country["code"],
+                    "avg_spi": avg_spi,
+                    "min_spi": min_spi,
+                    "max_spi": max_spi,
+                    "status": status,
+                    "sampled_points": len(spi_values),
+                })
+
+            return {
+                "source": "Copernicus EDO",
+                "indicator": "SPI ERA5",
+                "description": "Standardized Precipitation Index (ERA5 reanalysis, 1979–present)",
+                "unit": "standard deviations",
+                "countries": countries,
+            }
+    except Exception as exc:
+        logger.warning("Copernicus SPI raster processing failed: %s", exc)
+        return {
+            "source": "Copernicus EDO",
+            "indicator": "SPI ERA5",
+            "error": str(exc),
+            "countries": [],
+        }
+
+
+def get_drought_spi() -> dict:
+    return _cached("drought_spi", 12 * 3600, fetch_drought_spi)
+
+
+def fetch_drought_grace() -> dict:
+    """Copernicus EDO — GRACE Terrestrial Water Storage Anomaly.
+
+    Uses the WCS endpoint to fetch GRACE TWS anomaly data.
+    """
+    try:
+        import io
+        import rasterio
+        import numpy as np
+    except ImportError:
+        return {
+            "source": "Copernicus EDO",
+            "indicator": "GRACE TWS",
+            "error": "rasterio not installed",
+            "countries": [],
+        }
+
+    params = {
+        "map": "DO_WCS",
+        "SERVICE": "WCS",
+        "VERSION": "2.0.0",
+        "REQUEST": "GetCoverage",
+        "coverageID": "grace_tws",
+        "CRS": "EPSG:4326",
+        "format": "GEOTIFF",
+    }
+
+    try:
+        r = httpx.get(EDO_WCS_URL, params=params, timeout=120, headers=_HEADERS)
+        r.raise_for_status()
+    except Exception as exc:
+        logger.warning("Copernicus GRACE WCS request failed: %s", exc)
+        return {
+            "source": "Copernicus EDO",
+            "indicator": "GRACE TWS",
+            "error": str(exc),
+            "countries": [],
+        }
+
+    try:
+        with rasterio.open(io.BytesIO(r.content)) as src:
+            band = src.read(1)
+            transform = src.transform
+            nodata = src.nodata
+
+            countries = []
+            for country in _DROUGHT_COUNTRIES:
+                tws_values = []
+                for lat, lon in country["points"]:
+                    row, col = rasterio.transform.rowcol(transform, lon, lat)
+                    if 0 <= row < band.shape[0] and 0 <= col < band.shape[1]:
+                        val = band[row, col]
+                        if nodata is not None and val == nodata:
+                            continue
+                        if np.isfinite(val):
+                            tws_values.append(round(float(val), 1))
+
+                if not tws_values:
+                    continue
+
+                avg_tws = round(sum(tws_values) / len(tws_values), 1)
+
+                # TWS anomaly status
+                if avg_tws <= -150:
+                    status = "Extreme deficit"
+                elif avg_tws <= -100:
+                    status = "Severe deficit"
+                elif avg_tws <= -50:
+                    status = "Moderate deficit"
+                elif avg_tws <= 50:
+                    status = "Normal"
+                elif avg_tws <= 100:
+                    status = "Moderate surplus"
+                else:
+                    status = "Significant surplus"
+
+                countries.append({
+                    "name": country["name"],
+                    "code": country["code"],
+                    "avg_tws_cm": avg_tws,
+                    "status": status,
+                    "sampled_points": len(tws_values),
+                })
+
+            return {
+                "source": "Copernicus EDO",
+                "indicator": "GRACE TWS",
+                "description": "GRACE/GRACE-FO Terrestrial Water Storage Anomaly",
+                "unit": "cm equivalent water thickness",
+                "countries": countries,
+            }
+    except Exception as exc:
+        logger.warning("Copernicus GRACE raster processing failed: %s", exc)
+        return {
+            "source": "Copernicus EDO",
+            "indicator": "GRACE TWS",
+            "error": str(exc),
+            "countries": [],
+        }
+
+
+def get_drought_grace() -> dict:
+    return _cached("drought_grace", 12 * 3600, fetch_drought_grace)
+
+
+# ---------------------------------------------------------------------------
 # Статус доступності джерел даних (для сторінки «Джерела»)
 # ---------------------------------------------------------------------------
 
@@ -2007,6 +2545,39 @@ _SOURCE_CHECKS = [
         "description": "Tide gauge sea level (12 reference stations, independent altimetry cross-check)",
         "category": "Oceans",
         "url": "https://psmsl.org/data/obtaining/rlr.monthly.data/1.rlrdata",
+        "needs_key": False,
+    },
+    {
+        "key": "openaq",
+        "name": "OpenAQ v3",
+        "description": "Global air quality measurements from regulatory reference stations",
+        "category": "Air Quality",
+        "url": "https://api.openaq.org/v3/locations?coordinates=50.45,30.52&radius=50000&limit=1",
+        "needs_key": True,
+        "key_env": "OPENAQ_API_KEY",
+    },
+    {
+        "key": "copernicus_edo_cdi",
+        "name": "Copernicus EDO (CDI)",
+        "description": "Combined Drought Indicator (soil moisture + vegetation + precipitation)",
+        "category": "Drought",
+        "url": "https://drought.emergency.copernicus.eu/api/wcs",
+        "needs_key": False,
+    },
+    {
+        "key": "copernicus_edo_spi",
+        "name": "Copernicus EDO (SPI ERA5)",
+        "description": "Standardized Precipitation Index (ERA5 reanalysis)",
+        "category": "Drought",
+        "url": "https://drought.emergency.copernicus.eu/api/wcs",
+        "needs_key": False,
+    },
+    {
+        "key": "copernicus_edo_grace",
+        "name": "Copernicus EDO (GRACE TWS)",
+        "description": "GRACE/GRACE-FO Terrestrial Water Storage Anomaly",
+        "category": "Drought",
+        "url": "https://drought.emergency.copernicus.eu/api/wcs",
         "needs_key": False,
     },
 ]

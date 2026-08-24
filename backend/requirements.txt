@@ -10,3 +10,5 @@ alembic
 numpy
 scipy
 apscheduler
+rasterio
+shapely

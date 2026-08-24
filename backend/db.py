@@ -57,6 +57,22 @@ class ClimateSnapshot(Base):
     meta = Column(JSON, nullable=True)
 
 
+class DroughtData(Base):
+    __tablename__ = "drought_data"
+
+    id = Column(Integer, primary_key=True)
+    captured_at = Column(DateTime, index=True, default=datetime.utcnow)
+    source = Column(String(32), index=True)       # e.g. "Copernicus EDO"
+    indicator = Column(String(16), index=True)     # CDI, SPI ERA5, GRACE TWS
+    data_date = Column(String(16), index=True)     # e.g. "2026-08-20"
+    country_code = Column(String(8), index=True)   # e.g. "UA"
+    country_name = Column(String(64))
+    status = Column(String(32))
+    max_level = Column(Integer, nullable=True)
+    avg_value = Column(Float, nullable=True)
+    details = Column(JSON, nullable=True)
+
+
 def db_available() -> bool:
     return _configured and async_session is not None
 
@@ -96,6 +112,61 @@ async def recent_series(metric: str, limit: int = 500) -> list[dict]:
             rows = result.fetchall()
         return [
             {"captured_at": row.captured_at, "value": row.value, "meta": row.meta}
+            for row in rows
+        ]
+    except Exception:
+        return []
+
+
+async def save_drought_data(records: list[dict]) -> bool:
+    """Bulk save drought data records (upsert by source+indicator+date+country)."""
+    if not db_available() or not records:
+        return False
+    try:
+        from sqlalchemy.dialects.postgresql import insert as pg_insert
+        async with async_session() as session:
+            for rec in records:
+                stmt = pg_insert(DroughtData).values(**rec)
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=["source", "indicator", "data_date", "country_code"],
+                    set_={
+                        "status": stmt.excluded.status,
+                        "max_level": stmt.excluded.max_level,
+                        "avg_value": stmt.excluded.avg_value,
+                        "details": stmt.excluded.details,
+                        "captured_at": datetime.utcnow(),
+                    },
+                )
+                await session.execute(stmt)
+            await session.commit()
+        return True
+    except Exception:
+        return False
+
+
+async def get_drought_series(indicator: str = "CDI", limit: int = 500) -> list[dict]:
+    """Get recent drought data records for a given indicator."""
+    if not db_available():
+        return []
+    try:
+        async with async_session() as session:
+            result = await session.execute(
+                DroughtData.__table__.select()
+                .where(DroughtData.indicator == indicator)
+                .order_by(DroughtData.data_date.desc())
+                .limit(limit)
+            )
+            rows = result.fetchall()
+        return [
+            {
+                "data_date": row.data_date,
+                "country_code": row.country_code,
+                "country_name": row.country_name,
+                "status": row.status,
+                "max_level": row.max_level,
+                "avg_value": row.avg_value,
+                "details": row.details,
+            }
             for row in rows
         ]
     except Exception:

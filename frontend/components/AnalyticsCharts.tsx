@@ -15,6 +15,8 @@ import {
   OceanPhData,
   AsteroidsData,
   GDACSData,
+  OpenAQData,
+  DroughtData,
   KpForecastData,
   GoesXrayData,
   SolarWindData,
@@ -91,7 +93,11 @@ type ChartId =
   | "seaLevel"
   | "seaLevelPsmsl"
   | "oceanHeat"
-  | "oceanPh";
+  | "oceanPh"
+  | "openaq"
+  | "droughtCdi"
+  | "droughtSpi"
+  | "droughtGrace";
 
 /**
  * Аналітичні графіки — інтерактивні Plotly-графіки за розділами:
@@ -118,6 +124,10 @@ export default function AnalyticsCharts() {
   const [scycle, setScycle] = useState<SolarCycleData | null>(null);
   const [eqs, setEqs] = useState<EarthquakesData | null>(null);
   const [schumann, setSchumann] = useState<SchumannData | null>(null);
+  const [openaq, setOpenaq] = useState<OpenAQData | null>(null);
+  const [droughtCdi, setDroughtCdi] = useState<DroughtData | null>(null);
+  const [droughtSpi, setDroughtSpi] = useState<DroughtData | null>(null);
+  const [droughtGrace, setDroughtGrace] = useState<DroughtData | null>(null);
   const attemptsRef = useRef(0);
   const aliveRef = useRef(true);
   const { t } = useI18n();
@@ -127,7 +137,7 @@ export default function AnalyticsCharts() {
   const ew = t.earthWeather;
 
   const load = useCallback(async () => {
-    const [g, c, ch4r, n2or, s, ss, sl, slp, oh, ph, gdr, astr, kpr, flr, wnd, sc, eq, sch] = await Promise.allSettled([
+    const [g, c, ch4r, n2or, s, ss, sl, slp, oh, ph, gdr, astr, kpr, flr, wnd, sc, eq, sch, oq, dcdi, dspi, dgr] = await Promise.allSettled([
       api.gistemp(),
       api.co2(),
       api.ch4(),
@@ -146,6 +156,10 @@ export default function AnalyticsCharts() {
       api.solarCycle(),
       api.earthquakes(),
       api.schumann(),
+      api.openaq(),
+      api.droughtCdi(),
+      api.droughtSpi(),
+      api.droughtGrace(),
     ]);
     setGistemp(settle(g));
     setCo2(settle(c));
@@ -165,6 +179,10 @@ export default function AnalyticsCharts() {
     setScycle(settle(sc));
     setEqs(settle(eq));
     setSchumann(settle(sch));
+    setOpenaq(settle(oq));
+    setDroughtCdi(settle(dcdi));
+    setDroughtSpi(settle(dspi));
+    setDroughtGrace(settle(dgr));
 
     const hasRows = <T,>(r: PromiseSettledResult<T>, pick: (v: T) => unknown): boolean =>
       r.status === "fulfilled" && Array.isArray(pick(r.value)) && (pick(r.value) as unknown[]).length > 0;
@@ -239,6 +257,10 @@ export default function AnalyticsCharts() {
     { id: "seaLevelPsmsl" as ChartId, label: ch.seaLevelPsmsl },
     { id: "oceanHeat" as ChartId, label: ch.oceanHeat },
     { id: "oceanPh" as ChartId, label: ch.oceanPh },
+    { id: "openaq" as ChartId, label: ch.openaq },
+    { id: "droughtCdi" as ChartId, label: ch.droughtCdi },
+    { id: "droughtSpi" as ChartId, label: ch.droughtSpi },
+    { id: "droughtGrace" as ChartId, label: ch.droughtGrace },
   ];
 
   const renderMainChart = () => {
@@ -494,6 +516,129 @@ export default function AnalyticsCharts() {
         />
       );
     }
+    if (activeChart === "openaq" && openaq?.stations?.length) {
+      const paramNames = ["pm25", "pm10", "no2", "o3", "so2"].filter(
+        (p) => openaq.global_averages[p] !== undefined
+      );
+      return (
+        <div className="space-y-4">
+          <div className="glass rounded-xl p-4">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-3 h-3 rounded-full bg-[#29F2FF]" />
+              <span className="text-primary text-sm font-medium">{openaq.source}</span>
+              <span className="text-secondary text-xs">{openaq.aqi_category}</span>
+              <span className="text-secondary text-xs">{openaq.station_count} stations</span>
+            </div>
+          </div>
+          <Plot
+            data={paramNames.map((p, i) => ({
+              x: openaq.stations.map((s) => s.name),
+              y: openaq.stations.map((s) => s.measurements[p] ?? 0),
+              type: "bar" as const,
+              name: p.toUpperCase(),
+              marker: { color: ["#29F2FF", "#36A3FF", "#28E08F", "#FFB648", "#FF5D6C"][i % 5] },
+            }))}
+            layout={{
+              ...plotStyle,
+              barmode: "group",
+              xaxis: { ...plotStyle.xaxis, tickangle: -45 },
+              yaxis: { ...plotStyle.yaxis, title: "µg/m³" },
+              legend: { orientation: "h", y: -0.3 },
+              annotations: [{ xref: "paper", yref: "paper", x: 0, y: 1.08, showarrow: false, text: ch.openaqSource, font: { size: 11, color: "#8B9AB5" } }],
+            }}
+            style={{ width: "100%", height: "420px" }}
+            useResizeHandler
+            config={plotConfig}
+          />
+        </div>
+      );
+    }
+    if (activeChart === "droughtCdi" && droughtCdi?.countries?.length) {
+      const statusColor = (s: string) => {
+        if (s === "Alert") return "#FF5D6C";
+        if (s === "Warning") return "#FFB648";
+        if (s === "Watch") return "#FFD93D";
+        if (s === "Recovery") return "#36A3FF";
+        return "#28E08F";
+      };
+      return (
+        <div className="space-y-4">
+          <div className="glass rounded-xl p-4">
+            <div className="text-primary text-sm font-medium mb-1">{droughtCdi.source} — {droughtCdi.indicator}</div>
+            <div className="text-secondary text-xs">{droughtCdi.description}</div>
+          </div>
+          <div className="grid gap-2">
+            {droughtCdi.countries.map((c) => (
+              <div key={c.code} className="glass rounded-xl px-4 py-3 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-3 h-3 rounded-full" style={{ background: statusColor(c.status) }} />
+                  <span className="text-primary text-sm font-medium">{c.name}</span>
+                </div>
+                <div className="flex items-center gap-4">
+                  <span className="text-secondary text-xs">Level {c.max_level ?? "—"}</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: `${statusColor(c.status)}22`, color: statusColor(c.status) }}>
+                    {c.status}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+    if (activeChart === "droughtSpi" && droughtSpi?.countries?.length) {
+      const countries = droughtSpi.countries.filter((c) => c.avg_spi != null);
+      return (
+        <Plot
+          data={[{
+            x: countries.map((c) => c.name),
+            y: countries.map((c) => c.avg_spi!),
+            type: "bar",
+            marker: {
+              color: countries.map((c) => (c.avg_spi! <= -1 ? "#FF5D6C" : c.avg_spi! <= 0 ? "#FFB648" : c.avg_spi! <= 1 ? "#28E08F" : "#36A3FF")),
+            },
+            name: "SPI",
+          }]}
+          layout={{
+            ...plotStyle,
+            xaxis: { ...plotStyle.xaxis, tickangle: -45 },
+            yaxis: { ...plotStyle.yaxis, title: "SPI (σ)", zeroline: true, zerolinecolor: "#3A4260" },
+            annotations: [
+              { xref: "paper", yref: "paper", x: 0, y: 1.08, showarrow: false, text: ch.droughtSpiSource, font: { size: 11, color: "#8B9AB5" } },
+              { xref: "paper", x: 1.02, y: -0.35, xanchor: "right", showarrow: false, text: "← Drought | Wet →", font: { size: 10, color: "#8B9AB5" } },
+            ],
+          }}
+          style={{ width: "100%", height: "420px" }}
+          useResizeHandler
+          config={plotConfig}
+        />
+      );
+    }
+    if (activeChart === "droughtGrace" && droughtGrace?.countries?.length) {
+      const countries = droughtGrace.countries.filter((c) => c.avg_tws_cm != null);
+      return (
+        <Plot
+          data={[{
+            x: countries.map((c) => c.name),
+            y: countries.map((c) => c.avg_tws_cm!),
+            type: "bar",
+            marker: {
+              color: countries.map((c) => (c.avg_tws_cm! <= -100 ? "#FF5D6C" : c.avg_tws_cm! <= -50 ? "#FFB648" : c.avg_tws_cm! <= 50 ? "#28E08F" : "#36A3FF")),
+            },
+            name: "TWS anomaly",
+          }]}
+          layout={{
+            ...plotStyle,
+            xaxis: { ...plotStyle.xaxis, tickangle: -45 },
+            yaxis: { ...plotStyle.yaxis, title: "cm equiv. water thickness", zeroline: true, zerolinecolor: "#3A4260" },
+            annotations: [{ xref: "paper", yref: "paper", x: 0, y: 1.08, showarrow: false, text: ch.droughtGraceSource, font: { size: 11, color: "#8B9AB5" } }],
+          }}
+          style={{ width: "100%", height: "420px" }}
+          useResizeHandler
+          config={plotConfig}
+        />
+      );
+    }
     return (
       <div className="flex items-center justify-center h-[420px] text-secondary text-sm">
         {ch.noData}
@@ -622,6 +767,60 @@ export default function AnalyticsCharts() {
         />
       );
     }
+    if (id === "openaq" && openaq?.stations?.length) {
+      const pm25Stations = openaq.stations.filter((s) => s.measurements.pm25 != null).slice(0, 8);
+      return (
+        <Plot
+          data={[{ x: pm25Stations.map((s) => s.name), y: pm25Stations.map((s) => s.measurements.pm25), type: "bar", marker: { color: pm25Stations.map((s) => (s.measurements.pm25 > 35 ? "#FF5D6C" : s.measurements.pm25 > 12 ? "#FFB648" : "#28E08F")) } }]}
+          layout={{ ...plotStyle, margin: { t: 10, r: 10, b: 40, l: 45 }, showlegend: false, xaxis: { ...plotStyle.xaxis, tickangle: -45 } }}
+          style={{ width: "100%", height: "200px" }}
+          useResizeHandler
+          config={plotConfig}
+        />
+      );
+    }
+    if (id === "droughtCdi" && droughtCdi?.countries?.length) {
+      const statusColor = (s: string) => {
+        if (s === "Alert") return "#FF5D6C";
+        if (s === "Warning") return "#FFB648";
+        if (s === "Watch") return "#FFD93D";
+        if (s === "Recovery") return "#36A3FF";
+        return "#28E08F";
+      };
+      return (
+        <Plot
+          data={[{ x: droughtCdi.countries.map((c) => c.name), y: droughtCdi.countries.map((c) => c.max_level ?? 0), type: "bar", marker: { color: droughtCdi.countries.map((c) => statusColor(c.status)) } }]}
+          layout={{ ...plotStyle, margin: { t: 10, r: 10, b: 40, l: 45 }, showlegend: false, xaxis: { ...plotStyle.xaxis, tickangle: -45 }, yaxis: { ...plotStyle.yaxis, title: "CDI level" } }}
+          style={{ width: "100%", height: "200px" }}
+          useResizeHandler
+          config={plotConfig}
+        />
+      );
+    }
+    if (id === "droughtSpi" && droughtSpi?.countries?.length) {
+      const countries = droughtSpi.countries.filter((c) => c.avg_spi != null);
+      return (
+        <Plot
+          data={[{ x: countries.map((c) => c.name), y: countries.map((c) => c.avg_spi!), type: "bar", marker: { color: countries.map((c) => (c.avg_spi! <= -1 ? "#FF5D6C" : c.avg_spi! <= 0 ? "#FFB648" : c.avg_spi! <= 1 ? "#28E08F" : "#36A3FF")) } }]}
+          layout={{ ...plotStyle, margin: { t: 10, r: 10, b: 40, l: 45 }, showlegend: false, xaxis: { ...plotStyle.xaxis, tickangle: -45 } }}
+          style={{ width: "100%", height: "200px" }}
+          useResizeHandler
+          config={plotConfig}
+        />
+      );
+    }
+    if (id === "droughtGrace" && droughtGrace?.countries?.length) {
+      const countries = droughtGrace.countries.filter((c) => c.avg_tws_cm != null);
+      return (
+        <Plot
+          data={[{ x: countries.map((c) => c.name), y: countries.map((c) => c.avg_tws_cm!), type: "bar", marker: { color: countries.map((c) => (c.avg_tws_cm! <= -100 ? "#FF5D6C" : c.avg_tws_cm! <= -50 ? "#FFB648" : c.avg_tws_cm! <= 50 ? "#28E08F" : "#36A3FF")) } }]}
+          layout={{ ...plotStyle, margin: { t: 10, r: 10, b: 40, l: 45 }, showlegend: false, xaxis: { ...plotStyle.xaxis, tickangle: -45 } }}
+          style={{ width: "100%", height: "200px" }}
+          useResizeHandler
+          config={plotConfig}
+        />
+      );
+    }
     return <div className="h-[200px] bg-white/5 rounded-lg animate-pulse" />;
   };
 
@@ -636,6 +835,10 @@ export default function AnalyticsCharts() {
     { key: "seaLevelPsmsl" as ChartId, name: ch.seaLevelPsmslShort },
     { key: "oceanHeat" as ChartId, name: ch.oceanHeatShort },
     { key: "oceanPh" as ChartId, name: ch.oceanPhShort },
+    { key: "openaq" as ChartId, name: ch.openaqShort },
+    { key: "droughtCdi" as ChartId, name: ch.droughtCdiShort },
+    { key: "droughtSpi" as ChartId, name: ch.droughtSpiShort },
+    { key: "droughtGrace" as ChartId, name: ch.droughtGraceShort },
   ];
 
   /* ---------- Космос: Kp forecast ---------- */
