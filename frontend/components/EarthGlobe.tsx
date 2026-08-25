@@ -748,8 +748,8 @@ function Scene({
       <OrbitControls
         enableZoom={true}
         zoomSpeed={0.4}
-        minDistance={8}
-        maxDistance={18}
+        minDistance={9}
+        maxDistance={22}
         enablePan={false}
         enableDamping={false}
       />
@@ -1198,7 +1198,7 @@ export default function EarthGlobe() {
   return (
     <div className="w-full h-full relative bg-[#070A16] overflow-hidden animate-fade-in">
       <Canvas
-        camera={{ position: [0, 0, 13], fov: 45 }}
+        camera={{ position: [0, 0, 16], fov: 45 }}
         gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.0 }}
       >
         <Scene
