@@ -73,9 +73,17 @@ def _y_values(series: list[dict], value_key: str = "value") -> Optional[np.ndarr
 
 
 def linear_trend(
-    series: list[dict], value_key: str = "value", time_key: str = "year"
+    series: list[dict], value_key: str = "value", time_key: str = "year",
+    recent_window_years: float = 10.0,
 ) -> Optional[dict]:
-    """МНК-регресія: нахил на рік, довірчий інтервал, R², p-value, прогноз."""
+    """МНК-регресія: нахил на рік, довірчий інтервал, R², p-value, прогноз.
+
+    Повертає два нахили:
+    - `slope_per_year` — довгостроковий середній нахил за весь ряд (може
+      занижувати «поточну швидкість» для нелінійно прискорюваних рядів, як-от CO₂);
+    - `recent_slope_per_year` — нахил по ковзному вікну (за замовчуванням останні
+      ~10 років), що ближче до актуальної швидкості зростання.
+    """
     x = _x_values(series, time_key)
     y = _y_values(series, value_key)
     if x is None or y is None or len(x) < 3 or len(x) != len(y):
@@ -84,7 +92,7 @@ def linear_trend(
         slope, intercept, r, p_value, std_err = stats.linregress(x, y)
     except Exception:
         return None
-    return {
+    result = {
         "slope_per_year": round(float(slope), 4),
         "intercept": round(float(intercept), 3),
         "r_squared": round(float(r) ** 2, 4),
@@ -93,6 +101,28 @@ def linear_trend(
         "projected_next_year": round(float(slope * (x[-1] + 1) + intercept), 3),
         "n": int(len(x)),
     }
+    # Поточний (останні ~10 років) нахил — чесніша оцінка актуального темпу.
+    recent_slope = _recent_slope(x, y, recent_window_years)
+    if recent_slope is not None:
+        result["recent_slope_per_year"] = round(float(recent_slope), 4)
+    return result
+
+
+def _recent_slope(x: np.ndarray, y: np.ndarray, window_years: float) -> Optional[float]:
+    """Нахил МНК по підмножині точок, що потрапляють у вікно [last − window, last].
+
+    Якщо у вікні менше 3 точок — повертає None (недостатньо для регресії)."""
+    last = float(x[-1])
+    mask = x >= (last - window_years)
+    if int(mask.sum()) < 3:
+        return None
+    xs = x[mask]
+    ys = y[mask]
+    try:
+        slope, *_ = stats.linregress(xs, ys)
+        return float(slope)
+    except Exception:
+        return None
 
 
 def z_score_anomaly(
@@ -126,12 +156,34 @@ def year_over_year(
 ) -> Optional[float]:
     """Різниця останньої точки і точки ~1 рік тому (None, якщо мало даних).
 
-    steps підбирається автоматично за гранулярністю ряду (денні — 365,
-    місячні — 12, річні — 1), якщо не заданий явно."""
+    Якщо ряд має пропуски (не кожен день/місяць опубліковано), індексний зсув
+    `series[-steps-1]` міг би непомітно з'їхати на сусідню точку. Тому тут
+    шукається точка з датою, найближчою до «рік тому» (за fractional-year віссю),
+    а індексний крок використовується лише як fallback коли дати недоступні."""
     if len(series) < 2:
         return None
+    # Пошук точки ~1 рік тому за датою (стійкий до пропусків).
+    x = _x_values(series, time_key)
+    if x is not None and len(x) >= 2:
+        target = float(x[-1]) - 1.0
+        # обираємо точку з найменшою |date − (last − 1)|, що не є останньою
+        best_idx = -1
+        best_dist = float("inf")
+        for i in range(len(x) - 1):
+            d = abs(float(x[i]) - target)
+            if d < best_dist:
+                best_dist = d
+                best_idx = i
+        # Базову точку вважаємо «роком тому» лише якщо вона реально віддалена
+        # від останньої як мінімум на ~0.5 року. Інакше ряд замалий/здубльований —
+        # повертаємо None (немає сенсу в порівнянні рік-до-року).
+        if best_idx >= 0 and abs(float(x[-1]) - float(x[best_idx])) >= 0.5:
+            try:
+                return round(float(series[-1][value_key] - series[best_idx][value_key]), 3)
+            except (KeyError, TypeError):
+                return None
+    # Fallback: індексний крок (минула логіка), якщо дат немає.
     if steps is None:
-        x = _x_values(series, time_key)
         if x is not None and len(x) >= 2:
             gaps = np.diff(x)
             gaps = gaps[np.isfinite(gaps) & (gaps > 0)]

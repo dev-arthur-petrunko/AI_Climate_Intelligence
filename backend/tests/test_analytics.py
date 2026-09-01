@@ -130,6 +130,26 @@ class TestLinearTrend:
         # scipy.stats.linregress returns nan for r on constant series
         assert result["r_squared"] == 0.0 or np.isnan(result["r_squared"])
 
+    def test_recent_slope_accelerating_series(self):
+        """Прискорюваний ряд (як CO₂) має recent_slope > long-run slope."""
+        # Пологий початок, круте закінчення
+        series = []
+        for y in range(1990, 2005):
+            series.append({"year": y, "value": 300.0 + 0.5 * (y - 1990)})
+        for y in range(2005, 2026):
+            series.append({"year": y, "value": 300.0 + 0.5 * 15 + 3.0 * (y - 2005)})
+        result = linear_trend(series)
+        assert result is not None
+        assert result["recent_slope_per_year"] > result["slope_per_year"]
+
+    def test_recent_slope_insufficient_points(self):
+        """Замало точок у вікні → recent_slope_per_year відсутній."""
+        series = [{"year": 2023, "value": 1.0}, {"year": 2024, "value": 2.0}, {"year": 2025, "value": 3.0}]
+        result = linear_trend(series)
+        assert result is not None
+        # вікно 10 років покриває всі 3 точки → recent_slope дорівнює загальному
+        assert "recent_slope_per_year" in result
+
 
 # ──────────────────────────────────────────────
 # z_score_anomaly
@@ -210,6 +230,18 @@ class TestYearOverYear:
         """Одна точка → None."""
         series = [{"year": 2020, "value": 10.0}]
         assert year_over_year(series) is None
+
+    def test_gap_handling_by_date(self):
+        """Пропуск дати: YoY має порівнювати з точкою ~1 рік тому (за датою), а не зміщуватись."""
+        # Річні дані, але 2021 рік пропущений (немає точки даних)
+        series = [
+            {"year": 2020, "value": 100.0},
+            {"year": 2022, "value": 106.0},
+            {"year": 2023, "value": 110.0},
+        ]
+        # Остання точка = 2023 (110). Точка ~1 рік тому = 2022 (106) → +4.0
+        yoy = year_over_year(series, time_key="year")
+        assert yoy == pytest.approx(4.0)
 
     def test_all_same_dates(self):
         """Всі дати однакові → None."""

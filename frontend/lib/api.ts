@@ -70,6 +70,7 @@ export interface OverviewData {
 export interface TrendAnalysis {
   trend_analysis?: {
     slope_per_year?: number;
+    recent_slope_per_year?: number;
     intercept?: number;
     r_squared?: number;
     p_value?: number;

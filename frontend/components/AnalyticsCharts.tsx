@@ -1211,12 +1211,14 @@ export default function AnalyticsCharts() {
                 <h3 className="text-sm font-semibold">{ch.statTitle}</h3>
                 <span className="text-[10px] text-secondary font-mono">numpy/scipy · Python</span>
               </div>
+              <div className="text-[11px] text-secondary mb-3">{ch.statIntent}</div>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="text-secondary text-left">
                       <th className="pb-2 pr-3 font-medium" />
                       <th className="pb-2 pr-3 font-medium">{ch.statSlope}</th>
+                      <th className="pb-2 pr-3 font-medium">{ch.statSlope10}</th>
                       <th className="pb-2 pr-3 font-medium">{ch.statR2}</th>
                       <th className="pb-2 pr-3 font-medium">{ch.statP}</th>
                       <th className="pb-2 pr-3 font-medium">{ch.statYoy}</th>
@@ -1232,6 +1234,9 @@ export default function AnalyticsCharts() {
                           <td className="py-2 pr-3 text-primary whitespace-nowrap">{r.name}</td>
                           <td className="py-2 pr-3 font-mono text-[#36A3FF] whitespace-nowrap">
                             {fmtNum(tr?.slope_per_year, 4)}
+                          </td>
+                          <td className="py-2 pr-3 font-mono text-[#29F2FF] whitespace-nowrap">
+                            {fmtNum(tr?.recent_slope_per_year, 4)}
                           </td>
                           <td className="py-2 pr-3 font-mono whitespace-nowrap">{fmtNum(tr?.r_squared, 4, false)}</td>
                           <td className="py-2 pr-3 font-mono whitespace-nowrap">{fmtP(tr?.p_value)}</td>
