@@ -661,3 +661,95 @@ Plotly.js не мав `xaxis.type: "date"` — всі графіки з часо
 | `GET /api/n2o` | Глобальний закис азоту (N₂O) + analyze() | NOAA GML |
 | `GET /api/gdacs?event_type=` | Природні катастрофи (FL/TC/VO/WF/EQ) | GDACS (UN + EU) |
 | `GET /api/coral-reef` | Термічний стрес коралів | NOAA CRW |
+
+### v1.3.0 — PSMSL, OpenAQ, Copernicus EDO
+
+#### PSMSL — мареографи (незалежна перевірка альтиметрії)
+
+| Що | Де |
+|----|----|
+| `fetch_sea_level_psmsl()` — 12 еталонних станцій (Brest, SF, NY Battery, Liverpool, Vlissingen, IJmuiden, Cascais, Marseille, Oslo, Stockholm, Kobenhavn, North Shields) | `data_sources.py` |
+| Агрегація річних середніх, мінімум 3 станції на рік | `data_sources.py` |
+| `GET /api/sea-level-psmsl` з analyze() | `main.py` |
+| Графік #5B8FF9 з маркерами + окрема міні-діаграма | `AnalyticsCharts.tsx` |
+| `SeaLevelPsmslData` тип + `api.seaLevelPsmsl()` | `lib/api.ts` |
+| PSMSL у `_SOURCE_CHECKS` (без ключа) | `data_sources.py` |
+
+#### OpenAQ v3 — глобальна якість повітря
+
+| Що | Де |
+|----|----|
+| `fetch_air_quality_openaq()` — 20 репрезентативних міст, PM2.5/PM10/NO₂/O₃/SO₂, глобальні середні + AQI-категорія | `data_sources.py` |
+| `GET /api/air-quality-openaq` | `main.py` |
+| Ключ `OPENAQ_API_KEY` в `X-API-Key` (без ключа → fallback Open-Meteo) | `data_sources.py` |
+| Графік: груповані стовпці забруднювачів по містах | `AnalyticsCharts.tsx` |
+| `OpenAQData` тип + `api.openaq()` | `lib/api.ts` |
+
+#### Copernicus EDO — моніторинг засухи (WCS GeoTIFF, без ключа)
+
+Офіційний WCS-endpoint: `https://drought.emergency.copernicus.eu/api/wcs` — звичайні HTTP GET.
+
+| Індикатор | coverageID | Функція | Що рахує |
+|-----------|-----------|---------|----------|
+| **CDI** (Combined Drought Indicator) | `cdiad` | `fetch_drought_cdi()` | Рівні 0–6 (No drought / Watch / Warning / Alert / Recovery / Temporary SM Recovery / Temporary Veg Recovery), статус + відсотки площі |
+| **SPI ERA5** | `spi_era5` | `fetch_drought_spi()` | Стандартизований індекс опадів (σ), класифікація від Extreme drought до Extremely wet |
+| **GRACE TWS** | `grace_tws` | `fetch_drought_grace()` | Аномалія водного запасу (см екв. води), deficit/surplus |
+
+**Як працює (геопроцесинг):**
+```python
+# Python — rasterio + numpy, зразок CDI
+import io, rasterio, numpy as np
+from rasterio import transform  # координати → пікселі
+
+with rasterio.open(io.BytesIO(r.content)) as src:  # r = httpx.get(WCS_URL, params=params)
+    band = src.read(1)
+    row, col = rasterio.transform.rowcol(src.transform, lon, lat)  # lat/lon → піксель
+    value = band[row, col]  # рівень CDI 0–6
+```
+- Кожна країна семплюється 2–3 координатами (столиця + великі міста)
+- 20 країн у `_DROUGHT_COUNTRIES` (UA, DE, FR, PL, ES, IT, GB, RO, GR, TR, US, IN, CN, BR, AU, JP, EG, ZA, KE, AR)
+- `rasterio.transform.rowcol()` конвертує lat/lon → піксельні координати
+- Якщо rasterio не встановлений — повертає `"error": "rasterio not installed"`
+
+**У BД (PostgreSQL):**
+```sql
+-- Таблиця drought_data (upsert за source+indicator+date+country)
+INSERT INTO drought_data (source, indicator, data_date, country_code, country_name, status, max_level, avg_value, details)
+VALUES ('Copernicus EDO', 'CDI', '2026-08-20', 'UA', 'Ukraine', 'Warning', 2, NULL, '{}')
+ON CONFLICT (source, indicator, data_date, country_code)
+DO UPDATE SET status = EXCLUDED.status, max_level = EXCLUDED.max_level, avg_value = EXCLUDED.avg_value,
+              details = EXCLUDED.details, captured_at = now();
+```
+- Модель `DroughtData` в `db.py`
+- `save_drought_data()` (bulk upsert), `get_drought_series(indicator)` — доки collector не підключений до планувальника, дані зберігаються вручну
+
+**Ендпоінти:**
+| Ендпоінт | Опис |
+|----------|------|
+| `GET /api/drought/cdi` | Combined Drought Indicator — статус по країнах |
+| `GET /api/drought/spi` | Standardized Precipitation Index (ERA5) — бар-графік по країнах |
+| `GET /api/drought/grace` | GRACE TWS anomaly — бар-графік по країнах |
+
+**Фронтенд:** CDI — таблиця країн із кольоровими рівнями (Normal/Watch/Warning/Alert/Recovery); SPI та GRACE — бар-графіки по країнах (drought red / normal green / wet blue). Міні-діаграми + переклади 7 мов.
+
+**Залежності:** додано `rasterio`, `shapely` в `requirements.txt`. **На Render** rasterio потребує системних бібліотек GDAL — якщо build падає, потрібен Dockerfile з `libgdal-dev`. Без rasterio ендпоінти коректно повертають error замість падіння.
+
+**Env:** `OPENAQ_API_KEY` (безкоштовна реєстрація `explore.openaq.org/register`).
+
+### Підсумок комітів (останній блок)
+
+| Коміт | Дата | Опис |
+|-------|------|------|
+| `b76c054` | 2026-09-01 | Feat: PSMSL мареографи — 12 станцій, `/api/sea-level-psmsl`, графік + translate 7 мов |
+| `a28b94e` | 2026-09-01 | Feat: OpenAQ повітря + Copernicus EDO (CDI/SPI/GRACE), drought_data, 4 графіки |
+| `3aecd50` | 2026-09-01 | Fix: камера глобуса віддалена на мобільних (Z 13→16, maxDistance 18→22) |
+
+### Mobile-камера глобуса (останній фікс)
+
+Проблема: на телефонах планета була занадто близько, краї не вміщалися в екран.
+
+| Параметр | Було | Стало | Файл |
+|----------|------|-------|------|
+| Камера position Z | 13 | **16** (далі від планети) | `EarthGlobe.tsx:1201` |
+| OrbitControls minDistance | 8 | **9** (менше zoom-in) | `EarthGlobe.tsx:750` |
+| OrbitControls maxDistance | 18 | **22** (можна віддалити більше) | `EarthGlobe.tsx:751` |
