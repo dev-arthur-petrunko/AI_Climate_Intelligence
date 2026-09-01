@@ -226,9 +226,12 @@ def _snapshot_text(snapshot: Dict[str, Any]) -> str:
         if not trend:
             return None
         slope = trend.get("slope_per_year")
+        recent = trend.get("recent_slope_per_year")
         r2 = trend.get("r_squared")
         proj = trend.get("projected_next_year")
         parts = [f"- {label} trend: {slope:+.2f}/year"]
+        if recent is not None:
+            parts.append(f"recent (~10y): {recent:+.2f}/year")
         if r2 is not None:
             parts.append(f"R²={r2:.2f}")
         if proj is not None:
@@ -621,150 +624,690 @@ def _generate_predictions(lang: str, days: int = 30) -> List[Dict[str, Any]]:
     return _template_predictions(snapshot, lang, days)
 
 
-# Шаблони резервних прогнозів для всіх 7 мов
+# Шаблони резервних прогнозів для всіх 7 мов.
+# Кожна категорія має: category, prediction/reasoning (без чисел), prediction_proj/reasoning_proj
+# (з поточним значенням {cur}, нахилом {slope}, R², {n}, екстраполяцією {proj} і горизонтом {horizon}),
+# для «живих» подій — prediction_live/reasoning_live, а також risk і base_prob.
 _TEMPLATE_PREDICTIONS = {
     "en": {
-        "temperature": {"category": "Temperature", "prediction": "Global mean temperature anomaly continues to trend upward", "reasoning": "Current anomaly of {v}°C versus the 1951-1980 baseline indicates sustained warming."},
-        "wildfire": {"category": "Wildfire Risk", "prediction": "Elevated wildfire activity in regions with active hotspots", "reasoning": "{n} active fire hotspots detected by satellites."},
-        "cyclone": {"category": "Cyclone", "prediction": "Active tropical cyclones may intensify over warm waters", "reasoning": "{n} tropical cyclone(s) currently tracked in the Atlantic."},
-        "ice": {"category": "Sea Ice", "prediction": "Polar sea ice extent remains below its long-term seasonal baseline", "reasoning": "Long-term Arctic and Antarctic sea ice trends are declining."},
-        "ocean": {"category": "Ocean Heat", "prediction": "Ocean heat content continues to accumulate, fueling extremes", "reasoning": "Upper-ocean heat storage keeps increasing year over year."},
+        "temperature": {
+            "category": "Temperature",
+            "prediction": "Global mean temperature anomaly remains elevated through {horizon}.",
+            "prediction_proj": "Global mean temperature anomaly to reach {proj:+.2f}°C within {horizon} (currently {cur:+.2f}°C).",
+            "reasoning": "Based on the sustained warming trend in the observational record.",
+            "reasoning_proj": "Long-run trend {slope:+.3f}°C/yr (R²={r2}) fitted to {n} annual data points (1951–1980 baseline); current anomaly {cur:+.2f}°C.",
+            "risk": "high",
+            "base_prob": 0.88,
+        },
+        "co2": {
+            "category": "CO₂",
+            "prediction": "Atmospheric CO₂ continues to climb through {horizon}.",
+            "prediction_proj": "Atmospheric CO₂ to reach about {proj:.1f} ppm within {horizon} (currently {cur:.1f} ppm).",
+            "reasoning": "CO₂ growth is driven by sustained fossil-fuel emissions (NOAA GML).",
+            "reasoning_proj": "Measured growth ≈ {slope:+.2f} ppm/yr (R²={r2}) over {n} years of NOAA GML observations.",
+            "risk": "high",
+            "base_prob": 0.90,
+        },
+        "ice": {
+            "category": "Sea Ice",
+            "prediction": "Polar sea-ice extent stays below its long-term seasonal baseline through {horizon}.",
+            "prediction_proj": "Arctic annual sea-ice minimum to decline to about {proj:.2f} M km² within {horizon} (currently {cur:.2f} M km²).",
+            "reasoning": "Multi-decadal Arctic and Antarctic ice trends are declining.",
+            "reasoning_proj": "Annual-minimum trend {slope:+.3f} M km²/yr (R²={r2}) over {n} years (NSIDC).",
+            "risk": "high",
+            "base_prob": 0.82,
+        },
+        "sea_level": {
+            "category": "Sea Level",
+            "prediction": "Global mean sea level keeps rising through {horizon}.",
+            "prediction_proj": "Global mean sea level to rise to about {proj:+.0f} mm within {horizon} (currently {cur:+.0f} mm).",
+            "reasoning": "Thermal expansion and ice-sheet mass loss push sea level upward.",
+            "reasoning_proj": "Rise of {slope:+.2f} mm/yr (R²={r2}) from {n} years of satellite altimetry and tide gauges.",
+            "risk": "high",
+            "base_prob": 0.84,
+        },
+        "ocean": {
+            "category": "Ocean Heat",
+            "prediction": "Upper-ocean heat content continues to accumulate through {horizon}.",
+            "prediction_proj": "Upper-ocean heat content to rise to about {proj:.0f} ZJ within {horizon} (currently {cur:.0f} ZJ).",
+            "reasoning": "The ocean absorbs the bulk of excess planetary heat.",
+            "reasoning_proj": "Heat-content gain {slope:+.2f} ZJ/yr (R²={r2}) computed over {n} data points (0–2000 m).",
+            "risk": "high",
+            "base_prob": 0.85,
+        },
+        "ph": {
+            "category": "Ocean Acidification",
+            "prediction": "Surface-ocean pH continues to decline through {horizon}.",
+            "prediction_proj": "Surface-ocean pH to fall to about {proj:.3f} within {horizon} (currently {cur:.3f}).",
+            "reasoning": "Absorbed CO₂ lowers ocean pH (Station ALOHA).",
+            "reasoning_proj": "Acidification trend {slope:+.3f} pH/yr (R²={r2}) over {n} years of Station ALOHA data.",
+            "risk": "medium",
+            "base_prob": 0.80,
+        },
+        "wildfire": {
+            "category": "Wildfire Risk",
+            "prediction": "Elevated wildfire activity persists through {horizon}.",
+            "prediction_live": "Elevated wildfire activity persists through {horizon}, with {cur} hotspots active now.",
+            "reasoning": "Satellite-detected hotspots mark regions of elevated fire danger.",
+            "reasoning_live": "{cur} active fire hotspots currently detected by satellites (NASA FIRMS).",
+            "risk": "high",
+            "base_prob": 0.74,
+        },
+        "cyclone": {
+            "category": "Cyclone",
+            "prediction": "Tropical cyclone activity continues through {horizon}.",
+            "prediction_live": "Tropical cyclone activity continues through {horizon}; {cur} storm(s) currently tracked.",
+            "reasoning": "Warm ocean waters provide energy for cyclone development and strengthening.",
+            "reasoning_live": "{cur} tropical cyclone(s) currently active over warm Atlantic waters.",
+            "risk": "medium",
+            "base_prob": 0.68,
+        },
     },
     "uk": {
-        "temperature": {"category": "Температура", "prediction": "Глобальна температурна аномалія продовжує зростати", "reasoning": "Поточна аномалія {v}°C відносно базового періоду 1951–1980 вказує на стале потепління."},
-        "wildfire": {"category": "Ризик пожеж", "prediction": "Підвищена пожежна активність у регіонах з активними осередками", "reasoning": "Супутники виявили {n} активних осередків пожеж."},
-        "cyclone": {"category": "Циклон", "prediction": "Активні тропічні циклони можуть посилитися над теплими водами", "reasoning": "В Атлантиці відстежується {n} тропічний(их) циклон(ів)."},
-        "ice": {"category": "Морський лід", "prediction": "Протяжність полярного морського льоду залишається нижчою за сезонну норму", "reasoning": "Довгострокові тенденції арктичного та антарктичного льоду знижуються."},
-        "ocean": {"category": "Тепло океану", "prediction": "Тепло океану продовжує накопичуватися, посилюючи екстремуми", "reasoning": "Запас тепла верхнього шару океану зростає з року в рік."},
+        "temperature": {
+            "category": "Температура",
+            "prediction": "Глобальна температурна аномалія залишається підвищеною протягом {horizon}.",
+            "prediction_proj": "Глобальна температурна аномалія досягне {proj:+.2f}°C протягом {horizon} (зараз {cur:+.2f}°C).",
+            "reasoning": "За даними спостережень триває стале потепління.",
+            "reasoning_proj": "Тренд {slope:+.3f}°C/рік (R²={r2}) за {n} річних точок (базис 1951–1980); поточна аномалія {cur:+.2f}°C.",
+            "risk": "high",
+            "base_prob": 0.88,
+        },
+        "co2": {
+            "category": "CO₂",
+            "prediction": "Концентрація CO₂ в атмосфері продовжує зростати протягом {horizon}.",
+            "prediction_proj": "Концентрація CO₂ досягне близько {proj:.1f} ppm протягом {horizon} (зараз {cur:.1f} ppm).",
+            "reasoning": "Зростання CO₂ зумовлене сталим викидом від спалювання палива (NOAA GML).",
+            "reasoning_proj": "Виміряний темп ≈ {slope:+.2f} ppm/рік (R²={r2}) за {n} років спостережень NOAA GML.",
+            "risk": "high",
+            "base_prob": 0.90,
+        },
+        "ice": {
+            "category": "Морський лід",
+            "prediction": "Протяжність полярного льоду залишається нижчою за сезонну норму протягом {horizon}.",
+            "prediction_proj": "Арктичний річний мінімум льоду знизиться до ~{proj:.2f} млн км² протягом {horizon} (зараз {cur:.2f} млн км²).",
+            "reasoning": "Багаторічні тенденції арктичного й антарктичного льоду знижуються.",
+            "reasoning_proj": "Тренд річного мінімуму {slope:+.3f} млн км²/рік (R²={r2}) за {n} років (NSIDC).",
+            "risk": "high",
+            "base_prob": 0.82,
+        },
+        "sea_level": {
+            "category": "Рівень моря",
+            "prediction": "Глобальний рівень моря продовжує зростати протягом {horizon}.",
+            "prediction_proj": "Глобальний рівень моря підніметься до ~{proj:+.0f} мм протягом {horizon} (зараз {cur:+.0f} мм).",
+            "reasoning": "Термічне розширення та втрата маси льодовиків піднімають рівень моря.",
+            "reasoning_proj": "Зростання {slope:+.2f} мм/рік (R²={r2}) за {n} років супутникової альтиметрії та мареографів.",
+            "risk": "high",
+            "base_prob": 0.84,
+        },
+        "ocean": {
+            "category": "Тепло океану",
+            "prediction": "Тепло океану продовжує накопичуватися протягом {horizon}.",
+            "prediction_proj": "Тепловміст верхнього океану зросте до ~{proj:.0f} ЗДж протягом {horizon} (зараз {cur:.0f} ЗДж).",
+            "reasoning": "Океан поглинає основну частину надлишкового планетарного тепла.",
+            "reasoning_proj": "Приріст тепла {slope:+.2f} ЗДж/рік (R²={r2}) за {n} точок даних (0–2000 м).",
+            "risk": "high",
+            "base_prob": 0.85,
+        },
+        "ph": {
+            "category": "Закислення океану",
+            "prediction": "pH поверхневих вод океану продовжує знижуватися протягом {horizon}.",
+            "prediction_proj": "pH поверхневих вод знизиться до ~{proj:.3f} протягом {horizon} (зараз {cur:.3f}).",
+            "reasoning": "Поглинутий CO₂ знижує pH океану (станція ALOHA).",
+            "reasoning_proj": "Тренд закислення {slope:+.3f} pH/рік (R²={r2}) за {n} років даних станції ALOHA.",
+            "risk": "medium",
+            "base_prob": 0.80,
+        },
+        "wildfire": {
+            "category": "Ризик пожеж",
+            "prediction": "Підвищена пожежна активність триватиме протягом {horizon}.",
+            "prediction_live": "Підвищена пожежна активність триватиме протягом {horizon}; зараз активних осередків: {cur}.",
+            "reasoning": "Супутникові осередки вказують на регіони з підвищеною пожежною небезпекою.",
+            "reasoning_live": "{cur} активних осередків пожеж виявлено супутниками (NASA FIRMS).",
+            "risk": "high",
+            "base_prob": 0.74,
+        },
+        "cyclone": {
+            "category": "Циклон",
+            "prediction": "Активність тропічних циклонів триватиме протягом {horizon}.",
+            "prediction_live": "Активність тропічних циклонів триватиме протягом {horizon}; зараз відстежується {cur} штормів.",
+            "reasoning": "Теплі океанські води дають енергію для розвитку циклонів.",
+            "reasoning_live": "{cur} тропічний(их) циклон(ів) зараз активний(их) над теплими водами Атлантики.",
+            "risk": "medium",
+            "base_prob": 0.68,
+        },
     },
     "de": {
-        "temperature": {"category": "Temperatur", "prediction": "Die globale Temperaturanomalie steigt weiter an", "reasoning": "Die aktuelle Anomalie von {v}°C gegenüber der Basislinie 1951–1980 deutet auf eine anhaltende Erwärmung hin."},
-        "wildfire": {"category": "Waldbrandrisiko", "prediction": "Erhöhte Waldbrandaktivität in Regionen mit aktiven Brandherden", "reasoning": "{n} aktive Brandherde von Satelliten erkannt."},
-        "cyclone": {"category": "Wirbelsturm", "prediction": "Aktive tropische Wirbelstürme können sich über warmem Wasser verstärken", "reasoning": "{n} tropischer Wirbelsturm/Wirbelstürme werden im Atlantik verfolgt."},
-        "ice": {"category": "Meereis", "prediction": "Die Ausdehnung des polaren Meereises bleibt unter der saisonalen Basislinie", "reasoning": "Langfristige Trends von arktischem und antarktischem Meereis sind rückläufig."},
-        "ocean": {"category": "Ozeanwärme", "prediction": "Die Ozeanwärme nimmt weiter zu und befeuert Extreme", "reasoning": "Die Wärmespeicherung des oberen Ozeans steigt Jahr für Jahr."},
+        "temperature": {
+            "category": "Temperatur",
+            "prediction": "Die globale Temperaturanomalie bleibt während {horizon} erhöht.",
+            "prediction_proj": "Die globale Temperaturanomalie erreicht {proj:+.2f}°C innerhalb {horizon} (aktuell {cur:+.2f}°C).",
+            "reasoning": "Basierend auf dem anhaltenden Erwärmungstrend in den Beobachtungsdaten.",
+            "reasoning_proj": "Trend {slope:+.3f}°C/Jahr (R²={r2}) über {n} Jahreswerte (Referenz 1951–1980); aktuelle Anomalie {cur:+.2f}°C.",
+            "risk": "high",
+            "base_prob": 0.88,
+        },
+        "co2": {
+            "category": "CO₂",
+            "prediction": "Die atmosphärische CO₂-Konzentration steigt während {horizon} weiter an.",
+            "prediction_proj": "CO₂ erreicht ~{proj:.1f} ppm innerhalb {horizon} (aktuell {cur:.1f} ppm).",
+            "reasoning": "Das CO₂-Wachstum ist durch anhaltende Verbrennungsemissionen bedingt (NOAA GML).",
+            "reasoning_proj": "Gemessene Rate ≈ {slope:+.2f} ppm/Jahr (R²={r2}) über {n} Jahre NOAA-GML-Daten.",
+            "risk": "high",
+            "base_prob": 0.90,
+        },
+        "ice": {
+            "category": "Meereis",
+            "prediction": "Die polare Meereisausdehnung bleibt während {horizon} unter der saisonalen Basislinie.",
+            "prediction_proj": "Das arktische Jahresminimum sinkt auf ~{proj:.2f} Mio. km² innerhalb {horizon} (aktuell {cur:.2f} Mio. km²).",
+            "reasoning": "Die mehrjährigen Trends von arktischem und antarktischem Meereis sind rückläufig.",
+            "reasoning_proj": "Jahresminimum-Trend {slope:+.3f} Mio. km²/Jahr (R²={r2}) über {n} Jahre (NSIDC).",
+            "risk": "high",
+            "base_prob": 0.82,
+        },
+        "sea_level": {
+            "category": "Meeresspiegel",
+            "prediction": "Der globale Meeresspiegel steigt während {horizon} weiter an.",
+            "prediction_proj": "Der Meeresspiegel steigt auf ~{proj:+.0f} mm innerhalb {horizon} (aktuell {cur:+.0f} mm).",
+            "reasoning": "Thermische Ausdehnung und Eisschildmassenverlust treiben den Meeresspiegel.",
+            "reasoning_proj": "Anstieg von {slope:+.2f} mm/Jahr (R²={r2}) aus {n} Jahren Satellitenaltimetrie und Pegelständen.",
+            "risk": "high",
+            "base_prob": 0.84,
+        },
+        "ocean": {
+            "category": "Ozeanwärme",
+            "prediction": "Der Wärmeinhalt der Ozeane nimmt während {horizon} weiter zu.",
+            "prediction_proj": "Der Wärmeinhalt des oberen Ozeans steigt auf ~{proj:.0f} ZJ innerhalb {horizon} (aktuell {cur:.0f} ZJ).",
+            "reasoning": "Der Ozean nimmt den Großteil überschüssiger planetarer Wärme auf.",
+            "reasoning_proj": "Wärmezuwachs {slope:+.2f} ZJ/Jahr (R²={r2}) über {n} Datenpunkte (0–2000 m).",
+            "risk": "high",
+            "base_prob": 0.85,
+        },
+        "ph": {
+            "category": "Ozeanversauerung",
+            "prediction": "Der pH-Wert der Ozeanoberfläche sinkt während {horizon} weiter.",
+            "prediction_proj": "Der pH-Wert sinkt auf ~{proj:.3f} innerhalb {horizon} (aktuell {cur:.3f}).",
+            "reasoning": "Absorbiertes CO₂ senkt den pH-Wert des Ozeans (Station ALOHA).",
+            "reasoning_proj": "Versauerungstrend {slope:+.3f} pH/Jahr (R²={r2}) über {n} Jahre ALOHA-Daten.",
+            "risk": "medium",
+            "base_prob": 0.80,
+        },
+        "wildfire": {
+            "category": "Waldbrandrisiko",
+            "prediction": "Erhöhte Waldbrandaktivität hält während {horizon} an.",
+            "prediction_live": "Erhöhte Waldbrandaktivität hält während {horizon} an; aktuell {cur} aktive Brandherde.",
+            "reasoning": "Satellitendetektierte Brandherde markieren erhöhte Brandgefahr.",
+            "reasoning_live": "{cur} aktive Brandherde aktuell von Satelliten erkannt (NASA FIRMS).",
+            "risk": "high",
+            "base_prob": 0.74,
+        },
+        "cyclone": {
+            "category": "Wirbelsturm",
+            "prediction": "Die tropische Wirbelsturmaktivität hält während {horizon} an.",
+            "prediction_live": "Die tropische Wirbelsturmaktivität hält während {horizon} an; {cur} Stürme derzeit verfolgt.",
+            "reasoning": "Warmes Ozeanwasser liefert Energie für die Zyklonenentwicklung.",
+            "reasoning_live": "{cur} tropische(r) Wirbelsturm/Wirbelstürme derzeit über warmem Atlantikwasser aktiv.",
+            "risk": "medium",
+            "base_prob": 0.68,
+        },
     },
     "pl": {
-        "temperature": {"category": "Temperatura", "prediction": "Globalna anomalia temperatury nadal rośnie", "reasoning": "Obecna anomalia {v}°C względem linii bazowej 1951–1980 wskazuje na utrzymujące się ocieplenie."},
-        "wildfire": {"category": "Ryzyko pożarów", "prediction": "Podwyższona aktywność pożarowa w regionach z aktywnymi ogniskami", "reasoning": "{n} aktywnych ognisk pożarów wykrytych przez satelity."},
-        "cyclone": {"category": "Cyklon", "prediction": "Aktywne cyklony tropikalne mogą się wzmocnić nad ciepłymi wodami", "reasoning": "{n} cyklon(y) tropikalnych śledzonych na Atlantyku."},
-        "ice": {"category": "Lód morski", "prediction": "Zasięg polarnego lodu morskiego pozostaje poniżej sezonowej normy", "reasoning": "Długoterminowe trendy lodu arktycznego i antarktycznego spadają."},
-        "ocean": {"category": "Ciepło oceanu", "prediction": "Ciepło oceanu nadal się gromadzi, napędzając ekstrema", "reasoning": "Zasoby ciepła górnego oceanu rosną z roku na rok."},
+        "temperature": {
+            "category": "Temperatura",
+            "prediction": "Globalna anomalia temperatury pozostaje podwyższona przez {horizon}.",
+            "prediction_proj": "Globalna anomalia temperatury osiągnie {proj:+.2f}°C w ciągu {horizon} (obecnie {cur:+.2f}°C).",
+            "reasoning": "Na podstawie utrzymującego się trendu ocieplenia w danych obserwacyjnych.",
+            "reasoning_proj": "Trend {slope:+.3f}°C/rok (R²={r2}) z {n} danych rocznych (linia bazowa 1951–1980); obecna anomalia {cur:+.2f}°C.",
+            "risk": "high",
+            "base_prob": 0.88,
+        },
+        "co2": {
+            "category": "CO₂",
+            "prediction": "Stężenie CO₂ w atmosferze rośnie przez {horizon}.",
+            "prediction_proj": "CO₂ osiągnie około {proj:.1f} ppm w ciągu {horizon} (obecnie {cur:.1f} ppm).",
+            "reasoning": "Wzrost CO₂ wynika z trwałej emisji ze spalania paliw (NOAA GML).",
+            "reasoning_proj": "Zmierzona dynamika ≈ {slope:+.2f} ppm/rok (R²={r2}) z {n} lat danych NOAA GML.",
+            "risk": "high",
+            "base_prob": 0.90,
+        },
+        "ice": {
+            "category": "Lód morski",
+            "prediction": "Zasięg polarnego lodu morskiego pozostaje poniżej normy sezonowej przez {horizon}.",
+            "prediction_proj": "Arktyczne minimum roczne lodu spadnie do ~{proj:.2f} mln km² w ciągu {horizon} (obecnie {cur:.2f} mln km²).",
+            "reasoning": "Wieloletnie trendy lodu arktycznego i antarktycznego maleją.",
+            "reasoning_proj": "Trend minimum rocznego {slope:+.3f} mln km²/rok (R²={r2}) z {n} lat (NSIDC).",
+            "risk": "high",
+            "base_prob": 0.82,
+        },
+        "sea_level": {
+            "category": "Poziom morza",
+            "prediction": "Globalny poziom morza rośnie przez {horizon}.",
+            "prediction_proj": "Globalny poziom morza wzrośnie do ~{proj:+.0f} mm w ciągu {horizon} (obecnie {cur:+.0f} mm).",
+            "reasoning": "Ekspansja termiczna i utrata masy lodowców podnoszą poziom morza.",
+            "reasoning_proj": "Wzrost {slope:+.2f} mm/rok (R²={r2}) z {n} lat altimetrii satelitarnej i pływomierzy.",
+            "risk": "high",
+            "base_prob": 0.84,
+        },
+        "ocean": {
+            "category": "Ciepło oceanu",
+            "prediction": "Ciepło oceanu gromadzi się przez {horizon}.",
+            "prediction_proj": "Zasoby ciepła górnego oceanu wzrosną do ~{proj:.0f} ZJ w ciągu {horizon} (obecnie {cur:.0f} ZJ).",
+            "reasoning": "Ocean pochłania większość nadmiarowego ciepła planety.",
+            "reasoning_proj": "Przyrost ciepła {slope:+.2f} ZJ/rok (R²={r2}) z {n} punktów danych (0–2000 m).",
+            "risk": "high",
+            "base_prob": 0.85,
+        },
+        "ph": {
+            "category": "Zakwaszenie oceanu",
+            "prediction": "pH wód powierzchniowych oceanu spada przez {horizon}.",
+            "prediction_proj": "pH oceanu spadnie do ~{proj:.3f} w ciągu {horizon} (obecnie {cur:.3f}).",
+            "reasoning": "Absorbowany CO₂ obniża pH oceanu (stacja ALOHA).",
+            "reasoning_proj": "Trend zakwaszenia {slope:+.3f} pH/rok (R²={r2}) z {n} lat danych stacji ALOHA.",
+            "risk": "medium",
+            "base_prob": 0.80,
+        },
+        "wildfire": {
+            "category": "Ryzyko pożarów",
+            "prediction": "Podwyższona aktywność pożarowa utrzyma się przez {horizon}.",
+            "prediction_live": "Podwyższona aktywność pożarowa utrzyma się przez {horizon}; obecnie {cur} aktywnych ognisk.",
+            "reasoning": "Ogniska wykryte satelitarnie wskazują obszary podwyższonego ryzyka pożarów.",
+            "reasoning_live": "{cur} aktywnych ognisk pożarów wykrytych przez satelity (NASA FIRMS).",
+            "risk": "high",
+            "base_prob": 0.74,
+        },
+        "cyclone": {
+            "category": "Cyklon",
+            "prediction": "Aktywność cyklonów tropikalnych utrzyma się przez {horizon}.",
+            "prediction_live": "Aktywność cyklonów tropikalnych utrzyma się przez {horizon}; obecnie śledzone {cur} burz.",
+            "reasoning": "Ciepłe wody oceanu dostarczają energii do rozwoju cyklonów.",
+            "reasoning_live": "{cur} cyklon(y) tropikalnych obecnie aktywnych nad ciepłymi wodami Atlantyku.",
+            "risk": "medium",
+            "base_prob": 0.68,
+        },
     },
     "fr": {
-        "temperature": {"category": "Température", "prediction": "L'anomalie de température mondiale continue de monter", "reasoning": "L'anomalie actuelle de {v}°C par rapport à la référence 1951-1980 indique un réchauffement soutenu."},
-        "wildfire": {"category": "Risque d'incendie", "prediction": "Activité d'incendie élevée dans les régions à foyers actifs", "reasoning": "{n} foyers d'incendie actifs détectés par satellite."},
-        "cyclone": {"category": "Cyclone", "prediction": "Les cyclones tropicaux actifs peuvent s'intensifier sur les eaux chaudes", "reasoning": "{n} cyclone(s) tropical(aux) suivi(s) dans l'Atlantique."},
-        "ice": {"category": "Glace marine", "prediction": "L'étendue de la glace polaire reste sous la référence saisonnière", "reasoning": "Les tendances à long terme de la glace arctique et antarctique sont à la baisse."},
-        "ocean": {"category": "Chaleur océanique", "prediction": "La chaleur océanique continue de s'accumuler, alimentant les extrêmes", "reasoning": "Le stockage de chaleur de l'océan supérieur augmente chaque année."},
+        "temperature": {
+            "category": "Température",
+            "prediction": "L'anomalie de température mondiale reste élevée pendant {horizon}.",
+            "prediction_proj": "L'anomalie de température mondiale atteindra {proj:+.2f}°C d'ici {horizon} (actuellement {cur:+.2f}°C).",
+            "reasoning": "Sur la base de la tendance continue au réchauffement dans les données d'observation.",
+            "reasoning_proj": "Tendance {slope:+.3f}°C/an (R²={r2}) sur {n} points annuels (référence 1951–1980) ; anomalie actuelle {cur:+.2f}°C.",
+            "risk": "high",
+            "base_prob": 0.88,
+        },
+        "co2": {
+            "category": "CO₂",
+            "prediction": "Le CO₂ atmosphérique continue d'augmenter pendant {horizon}.",
+            "prediction_proj": "Le CO₂ atteindra environ {proj:.1f} ppm d'ici {horizon} (actuellement {cur:.1f} ppm).",
+            "reasoning": "La croissance du CO₂ est due aux émissions persistantes de combustion (NOAA GML).",
+            "reasoning_proj": "Taux mesuré ≈ {slope:+.2f} ppm/an (R²={r2}) sur {n} années de données NOAA GML.",
+            "risk": "high",
+            "base_prob": 0.90,
+        },
+        "ice": {
+            "category": "Glace marine",
+            "prediction": "L'étendue de la glace polaire reste sous la référence saisonnière pendant {horizon}.",
+            "prediction_proj": "Le minimum annuel de glace arctique tombera à ~{proj:.2f} M km² d'ici {horizon} (actuellement {cur:.2f} M km²).",
+            "reasoning": "Les tendances pluriannuelles de la glace arctique et antarctique sont à la baisse.",
+            "reasoning_proj": "Tendance du minimum annuel {slope:+.3f} M km²/an (R²={r2}) sur {n} années (NSIDC).",
+            "risk": "high",
+            "base_prob": 0.82,
+        },
+        "sea_level": {
+            "category": "Niveau de la mer",
+            "prediction": "Le niveau mondial de la mer continue d'augmenter pendant {horizon}.",
+            "prediction_proj": "Le niveau mondial de la mer montera à ~{proj:+.0f} mm d'ici {horizon} (actuellement {cur:+.0f} mm).",
+            "reasoning": "L'expansion thermique et la perte de masse des calottes élèvent le niveau de la mer.",
+            "reasoning_proj": "Hausse de {slope:+.2f} mm/an (R²={r2}) sur {n} années d'altimétrie satellitaire et de marégraphes.",
+            "risk": "high",
+            "base_prob": 0.84,
+        },
+        "ocean": {
+            "category": "Chaleur océanique",
+            "prediction": "La chaleur océanique continue de s'accumuler pendant {horizon}.",
+            "prediction_proj": "Le contenu thermique de l'océan supérieur atteindra ~{proj:.0f} ZJ d'ici {horizon} (actuellement {cur:.0f} ZJ).",
+            "reasoning": "L'océan absorbe l'essentiel de la chaleur planétaire excédentaire.",
+            "reasoning_proj": "Gain de chaleur {slope:+.2f} ZJ/an (R²={r2}) sur {n} points de données (0–2000 m).",
+            "risk": "high",
+            "base_prob": 0.85,
+        },
+        "ph": {
+            "category": "Acidification des océans",
+            "prediction": "Le pH de surface des océans continue de baisser pendant {horizon}.",
+            "prediction_proj": "Le pH de l'océan tombera à ~{proj:.3f} d'ici {horizon} (actuellement {cur:.3f}).",
+            "reasoning": "Le CO₂ absorbé abaisse le pH de l'océan (station ALOHA).",
+            "reasoning_proj": "Tendance d'acidification {slope:+.3f} pH/an (R²={r2}) sur {n} années de données ALOHA.",
+            "risk": "medium",
+            "base_prob": 0.80,
+        },
+        "wildfire": {
+            "category": "Risque d'incendie",
+            "prediction": "L'activité d'incendie élevée persiste pendant {horizon}.",
+            "prediction_live": "L'activité d'incendie élevée persiste pendant {horizon}, avec {cur} foyers actifs actuellement.",
+            "reasoning": "Les foyers détectés par satellite marquent les zones à risque d'incendie.",
+            "reasoning_live": "{cur} foyers d'incendie actifs détectés par satellite (NASA FIRMS).",
+            "risk": "high",
+            "base_prob": 0.74,
+        },
+        "cyclone": {
+            "category": "Cyclone",
+            "prediction": "L'activité des cyclones tropicaux se poursuit pendant {horizon}.",
+            "prediction_live": "L'activité des cyclones tropicaux se poursuit pendant {horizon} ; {cur} tempête(s) suivie(s) actuellement.",
+            "reasoning": "Les eaux océaniques chaudes fournissent l'énergie du développement des cyclones.",
+            "reasoning_live": "{cur} cyclone(s) tropical(aux) actif(s) au-dessus des eaux chaudes de l'Atlantique.",
+            "risk": "medium",
+            "base_prob": 0.68,
+        },
     },
     "it": {
-        "temperature": {"category": "Temperatura", "prediction": "L'anomalia di temperatura globale continua a salire", "reasoning": "L'anomalia attuale di {v}°C rispetto alla linea di base 1951-1980 indica un riscaldamento sostenuto."},
-        "wildfire": {"category": "Rischio incendi", "prediction": "Attività di incendio elevata nelle regioni con focolai attivi", "reasoning": "{n} focolai di incendio attivi rilevati dai satelliti."},
-        "cyclone": {"category": "Ciclone", "prediction": "I cicloni tropicali attivi possono intensificarsi su acque calde", "reasoning": "{n} ciclone(i) tropicale(i) attualmente monitorati nell'Atlantico."},
-        "ice": {"category": "Ghiaccio marino", "prediction": "L'estensione del ghiaccio polare resta sotto la linea di base stagionale", "reasoning": "Le tendenze a lungo termine del ghiaccio artico e antartico sono in calo."},
-        "ocean": {"category": "Calore oceanico", "prediction": "Il calore oceanico continua ad accumularsi, alimentando gli estremi", "reasoning": "Lo stoccaggio di calore dell'oceano superiore cresce anno dopo anno."},
+        "temperature": {
+            "category": "Temperatura",
+            "prediction": "L'anomalia di temperatura globale resta elevata per {horizon}.",
+            "prediction_proj": "L'anomalia di temperatura globale raggiungerà {proj:+.2f}°C entro {horizon} (attualmente {cur:+.2f}°C).",
+            "reasoning": "Basata sulla tendenza di riscaldamento persistente nei dati osservativi.",
+            "reasoning_proj": "Tendenza {slope:+.3f}°C/anno (R²={r2}) su {n} punti annuali (linea base 1951–1980); anomalia attuale {cur:+.2f}°C.",
+            "risk": "high",
+            "base_prob": 0.88,
+        },
+        "co2": {
+            "category": "CO₂",
+            "prediction": "La CO₂ atmosferica continua a salire per {horizon}.",
+            "prediction_proj": "La CO₂ raggiungerà circa {proj:.1f} ppm entro {horizon} (attualmente {cur:.1f} ppm).",
+            "reasoning": "La crescita della CO₂ è dovuta alle persistenti emissioni da combustione (NOAA GML).",
+            "reasoning_proj": "Tasso misurato ≈ {slope:+.2f} ppm/anno (R²={r2}) su {n} anni di dati NOAA GML.",
+            "risk": "high",
+            "base_prob": 0.90,
+        },
+        "ice": {
+            "category": "Ghiaccio marino",
+            "prediction": "L'estensione del ghiaccio polare resta sotto la linea base stagionale per {horizon}.",
+            "prediction_proj": "Il minimo annuo artico scenderà a ~{proj:.2f} M km² entro {horizon} (attualmente {cur:.2f} M km²).",
+            "reasoning": "Le tendenze pluriennali del ghiaccio artico e antartico sono in calo.",
+            "reasoning_proj": "Tendenza del minimo annuo {slope:+.3f} M km²/anno (R²={r2}) su {n} anni (NSIDC).",
+            "risk": "high",
+            "base_prob": 0.82,
+        },
+        "sea_level": {
+            "category": "Livello del mare",
+            "prediction": "Il livello globale del mare continua a salire per {horizon}.",
+            "prediction_proj": "Il livello globale del mare salirà a ~{proj:+.0f} mm entro {horizon} (attualmente {cur:+.0f} mm).",
+            "reasoning": "L'espansione termica e la perdita di massa dei ghiacci sollevano il livello del mare.",
+            "reasoning_proj": "Aumento di {slope:+.2f} mm/anno (R²={r2}) su {n} anni di altimetria satellitare e mareografi.",
+            "risk": "high",
+            "base_prob": 0.84,
+        },
+        "ocean": {
+            "category": "Calore oceanico",
+            "prediction": "Il calore oceanico continua ad accumularsi per {horizon}.",
+            "prediction_proj": "Il contenuto termico dell'oceano superiore salirà a ~{proj:.0f} ZJ entro {horizon} (attualmente {cur:.0f} ZJ).",
+            "reasoning": "L'oceano assorbe la maggior parte del calore planetario in eccesso.",
+            "reasoning_proj": "Guadagno di calore {slope:+.2f} ZJ/anno (R²={r2}) su {n} punti dati (0–2000 m).",
+            "risk": "high",
+            "base_prob": 0.85,
+        },
+        "ph": {
+            "category": "Acidificazione oceanica",
+            "prediction": "Il pH di superficie dell'oceano continua a diminuire per {horizon}.",
+            "prediction_proj": "Il pH dell'oceano scenderà a ~{proj:.3f} entro {horizon} (attualmente {cur:.3f}).",
+            "reasoning": "La CO₂ assorbita abbassa il pH dell'oceano (stazione ALOHA).",
+            "reasoning_proj": "Tendenza di acidificazione {slope:+.3f} pH/anno (R²={r2}) su {n} anni di dati ALOHA.",
+            "risk": "medium",
+            "base_prob": 0.80,
+        },
+        "wildfire": {
+            "category": "Rischio incendi",
+            "prediction": "L'attività di incendio elevata persiste per {horizon}.",
+            "prediction_live": "L'attività di incendio elevata persiste per {horizon}, con {cur} focolai attivi ora.",
+            "reasoning": "I focolai rilevati dai satelliti segnalano aree a rischio incendio.",
+            "reasoning_live": "{cur} focolai di incendio attivi rilevati dai satelliti (NASA FIRMS).",
+            "risk": "high",
+            "base_prob": 0.74,
+        },
+        "cyclone": {
+            "category": "Ciclone",
+            "prediction": "L'attività dei cicloni tropicali continua per {horizon}.",
+            "prediction_live": "L'attività dei cicloni tropicali continua per {horizon}; {cur} tempeste attualmente tracciate.",
+            "reasoning": "Le acque oceaniche calde forniscono energia per lo sviluppo dei cicloni.",
+            "reasoning_live": "{cur} ciclone(i) tropicale(i) attivo(i) sopra le acque calde dell'Atlantico.",
+            "risk": "medium",
+            "base_prob": 0.68,
+        },
     },
     "ka": {
-        "temperature": {"category": "ტემპერატურა", "prediction": "გლობალური ტემპერატურული ანომალია აგრძელებს ზრდას", "reasoning": "მიმდინარე ანომალია {v}°C საბაზო პერიოდთან 1951–1980 შედარებით მიუთითებს სტაბილურ დათბობაზე."},
-        "wildfire": {"category": "ხანძრის რისკი", "prediction": "ხანძრის გაზრდილი აქტივობა აქტიური კერების მქონე რეგიონებში", "reasoning": "სატელიტებმა აღმოაჩინეს {n} აქტიური ხანძრის კერა."},
-        "cyclone": {"category": "ციკლონი", "prediction": "აქტიური ტროპიკული ციკლონები შესაძლოა გაძლიერდნენ თბილ წყლებზე", "reasoning": "ატლანტიკაში აკვირდებიან {n} ტროპიკულ ციკლონს."},
-        "ice": {"category": "ზღვის ყინული", "prediction": "პოლარული ყინულის მოცულობა რჩება სეზონურ ნორმაზე დაბლა", "reasoning": "არქტიკის და ანტარქტიდის ყინულის გრძელვადიანი ტენდენციები კლებულობს."},
-        "ocean": {"category": "ოკეანის სითბო", "prediction": "ოკეანის სითბო აგრძელებს დაგროვებას და აძლიერებს ექსტრემებს", "reasoning": "ოკეანის ზედა ფენების სითბო წლიდან წლამდე იზრდება."},
+        "temperature": {
+            "category": "ტემპერატურა",
+            "prediction": "გლობალური ტემპერატურული ანომალია ამაღლებული რჩება {horizon}-ის განმავლობაში.",
+            "prediction_proj": "გლობალური ტემპერატურული ანომალია მიაღწევს {proj:+.2f}°C-ს {horizon}-ში (ახლა {cur:+.2f}°C).",
+            "reasoning": "დაკვირვებების მონაცემებში მდგრადი დათბობის ტენდენციაზე დაყრდნობით.",
+            "reasoning_proj": "ტენდენცია {slope:+.3f}°C/წელი (R²={r2}) {n} წლიური წერტილით (ბაზისი 1951–1980); მიმდინარე ანომალია {cur:+.2f}°C.",
+            "risk": "high",
+            "base_prob": 0.88,
+        },
+        "co2": {
+            "category": "CO₂",
+            "prediction": "ატმოსფერული CO₂ იზრდება {horizon}-ის განმავლობაში.",
+            "prediction_proj": "CO₂ მიაღწევს დაახლოებით {proj:.1f} ppm-ს {horizon}-ში (ახლა {cur:.1f} ppm).",
+            "reasoning": "CO₂-ის ზრდა გამოწვეულია საწვავის წვის მუდმივი ემისიებით (NOAA GML).",
+            "reasoning_proj": "გაზომილი ტემპი ≈ {slope:+.2f} ppm/წელი (R²={r2}) NOAA GML-ის {n} წლის მონაცემებზე.",
+            "risk": "high",
+            "base_prob": 0.90,
+        },
+        "ice": {
+            "category": "ზღვის ყინული",
+            "prediction": "პოლარული ყინულის ფართობი რჩება სეზონურ ნორმაზე დაბლა {horizon}-ის განმავლობაში.",
+            "prediction_proj": "არქტიკული წლიური მინიმუმი დაეცემა ~{proj:.2f} მლნ კმ²-მდე {horizon}-ში (ახლა {cur:.2f} მლნ კმ²).",
+            "reasoning": "არქტიკის და ანტარქტიდის ყინულის მრავალწლიანი ტენდენციები კლებულობს.",
+            "reasoning_proj": "წლიური მინიმუმის ტენდენცია {slope:+.3f} მლნ კმ²/წელი (R²={r2}) {n} წლის განმავლობაში (NSIDC).",
+            "risk": "high",
+            "base_prob": 0.82,
+        },
+        "sea_level": {
+            "category": "ზღვის დონე",
+            "prediction": "გლობალური ზღვის დონე იზრდება {horizon}-ის განმავლობაში.",
+            "prediction_proj": "გლობალური ზღვის დონე აიწევს ~{proj:+.0f} მმ-მდე {horizon}-ში (ახლა {cur:+.0f} მმ).",
+            "reasoning": "თერმული გაფართოება და ყინულის მასის დაკარგვა ზრდის ზღვის დონეს.",
+            "reasoning_proj": "ზრდა {slope:+.2f} მმ/წელი (R²={r2}) სატელიტური ალტიმეტრიისა და მარეოგრაფების {n} წლის განმავლობაში.",
+            "risk": "high",
+            "base_prob": 0.84,
+        },
+        "ocean": {
+            "category": "ოკეანის სითბო",
+            "prediction": "ოკეანის სითბო გროვდება {horizon}-ის განმავლობაში.",
+            "prediction_proj": "ზედა ოკეანის სითბოშემცველობა აიწევს ~{proj:.0f} ზეტაჯოულამდე {horizon}-ში (ახლა {cur:.0f} ზეტაჯოული).",
+            "reasoning": "ოკეანე შთანთქავს პლანეტარული ჭარბი სითბოს უმეტეს ნაწილს.",
+            "reasoning_proj": "სითბოს მატება {slope:+.2f} ზეტაჯოული/წელი (R²={r2}) {n} მონაცემთა წერტილზე (0–2000 მ).",
+            "risk": "high",
+            "base_prob": 0.85,
+        },
+        "ph": {
+            "category": "ოკეანის მჟავიანობა",
+            "prediction": "ოკეანის ზედაპირული pH მცირდება {horizon}-ის განმავლობაში.",
+            "prediction_proj": "ოკეანის pH დაეცემა ~{proj:.3f}-მდე {horizon}-ში (ახლა {cur:.3f}).",
+            "reasoning": "შთანთქმული CO₂ ამცირებს ოკეანის pH-ს (ALOHA სადგური).",
+            "reasoning_proj": "მჟავიანობის ტენდენცია {slope:+.3f} pH/წელი (R²={r2}) ALOHA სადგურის {n} წლის მონაცემებზე.",
+            "risk": "medium",
+            "base_prob": 0.80,
+        },
+        "wildfire": {
+            "category": "ხანძრის რისკი",
+            "prediction": "ხანძრის გაზრდილი აქტივობა გრძელდება {horizon}-ის განმავლობაში.",
+            "prediction_live": "ხანძრის გაზრდილი აქტივობა გრძელდება {horizon}-ის განმავლობაში; ამჟამად {cur} აქტიური კერა.",
+            "reasoning": "სატელიტური კერები მიუთითებს გაზრდილი ხანძრის საშიშროების რეგიონებზე.",
+            "reasoning_live": "{cur} აქტიური ხანძრის კერა გამოვლენილია სატელიტებით (NASA FIRMS).",
+            "risk": "high",
+            "base_prob": 0.74,
+        },
+        "cyclone": {
+            "category": "ციკლონი",
+            "prediction": "ტროპიკული ციკლონების აქტივობა გრძელდება {horizon}-ის განმავლობაში.",
+            "prediction_live": "ტროპიკული ციკლონების აქტივობა გრძელდება {horizon}-ის განმავლობაში; ამჟამად იკვლევა {cur} ქარიშხალი.",
+            "reasoning": "თბილი ოკეანის წყლები ციკლონების განვითარების ენერგიას იძლევა.",
+            "reasoning_live": "{cur} ტროპიკული ციკლონი აქტიურია ატლანტიკის თბილ წყლებზე.",
+            "risk": "medium",
+            "base_prob": 0.68,
+        },
     },
 }
 
 
+def _horizon_scale(days: int) -> tuple:
+    """Множник імовірності та напівширина довірчого інтервалу за горизонтом.
+
+    Чим далі горизонт — тим нижча впевненість: імовірність зменшується,
+    а довірчий інтервал розширюється."""
+    if days <= 7:
+        return 1.00, 0.06
+    if days <= 30:
+        return 0.96, 0.07
+    if days <= 90:
+        return 0.92, 0.08
+    if days <= 365:
+        return 0.86, 0.10
+    if days <= 730:
+        return 0.78, 0.12
+    if days <= 1095:
+        return 0.72, 0.14
+    if days <= 1460:
+        return 0.67, 0.16
+    if days <= 1825:
+        return 0.62, 0.17
+    return 0.56, 0.18
+
+
+_HORIZON_PRESETS = (7, 30, 90, 365, 730, 1095, 1460, 1825, 3650)
+
+_HORIZON_LABELS: Dict[int, Dict[str, str]] = {
+    7: {"en": "7 days", "uk": "7 днів", "de": "7 Tage", "pl": "7 dni", "fr": "7 jours", "it": "7 giorni", "ka": "7 დღე"},
+    30: {"en": "30 days", "uk": "30 днів", "de": "30 Tage", "pl": "30 dni", "fr": "30 jours", "it": "30 giorni", "ka": "30 დღე"},
+    90: {"en": "90 days", "uk": "90 днів", "de": "90 Tage", "pl": "90 dni", "fr": "90 jours", "it": "90 giorni", "ka": "90 დღე"},
+    365: {"en": "1 year", "uk": "1 рік", "de": "1 Jahr", "pl": "1 rok", "fr": "1 an", "it": "1 anno", "ka": "1 წელი"},
+    730: {"en": "2 years", "uk": "2 роки", "de": "2 Jahre", "pl": "2 lata", "fr": "2 ans", "it": "2 anni", "ka": "2 წელი"},
+    1095: {"en": "3 years", "uk": "3 роки", "de": "3 Jahre", "pl": "3 lata", "fr": "3 ans", "it": "3 anni", "ka": "3 წელი"},
+    1460: {"en": "4 years", "uk": "4 роки", "de": "4 Jahre", "pl": "4 lata", "fr": "4 ans", "it": "4 anni", "ka": "4 წელი"},
+    1825: {"en": "5 years", "uk": "5 років", "de": "5 Jahre", "pl": "5 lat", "fr": "5 ans", "it": "5 anni", "ka": "5 წელი"},
+    3650: {"en": "10 years", "uk": "10 років", "de": "10 Jahre", "pl": "10 lat", "fr": "10 ans", "it": "10 anni", "ka": "10 წელი"},
+}
+
+
+def _horizon_label(lang: str, days: int) -> str:
+    """Локалізована назва горизонту для найближчого пресету (7д … 10 років)."""
+    preset = min(_HORIZON_PRESETS, key=lambda p: abs(p - int(days)))
+    return _HORIZON_LABELS[preset].get(_normalize_lang(lang), "10 years")
+
+
+def _projected(cur: Optional[float], slope: Optional[float], years: float) -> Optional[float]:
+    """Екстраполяція на горизонт: поточне значення + тренд × роки."""
+    if cur is None or slope is None:
+        return None
+    try:
+        return float(cur) + float(slope) * float(years)
+    except (TypeError, ValueError):
+        return None
+
+
+def _indicator(snapshot: Dict[str, Any], current_key: str, analysis_key: str) -> tuple:
+    """(поточне значення, нахил, R², n) зі знімка — поточні + історичні дані."""
+    cur = (snapshot.get(current_key) or {}).get("value")
+    trend = ((snapshot.get(analysis_key) or {}).get("trend_analysis") or {})
+    slope = trend.get("recent_slope_per_year")
+    if slope is None:
+        slope = trend.get("slope_per_year")
+    return cur, slope, trend.get("r_squared"), trend.get("n") or 0
+
+
 def _template_predictions(snapshot: Dict[str, Any], lang: str, days: int = 30) -> List[Dict[str, Any]]:
-    """Детерміновані фолбек-прогнози, коли Groq недоступний."""
+    """Детерміновані фолбек-прогнози, зважені під ГОРИЗОНТ і заземлені на
+    поточні значення + багаторічні тренди (slope_per_year/recent_slope_per_year).
+
+    Короткі горизонти (≤90 днів) додають «живі» події (пожежі, циклони),
+    довгі — структурні тренди (CO₂, рівень моря, тепло океану, лід, pH)."""
     lang = _normalize_lang(lang)
     days = max(7, min(int(days or 30), 3650))
     tpl = _TEMPLATE_PREDICTIONS[lang]
+    years = days / 365.0
+    horizon = _horizon_label(lang, days)
+    k, half = _horizon_scale(days)
 
-    def _timeframe_scale(short: str, medium: str, long: str) -> str:
-        if days <= 7:
-            return short
-        if days <= 30:
-            return medium
-        if days <= 90:
-            return max(medium, long, key=len)
-        if days <= 365:
-            return long
-        return f"{days // 365} years"
+    def _fav(current_key: str, analysis_key: str) -> Optional[dict]:
+        cur, slope, r2, n = _indicator(snapshot, current_key, analysis_key)
+        if cur is None:
+            return None
+        return {
+            "cur": float(cur),
+            "slope": float(slope) if slope is not None else None,
+            "r2": float(r2) if r2 is not None else 0.0,
+            "n": n,
+            "proj": _projected(cur, slope, years),
+        }
 
-    predictions: List[Dict[str, Any]] = []
+    def _build(key: str, fav: dict) -> dict:
+        payload = dict(fav)
+        payload["horizon"] = horizon
+        rec = tpl[key]
+        p = max(0.0, min(1.0, rec["base_prob"] * k))
+        lo = max(0.0, p - half)
+        hi = min(1.0, p + half)
+        # Екстраполяцію тренду використовуємо лише для горизонтів ≥ 90 днів —
+        # на 7/30 днів погодою керують синоптичні процеси, а не багаторічний нахил.
+        if payload.get("proj") is not None and days > 30:
+            prediction = rec["prediction_proj"].format(**payload)
+            reasoning = rec["reasoning_proj"].format(**payload)
+        elif "prediction_live" in rec and payload.get("proj") is None:
+            prediction = rec["prediction_live"].format(**payload)
+            reasoning = rec["reasoning_live"].format(**payload)
+        else:
+            prediction = rec["prediction"].format(horizon=horizon)
+            reasoning = rec["reasoning"].format(horizon=horizon)
+        return {
+            "category": rec["category"],
+            "prediction": prediction,
+            "probability": round(p, 2),
+            "confidence_interval": [round(lo, 2), round(hi, 2)],
+            "reasoning": reasoning,
+            "risk_level": rec["risk"],
+            "timeframe": horizon,
+        }
 
-    anomaly = (snapshot.get("temperature") or {}).get("value")
-    if anomaly is not None:
-        t = tpl["temperature"]
-        predictions.append(
-            {
-                "category": t["category"],
-                "prediction": t["prediction"],
-                "probability": 0.88,
-                "confidence_interval": [0.80, 0.94],
-                "reasoning": t["reasoning"].format(v=f"{anomaly:+.2f}"),
-                "risk_level": "high",
-                "timeframe": _timeframe_scale("7 days", "30 days", "1 year"),
-            }
-        )
+    structural = []
+    structural.append(("temperature", _fav("temperature", "temperature_analysis")))
+    structural.append(("co2", _fav("co2", "co2_analysis")))
+    structural.append(("ice", _fav("arctic_ice", "arctic_ice_analysis")))
+    structural.append(("sea_level", _fav("sea_level", "sea_level_analysis")))
+    structural.append(("ocean", _fav("ocean_heat", "ocean_heat_analysis")))
+    structural.append(("ph", _fav("ocean_ph", "ocean_ph_analysis")))
+    structural = [(k, f) for k, f in structural if f is not None]
 
+    live = []
     fires = snapshot.get("fires", 0)
     if fires:
-        t = tpl["wildfire"]
-        predictions.append(
-            {
-                "category": t["category"],
-                "prediction": t["prediction"],
-                "probability": 0.74,
-                "confidence_interval": [0.66, 0.82],
-                "reasoning": t["reasoning"].format(n=fires),
-                "risk_level": "high",
-                "timeframe": _timeframe_scale("3-7 days", "7-14 days", "30-90 days"),
-            }
-        )
-
+        live.append(("wildfire", {"cur": int(fires), "slope": None, "r2": 0.0, "n": 0, "proj": None}))
     storms = snapshot.get("storms", 0)
     if storms:
-        t = tpl["cyclone"]
-        predictions.append(
-            {
-                "category": t["category"],
-                "prediction": t["prediction"],
-                "probability": 0.68,
-                "confidence_interval": [0.58, 0.78],
-                "reasoning": t["reasoning"].format(n=storms),
-                "risk_level": "medium",
-                "timeframe": _timeframe_scale("1-3 days", "7-30 days", "30-90 days"),
-            }
-        )
+        live.append(("cyclone", {"cur": int(storms), "slope": None, "r2": 0.0, "n": 0, "proj": None}))
 
-    if len(predictions) < 5:
-        t = tpl["ice"]
-        predictions.append(
-            {
-                "category": t["category"],
-                "prediction": t["prediction"],
-                "probability": 0.82,
-                "confidence_interval": [0.74, 0.90],
-                "reasoning": t["reasoning"],
-                "risk_level": "high",
-                "timeframe": _timeframe_scale("30 days", "90 days", "1 year"),
-            }
-        )
-        t = tpl["ocean"]
-        predictions.append(
-            {
-                "category": t["category"],
-                "prediction": t["prediction"],
-                "probability": 0.85,
-                "confidence_interval": [0.78, 0.92],
-                "reasoning": t["reasoning"],
-                "risk_level": "high",
-                "timeframe": _timeframe_scale("90 days", "90 days", "1 year"),
-            }
-        )
+    # Температура — завжди першою (якщо є). Живі події — лише для коротких горизонтів.
+    order = [it for it in structural if it[0] == "temperature"]
+    if days <= 90:
+        order += live
+    order += [it for it in structural if it[0] != "temperature"]
+    order += (live if days > 90 else [])
+    order = order[:5]
 
+    predictions = [_build(key, fav) for key, fav in order]
+    if not predictions:
+        rec = tpl["temperature"]
+        p = max(0.0, min(1.0, rec["base_prob"] * k))
+        predictions.append(
+            {
+                "category": rec["category"],
+                "prediction": rec["prediction"].format(horizon=horizon),
+                "probability": round(p, 2),
+                "confidence_interval": [round(max(0.0, p - half), 2), round(min(1.0, p + half), 2)],
+                "reasoning": rec["reasoning"].format(horizon=horizon),
+                "risk_level": rec["risk"],
+                "timeframe": horizon,
+            }
+        )
     return predictions[:5]
 
 
