@@ -118,6 +118,9 @@ export default function AIPredictions() {
   const [cards, setCards] = useState<PredictionCard[]>(fallbackPredictions);
   const [loading, setLoading] = useState(true);
   const [live, setLive] = useState(false);
+  const [aiComment, setAiComment] = useState<string | null>(null);
+  const [commentLoading, setCommentLoading] = useState(false);
+  const [commentLive, setCommentLive] = useState(false);
   const [selectedTimeframe, setSelectedTimeframe] = useState("days30");
   const [expandedPrediction, setExpandedPrediction] = useState<number | null>(null);
 
@@ -170,12 +173,41 @@ export default function AIPredictions() {
     [locale, selectedTimeframe, daysFor]
   );
 
+  /** Завантаження AI-коментаря до цього горизонту прогнозу */
+  const loadComment = useCallback(
+    async (days = daysFor(selectedTimeframe)) => {
+      setCommentLoading(true);
+      try {
+        const data = await api.predictionComment(locale, days);
+        if (data && data.comment) {
+          setAiComment(data.comment);
+          setCommentLive(!!data.live);
+        }
+      } catch {
+        setAiComment(
+          locale === "uk"
+            ? "Аналіз даних недоступний зараз — спробуйте пізніше."
+            : "Data analysis is temporarily unavailable — please try again later."
+        );
+        setCommentLive(false);
+      } finally {
+        setCommentLoading(false);
+      }
+    },
+    [locale, selectedTimeframe, daysFor]
+  );
+
   useEffect(() => {
     setLoading(true);
     load();
-    const id = setInterval(load, 30 * 60 * 1000);
+    loadComment();
+    const id = setInterval(() => {
+      load();
+      loadComment();
+    }, 30 * 60 * 1000);
     return () => clearInterval(id);
-  }, [load]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadComment, load]);
 
   const getRiskColor = (level: string) => {
     switch (level) {
@@ -314,6 +346,35 @@ export default function AIPredictions() {
           })}
         </div>
       )}
+
+      <div className="glass p-6">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center space-x-2">
+            <Sparkles className="w-5 h-5 text-violet" />
+            <h3 className="font-semibold text-sm">{t.predictions.ui.aiComment}</h3>
+          </div>
+          <div className="flex items-center space-x-2">
+            <span className="text-[10px] text-secondary uppercase tracking-wider">
+              {commentLive ? "AI Groq" : t.common.offline}
+            </span>
+            <button
+              onClick={() => loadComment()}
+              className="text-[10px] px-2 py-1 rounded-md bg-surface-2 hover:bg-surface-hover text-secondary hover:text-primary transition-colors"
+            >
+              {t.predictions.ui.refresh}
+            </button>
+          </div>
+        </div>
+        {commentLoading ? (
+          <div className="space-y-2">
+            <div className="h-4 w-3/4 bg-white/5 rounded skeleton" />
+            <div className="h-4 w-2/3 bg-white/5 rounded skeleton" />
+            <div className="h-4 w-1/2 bg-white/5 rounded skeleton" />
+          </div>
+        ) : aiComment ? (
+          <div className="text-secondary text-sm leading-relaxed whitespace-pre-line">{aiComment}</div>
+        ) : null}
+      </div>
 
       <div className="glass-strong p-6">
         <div className="flex items-center space-x-2 mb-4">

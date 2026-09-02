@@ -299,6 +299,14 @@ delta = series[-1]["value"] - series[-steps - 1]["value"]
 - Горизонт: 7 / 30 / 90 / 365 / 730 / 1095 / 1460 / 1825 / 3650 днів
 - Повертає JSON-масив з категоріями, ймовірностями, довірчими інтервалами, рівнем ризику
 
+#### AI-коментер прогнозів (`/api/predictions/comment`)
+- `GET /api/predictions/comment?lang=en&days=30`
+- Повертає `{ comment, model, generated_at, live, lang, horizon_days }`
+- Groq-промпт (system): «senior climate forecasting analyst» — короткий абзац + 2–4 булети, заземлені на snapshot (поточні значення, тренди, slope, R², аномалії, YoY), < 160 слів, `{lang}`
+- Fallback: `_template_prediction_comment()` — детермінований текст з `_COMMENT_TEMPLATES` (7 мов): для горизонту > 90 днів — структурні тренди + `intro_long`, для ≤ 90 днів — `intro_short` + живі події (fires/storms) + `note_short`; кожний індикатор: поточне значення + `recent_slope_per_year` + проєкція `cur + slope*days/365`
+- Немає Groq-ключа → `live: false`, `model: "fallback"`
+- Кешування: ключ `ai_comment:{lang}:{days}` (внутрішній `_cache`, як і для `/api/predictions`)
+
 ---
 
 ### 1.4 db.py — База даних

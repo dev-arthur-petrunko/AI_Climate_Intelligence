@@ -418,6 +418,8 @@ export const en = {
       riskAssessment: "Risk Assessment",
       riskLevel: "RISK LEVEL",
       aiSummary: "AI Summary",
+      aiComment: "AI Climate Prediction Analysis",
+      refresh: "Refresh",
       risk: "risk",
       summaryText:
         "Current AI models indicate elevated climate risks across multiple regions in the selected timeframe. Southern Europe faces significant wildfire and heatwave risks, while Southeast Asia should prepare for potential flooding. Long-term patterns suggest continued warming trends with increasing probability of extreme weather events. Recommended actions include enhanced monitoring, preparedness measures, and contingency planning for affected regions.",
@@ -966,6 +968,8 @@ export const uk: TranslationDict = {
       riskAssessment: "Оцінка ризику",
       riskLevel: "РІВЕНЬ РИЗИКУ",
       aiSummary: "AI Резюме",
+      aiComment: "AI Аналіз Прогнозів Клімату",
+      refresh: "Оновити",
       risk: "ризик",
       summaryText:
         "Поточні AI-моделі вказують на підвищені кліматичні ризики в кількох регіонах у вибраному періоді. Південна Європа має значні ризики пожеж і спеки, а Південно-Східна Азія готується до можливих повеней. Довгострокові тенденції свідчать про продовження потепління зі зростанням імовірності екстремальних погодних явищ. Рекомендується посилений моніторинг, заходи готовності та планування на випадок надзвичайних ситуацій.",
@@ -1481,6 +1485,8 @@ export const de: TranslationDict = {
       riskAssessment: "Risikobewertung",
       riskLevel: "RISIKOSTUFE",
       aiSummary: "KI-Zusammenfassung",
+      aiComment: "KI-Klimaprognose-Analyse",
+      refresh: "Aktualisieren",
       risk: "Risiko",
       summaryText:
         "Aktuelle KI-Modelle zeigen erhöhte Klimarisiken in mehreren Regionen im gewählten Zeitraum. Südeuropa hat erhebliche Waldbrand- und Hitzewellenrisiken, während sich Südostasien auf mögliche Überschwemmungen vorbereiten sollte. Langfristige Trends deuten auf anhaltende Erwärmung mit zunehmender Wahrscheinlichkeit von Extremwetterereignissen hin. Empfohlen werden verstärkte Überwachung, Vorbereitungsmaßnahmen und Notfallplanung für betroffene Regionen.",
@@ -1996,6 +2002,8 @@ export const pl: TranslationDict = {
       riskAssessment: "Ocena ryzyka",
       riskLevel: "POZIOM RYZYKA",
       aiSummary: "AI Podsumowanie",
+      aiComment: "AI Analiza Prognoz Klimatycznych",
+      refresh: "Odśwież",
       risk: "ryzyko",
       summaryText:
         "Obecne modele AI wskazują na podwyższone ryzyka klimatyczne w kilku regionach w wybranym okresie. Europa Południowa stoi w obliczu znacznego ryzyka pożarów i fal upałów, a Azja Południowo-Wschodnia powinna przygotować się na możliwe powodzie. Długoterminowe trendy sugerują dalsze ocieplenie i wzrost prawdopodobieństwa ekstremalnych zjawisk pogodowych. Zaleca się wzmocniony monitoring, środki gotowości i planowanie awaryjne dla dotkniętych regionów.",
@@ -2511,6 +2519,8 @@ export const fr: TranslationDict = {
       riskAssessment: "Évaluation des risques",
       riskLevel: "NIVEAU DE RISQUE",
       aiSummary: "Résumé IA",
+      aiComment: "Analyse IA des Prévisions Climatiques",
+      refresh: "Actualiser",
       risk: "risque",
       summaryText:
         "Les modèles IA actuels indiquent des risques climatiques élevés dans plusieurs régions sur la période sélectionnée. L'Europe du Sud fait face à des risques importants d'incendies et de vagues de chaleur, tandis que l'Asie du Sud-Est doit se préparer à d'éventuelles inondations. Les tendances à long terme suggèrent un réchauffement continu avec une probabilité croissante d'événements météorologiques extrêmes. Des mesures renforcées de surveillance, de préparation et de planification d'urgence sont recommandées.",
@@ -3026,6 +3036,8 @@ export const it: TranslationDict = {
       riskAssessment: "Valutazione del rischio",
       riskLevel: "LIVELLO DI RISCHIO",
       aiSummary: "Riepilogo IA",
+      aiComment: "Analisi AI delle Previsioni Climatiche",
+      refresh: "Aggiorna",
       risk: "rischio",
       summaryText:
         "Gli attuali modelli IA indicano rischi climatici elevati in più regioni nel periodo selezionato. L'Europa meridionale affronta rischi significativi di incendi e ondate di calore, mentre il Sud-Est asiatico dovrebbe prepararsi a possibili inondazioni. Le tendenze a lungo termine suggeriscono un riscaldamento continuo con una crescente probabilità di eventi meteorologici estremi. Si raccomandano monitoraggio potenziato, misure di preparazione e pianificazione di emergenza per le regioni colpite.",
@@ -3541,6 +3553,8 @@ export const ka: TranslationDict = {
       riskAssessment: "რისკის შეფასება",
       riskLevel: "რისკის დონე",
       aiSummary: "AI შეჯამება",
+      aiComment: "კლიმატის პროგნოზების AI ანალიზი",
+      refresh: "განახლება",
       risk: "რისკი",
       summaryText:
         "მიმდინარე AI მოდელები მიუთითებენ გაზრდილ კლიმატურ რისკებზე მრავალ რეგიონში შერჩეულ პერიოდში. სამხრეთ ევროპა დგას მნიშვნელოვანი ხანძრისა და სითბური ტალღების რისკების წინაშე, ხოლო სამხრეთ-აღმოსავლეთ აზია უნდა მოემზადოს შესაძლო წყალდიდობებისთვის. გრძელვადიანი ტენდენციები მიუთითებენ გათბობის გაგრძელებაზე ექსტრემალური ამინდის მოვლენების მზარდი ალბათობით. რეკომენდებულია გაძლიერებული მონიტორინგი, მზადყოფნის ღონისძიებები და საგანგებო დაგეგმვა დაზარალებული რეგიონებისთვის.",

@@ -140,6 +140,7 @@ python main.py                        # Start server (http://localhost:8000)
 - `GET /api/kpi` - Climate KPI metrics
 - `GET /api/events` - Current climate events
 - `GET /api/predictions` - AI-generated predictions (AI Groq)
+- `GET /api/predictions/comment` - AI commentary for forecast horizon, grounded in current data + trends (AI Groq, data-grounded fallback per language)
 - `GET /api/ai-analysis` - Today's AI climate analysis (Groq, 09:00 & 17:00 Kyiv, per language)
 - `GET /api/ai-summary` - AI climate summary
 - `GET /api/overview?lat=..&lon=..` - Aggregated snapshot

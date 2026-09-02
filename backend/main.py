@@ -45,7 +45,7 @@ from data_sources import (
     get_drought_grace,
     get_sources_status,
 )
-from ai_groq import get_ai_analysis, get_ai_predictions, get_ai_summary_text
+from ai_groq import get_ai_analysis, get_ai_predictions, get_ai_prediction_comment, get_ai_summary_text
 from analytics import describe as analyze
 from analytics import to_annual_average
 from scheduler import start_scheduler, stop_scheduler
@@ -812,6 +812,16 @@ async def get_climate_events():
         pass
 
     return events
+
+
+@app.get("/api/predictions/comment")
+async def get_predictions_comment(lang: str = Query("en"), days: int = Query(30, ge=7, le=3650)):
+    """AI-коментер до прогнозів: текст, заземлений на поточні дані + багаторічні тренди (AI Groq).
+    days (7/30/90/365/730/1095/1460/1825/3650) задає горизонт, про який пише AI."""
+    return _safe(
+        lambda: get_ai_prediction_comment(lang, days),
+        {"comment": "", "model": "fallback", "live": False, "lang": lang, "horizon_days": days},
+    )
 
 
 @app.get("/api/predictions", response_model=List[AIPrediction])

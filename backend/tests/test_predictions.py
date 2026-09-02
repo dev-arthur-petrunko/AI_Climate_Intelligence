@@ -5,7 +5,13 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import pytest
 
-from ai_groq import _horizon_label, _projected, _template_predictions
+from ai_groq import (
+    _COMMENT_TEMPLATES,
+    _horizon_label,
+    _projected,
+    _template_prediction_comment,
+    _template_predictions,
+)
 
 ALL_LANGS = ("en", "uk", "de", "pl", "fr", "it", "ka")
 
@@ -109,3 +115,36 @@ class TestTemplatePredictions:
         assert _projected(100.0, 2.0, 10) == pytest.approx(120.0)
         assert _projected(None, 2.0, 10) is None
         assert _projected(100.0, None, 10) is None
+
+
+class TestPredictionComment:
+    def test_comment_all_languages_render(self):
+        """Резервний коментар для всіх 7 мов — без помилок форматування."""
+        for lang in ALL_LANGS:
+            for days in (7, 30, 90, 365, 3650):
+                text = _template_prediction_comment(_snapshot(), lang, days)
+                assert text, (lang, days)
+                assert lang in _COMMENT_TEMPLATES
+
+    def test_comment_horizon_aware(self):
+        """Короткий та довгий горизонти дають різні інтро та нотатки."""
+        short = _template_prediction_comment(_snapshot(), "en", 7)
+        long = _template_prediction_comment(_snapshot(), "en", 3650)
+        assert short != long
+        assert "short-term drivers" in short
+        assert "structural long-term" in long
+
+    def test_comment_uses_trend_needed_keys(self):
+        """Коментар містить ключі з поточних значень та трендів для кожного шаблону."""
+        text = _template_prediction_comment(_snapshot(), "en", 30)
+        # всі 6 індикаторів присутні
+        for key in ("temp", "co2", "ice", "sea_level", "ocean", "ph"):
+            assert key in _COMMENT_TEMPLATES["en"]
+        assert "1.35" in text
+
+    def test_comment_empty_snapshot(self):
+        """Порожній знімок — коментар без індикаторів, лише інтро + нотатка."""
+        text = _template_prediction_comment({}, "uk", 365)
+        assert text
+        # немає жодної «•» лінії з даними
+        assert "•" not in text

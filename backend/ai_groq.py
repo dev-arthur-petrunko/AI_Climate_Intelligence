@@ -1322,3 +1322,220 @@ def get_ai_predictions(lang: str = "en", days: int = 30) -> List[Dict[str, Any]]
     data = _generate_predictions(lang, days)
     _cache[key] = {"ts": time.time(), "data": data}
     return data
+
+
+# ---------------------------------------------------------------------------
+# AI-коментер до прогнозів (горизонт-залежний: окремий текст під картками)
+# ---------------------------------------------------------------------------
+
+# Шаблони резервного AI-коментаря до прогнозів для всіх 7 мов.
+# Коментар збирається з поточних значень + багаторічних трендів (проєкції {proj}).
+_COMMENT_TEMPLATES = {
+    "en": {
+        "intro_short": "For the next {horizon}, short-term drivers (weather and live events) set the tone, while the underlying multi-decadal trends continue:",
+        "intro_long": "For the next {horizon}, structural long-term climate trends shape the outlook. Extrapolating current observations and historical trends:",
+        "temp": "Global temperature anomaly: about {proj:+.2f}°C (now {cur:+.2f}°C; trend {slope:+.3f}°C/yr).",
+        "co2": "Atmospheric CO₂: about {proj:.1f} ppm (now {cur:.1f} ppm; growth {slope:+.2f} ppm/yr).",
+        "ice": "Arctic annual sea-ice minimum: about {proj:.2f} M km² (now {cur:.2f} M km²; trend {slope:+.3f} M km²/yr).",
+        "sea_level": "Global sea level: about {proj:+.0f} mm (now {cur:+.0f} mm; rise {slope:+.2f} mm/yr).",
+        "ocean": "Upper-ocean heat content: about {proj:.0f} ZJ (now {cur:.0f} ZJ; gain {slope:+.2f} ZJ/yr).",
+        "ph": "Surface-ocean pH: about {proj:.3f} (now {cur:.3f}; drift {slope:+.3f}/yr).",
+        "fire": "Live situation: {cur} active fire hotspots detected now.",
+        "storm": "Live situation: {cur} active tropical cyclone(s) now.",
+        "note_short": "For a short horizon daily variability is high — watch live events rather than fixed magnitudes.",
+        "note_long": "Long horizons are inherently more uncertain: probabilities fall and confidence intervals widen. Treat the figures as trend-based scenarios, not exact forecasts.",
+    },
+    "uk": {
+        "intro_short": "На найближчі {horizon} тон задають короткострокові чинники (погода та живі події), але багаторічні тренди тривають:",
+        "intro_long": "На найближчі {horizon} вигляд визначають структурні довгострокові кліматичні тренди. Екстраполюючи поточні спостереження та історичні тренди:",
+        "temp": "Глобальна температурна аномалія: близько {proj:+.2f}°C (зараз {cur:+.2f}°C; тренд {slope:+.3f}°C/рік).",
+        "co2": "CO₂ в атмосфері: близько {proj:.1f} ppm (зараз {cur:.1f} ppm; зростання {slope:+.2f} ppm/рік).",
+        "ice": "Арктичний річний мінімум льоду: близько {proj:.2f} млн км² (зараз {cur:.2f} млн км²; тренд {slope:+.3f} млн км²/рік).",
+        "sea_level": "Глобальний рівень моря: близько {proj:+.0f} мм (зараз {cur:+.0f} мм; зростання {slope:+.2f} мм/рік).",
+        "ocean": "Тепловміст верхнього океану: близько {proj:.0f} ЗДж (зараз {cur:.0f} ЗДж; приріст {slope:+.2f} ЗДж/рік).",
+        "ph": "pH поверхневих вод: близько {proj:.3f} (зараз {cur:.3f}; зміна {slope:+.3f}/рік).",
+        "fire": "Актуально: {cur} активних осередків пожеж виявлено зараз.",
+        "storm": "Актуально: {cur} активний(их) тропічний(их) циклон(ів) зараз.",
+        "note_short": "Для короткого горизонту денна мінливість висока — слідкуйте за живими подіями, а не за точними величинами.",
+        "note_long": "Довгі горизонти за замовчуванням невизначені: імовірності знижуються, довірчі інтервали розширюються. Сприймайте цифри як сценарії на основі трендів, а не точні прогнози.",
+    },
+    "de": {
+        "intro_short": "Für die nächsten {horizon} bestimmen kurzfristige Faktoren (Wetter und Live-Ereignisse) den Ton, während die langfristigen Trends weiterlaufen:",
+        "intro_long": "Für die nächsten {horizon} prägen strukturelle langfristige Klimatrends den Ausblick. Aktuelle Beobachtungen und historische Trends extrapoliert:",
+        "temp": "Globale Temperaturanomalie: etwa {proj:+.2f}°C (aktuell {cur:+.2f}°C; Trend {slope:+.3f}°C/Jahr).",
+        "co2": "Atmosphärisches CO₂: etwa {proj:.1f} ppm (aktuell {cur:.1f} ppm; Wachstum {slope:+.2f} ppm/Jahr).",
+        "ice": "Arktisches Jahresminimum des Meereises: etwa {proj:.2f} Mio. km² (aktuell {cur:.2f} Mio. km²; Trend {slope:+.3f} Mio. km²/Jahr).",
+        "sea_level": "Globaler Meeresspiegel: etwa {proj:+.0f} mm (aktuell {cur:+.0f} mm; Anstieg {slope:+.2f} mm/Jahr).",
+        "ocean": "Wärmeinhalt des oberen Ozeans: etwa {proj:.0f} ZJ (aktuell {cur:.0f} ZJ; Zuwachs {slope:+.2f} ZJ/Jahr).",
+        "ph": "pH der Ozeanoberfläche: etwa {proj:.3f} (aktuell {cur:.3f}; Änderung {slope:+.3f}/Jahr).",
+        "fire": "Live: {cur} aktive Brandherde derzeit erkannt.",
+        "storm": "Live: {cur} tropischer Wirbelsturm/Wirbelstürme derzeit aktiv.",
+        "note_short": "Bei kurzen Horizonten ist die tägliche Variabilität hoch; beobachten Sie Live-Ereignisse statt fester Größen.",
+        "note_long": "Lange Horizonte sind grundsätzlich unsicherer: Wahrscheinlichkeiten sinken, Konfidenzintervalle weiten sich. Behandeln Sie die Zahlen als trendbasierte Szenarien, nicht als exakte Prognosen.",
+    },
+    "pl": {
+        "intro_short": "Na najbliższe {horizon} o tonie decydują czynniki krótkoterminowe (pogoda i bieżące zdarzenia), a wieloletnie trendy trwają:",
+        "intro_long": "Na najbliższe {horizon} o obrazie decydują strukturalne długoterminowe trendy klimatyczne. Ekstrapolując bieżące obserwacje i historyczne trendy:",
+        "temp": "Globalna anomalia temperatury: około {proj:+.2f}°C (obecnie {cur:+.2f}°C; trend {slope:+.3f}°C/rok).",
+        "co2": "CO₂ w atmosferze: około {proj:.1f} ppm (obecnie {cur:.1f} ppm; wzrost {slope:+.2f} ppm/rok).",
+        "ice": "Arktyczne minimum roczne lodu: około {proj:.2f} mln km² (obecnie {cur:.2f} mln km²; trend {slope:+.3f} mln km²/rok).",
+        "sea_level": "Globalny poziom morza: około {proj:+.0f} mm (obecnie {cur:+.0f} mm; wzrost {slope:+.2f} mm/rok).",
+        "ocean": "Zasoby ciepła górnego oceanu: około {proj:.0f} ZJ (obecnie {cur:.0f} ZJ; przyrost {slope:+.2f} ZJ/rok).",
+        "ph": "pH wód powierzchniowych: około {proj:.3f} (obecnie {cur:.3f}; zmiana {slope:+.3f}/rok).",
+        "fire": "Na żywo: {cur} aktywnych ognisk pożarów wykrytych teraz.",
+        "storm": "Na żywo: {cur} cyklon(y) tropikalnych obecnie aktywnych.",
+        "note_short": "Przy krótkim horyzoncie dzienna zmienność jest wysoka; obserwuj bieżące zdarzenia, a nie sztywne wartości.",
+        "note_long": "Długie horyzonty są z natury bardziej niepewne: prawdopodobieństwa spadają, a przedziały ufności się poszerzają. Traktuj liczby jako scenariusze oparte na trendach, nie dokładne prognozy.",
+    },
+    "fr": {
+        "intro_short": "Pour les prochains {horizon}, les facteurs à court terme (météo et événements en direct) dominent, tandis que les tendances pluriannuelles se poursuivent :",
+        "intro_long": "Pour les prochains {horizon}, ce sont les tendances climatiques structurelles à long terme qui gouvernent. En extrapolant les observations actuelles et les tendances historiques :",
+        "temp": "Anomalie de température mondiale : environ {proj:+.2f}°C (actuellement {cur:+.2f}°C ; tendance {slope:+.3f}°C/an).",
+        "co2": "CO₂ atmosphérique : environ {proj:.1f} ppm (actuellement {cur:.1f} ppm ; croissance {slope:+.2f} ppm/an).",
+        "ice": "Minimum annuel de glace arctique : environ {proj:.2f} M km² (actuellement {cur:.2f} M km² ; tendance {slope:+.3f} M km²/an).",
+        "sea_level": "Niveau mondial de la mer : environ {proj:+.0f} mm (actuellement {cur:+.0f} mm ; hausse {slope:+.2f} mm/an).",
+        "ocean": "Contenu thermique de l'océan supérieur : environ {proj:.0f} ZJ (actuellement {cur:.0f} ZJ ; gain {slope:+.2f} ZJ/an).",
+        "ph": "pH de surface de l'océan : environ {proj:.3f} (actuellement {cur:.3f} ; dérive {slope:+.3f}/an).",
+        "fire": "En direct : {cur} foyers d'incendie actifs détectés maintenant.",
+        "storm": "En direct : {cur} cyclone(s) tropical(aux) actif(s) actuellement.",
+        "note_short": "Sur un horizon court, la variabilité quotidienne est élevée ; suivez les événements en direct plutôt que des valeurs fixes.",
+        "note_long": "Les horizons longs sont intrinsèquement plus incertains : les probabilités diminuent et les intervalles de confiance s'élargissent. Considérez les chiffres comme des scénarios fondés sur les tendances, pas des prévisions exactes.",
+    },
+    "it": {
+        "intro_short": "Per i prossimi {horizon} dominano i fattori a breve termine (meteo ed eventi live), mentre i trend pluriennali continuano:",
+        "intro_long": "Per i prossimi {horizon} a delineare il quadro sono i trend climatici strutturali di lungo periodo. Estrapolando osservazioni attuali e trend storici:",
+        "temp": "Anomalia di temperatura globale: circa {proj:+.2f}°C (attualmente {cur:+.2f}°C; tendenza {slope:+.3f}°C/anno).",
+        "co2": "CO₂ atmosferica: circa {proj:.1f} ppm (attualmente {cur:.1f} ppm; crescita {slope:+.2f} ppm/anno).",
+        "ice": "Minimo annuo artico del ghiaccio: circa {proj:.2f} M km² (attualmente {cur:.2f} M km²; tendenza {slope:+.3f} M km²/anno).",
+        "sea_level": "Livello globale del mare: circa {proj:+.0f} mm (attualmente {cur:+.0f} mm; aumento {slope:+.2f} mm/anno).",
+        "ocean": "Contenuto termico dell'oceano superiore: circa {proj:.0f} ZJ (attualmente {cur:.0f} ZJ; guadagno {slope:+.2f} ZJ/anno).",
+        "ph": "pH di superficie dell'oceano: circa {proj:.3f} (attualmente {cur:.3f}; deriva {slope:+.3f}/anno).",
+        "fire": "Live: {cur} focolai di incendio attivi rilevati ora.",
+        "storm": "Live: {cur} ciclone(i) tropicale(i) attivo(i) attualmente.",
+        "note_short": "Su un orizzonte breve la variabilità giornaliera è alta; osserva gli eventi live piuttosto che valori fissi.",
+        "note_long": "Gli orizzonti lunghi sono intrinsecamente più incerti: le probabilità calano e gli intervalli di confidenza si allargano. Considera le cifre come scenari basati sui trend, non previsioni esatte.",
+    },
+    "ka": {
+        "intro_short": "მომდევნო {horizon}-ში ტონს ადგენს მოკლევადიანი ფაქტორები (ამინდი და პირდაპირი მოვლენები), ხოლო მრავალწლიანი ტენდენციები გრძელდება:",
+        "intro_long": "მომდევნო {horizon}-ში სურათს განსაზღვრავს სტრუქტურული გრძელვადიანი კლიმატური ტენდენციები. მიმდინარე დაკვირვებებისა და ისტორიული ტენდენციების ექსტრაპოლაციით:",
+        "temp": "გლობალური ტემპერატურული ანომალია: დაახლოებით {proj:+.2f}°C (ახლა {cur:+.2f}°C; ტენდენცია {slope:+.3f}°C/წელი).",
+        "co2": "ატმოსფერული CO₂: დაახლოებით {proj:.1f} ppm (ახლა {cur:.1f} ppm; ზრდა {slope:+.2f} ppm/წელი).",
+        "ice": "არქტიკული წლიური მინიმუმი ყინული: დაახლოებით {proj:.2f} მლნ კმ² (ახლა {cur:.2f} მლნ კმ²; ტენდენცია {slope:+.3f} მლნ კმ²/წელი).",
+        "sea_level": "გლობალური ზღვის დონე: დაახლოებით {proj:+.0f} მმ (ახლა {cur:+.0f} მმ; ზრდა {slope:+.2f} მმ/წელი).",
+        "ocean": "ზედა ოკეანის სითბოშემცველობა: დაახლოებით {proj:.0f} ზეტაჯოული (ახლა {cur:.0f} ზეტაჯოული; მატება {slope:+.2f} ზეტაჯოული/წელი).",
+        "ph": "ოკეანის ზედაპირული pH: დაახლოებით {proj:.3f} (ახლა {cur:.3f}; ცვლილება {slope:+.3f}/წელი).",
+        "fire": "პირდაპირ: {cur} აქტიური ხანძრის კერა აღმოჩენილია ახლა.",
+        "storm": "პირდაპირ: {cur} ტროპიკული ციკლონი აქტიურია ახლა.",
+        "note_short": "მოკლე ჰორიზონტზე დღიური ცვალებადობა მაღალია — უკეთ დააკვირდით პირდაპირ მოვლენებს, ვიდრე ფიქსირებულ მნიშვნელობებს.",
+        "note_long": "გრძელი ჰორიზონტები ბუნებრივად უფრო გაურკვეველია: ალბათობები მცირდება და ნდობის ინტერვალები ფართოვდება. ციფრები აღიქვით როგორც ტენდენციებზე დაფუძნებული სცენარები, არა ზუსტი პროგნოზი.",
+    },
+}
+
+
+def _template_prediction_comment(snapshot: Dict[str, Any], lang: str, days: int = 30) -> str:
+    """Детермінований AI-коментер: поточні значення + багаторічні тренди → зв'язний текст."""
+    lang = _normalize_lang(lang)
+    days = max(7, min(int(days or 30), 3650))
+    t = _COMMENT_TEMPLATES[lang]
+    horizon = _horizon_label(lang, days)
+    long = days > 90
+    parts = [t["intro_long" if long else "intro_short"].format(horizon=horizon)]
+
+    def _line(current_key: str, analysis_key: str, tmpl_key: str) -> Optional[str]:
+        cur, slope, r2, n = _indicator(snapshot, current_key, analysis_key)
+        if cur is None or slope is None:
+            return None
+        proj = _projected(cur, slope, days / 365.0)
+        if proj is None:
+            return None
+        return t[tmpl_key].format(cur=cur, slope=slope, r2=r2 if r2 is not None else 0.0, proj=proj)
+
+    for ck, ak, tk in (
+        ("temperature", "temperature_analysis", "temp"),
+        ("co2", "co2_analysis", "co2"),
+        ("arctic_ice", "arctic_ice_analysis", "ice"),
+        ("sea_level", "sea_level_analysis", "sea_level"),
+        ("ocean_heat", "ocean_heat_analysis", "ocean"),
+        ("ocean_ph", "ocean_ph_analysis", "ph"),
+    ):
+        line = _line(ck, ak, tk)
+        if line:
+            parts.append("• " + line)
+
+    fires = snapshot.get("fires", 0)
+    if fires:
+        parts.append("• " + t["fire"].format(cur=int(fires)))
+    storms = snapshot.get("storms", 0)
+    if storms:
+        parts.append("• " + t["storm"].format(cur=int(storms)))
+
+    parts.append(t["note_short" if not long else "note_long"])
+    return "\n".join(parts)
+
+
+def _generate_prediction_comment(lang: str, days: int = 30, slot_utc: Optional[datetime] = None) -> Dict[str, Any]:
+    """Генерує AI-коментер до прогнозів через Groq на основі аналізу даних.
+
+    Промпт змушує модель пов'язати поточні значення, багаторічні тренди та
+    конкретний горизонт прогнозу, не вигадуючи числа поза знімком."""
+    lang = _normalize_lang(lang)
+    days = max(7, min(int(days or 30), 3650))
+    slot = slot_utc or datetime.now(timezone.utc)
+    snapshot = _data_snapshot()
+    snapshot_block = _snapshot_text(snapshot)
+    horizon = _horizon_text(days)
+
+    system_prompt = (
+        "You are a senior climate forecasting analyst for the AI Climate Intelligence platform. "
+        "Write ONE concise commentary for the stated forecast horizon: a short opening paragraph "
+        "followed by 2-4 bullet points. Ground EVERY statement in the data provided (current values, "
+        "historical trends, slopes, R², anomalies, year-over-year). Explicitly connect how today's data "
+        "and multi-year trends translate into THIS exact horizon. For longer horizons state that "
+        "probabilities are lower and confidence intervals wider; for short horizons emphasize daily "
+        "variability and live events. Do not invent numbers beyond the snapshot. "
+        f"Write your entire answer in {_lang_name(lang)}. Keep it under 160 words."
+    )
+    user_prompt = (
+        f"Forecast horizon: {days} days ({horizon}).\n\n"
+        f"Data snapshot:\n\n{snapshot_block}\n\n"
+        "Write the AI commentary for this horizon based on this analysis."
+    )
+
+    text = _chat(
+        [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+    )
+
+    if text:
+        return {
+            "comment": text.strip(),
+            "model": _model(),
+            "generated_at": slot.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "live": True,
+            "lang": lang,
+            "horizon_days": days,
+        }
+
+    return {
+        "comment": _template_prediction_comment(snapshot, lang, days),
+        "model": "fallback",
+        "generated_at": slot.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "live": False,
+        "lang": lang,
+        "horizon_days": days,
+    }
+
+
+def get_ai_prediction_comment(lang: str = "en", days: int = 30) -> Dict[str, Any]:
+    """Повертає AI-коментер до прогнозів запитуваною мовою та горизонтом."""
+    lang = _normalize_lang(lang)
+    days = max(7, min(int(days or 30), 3650))
+    key = f"ai_comment:{lang}:{days}"
+    hit = _cache.get(key)
+    if hit:
+        return hit["data"]
+    data = _generate_prediction_comment(lang, days)
+    _cache[key] = {"ts": time.time(), "data": data}
+    return data

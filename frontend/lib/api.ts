@@ -254,6 +254,15 @@ export interface AIPrediction {
   timeframe?: string;
 }
 
+export interface PredictionComment {
+  comment: string;
+  model?: string;
+  generated_at?: string;
+  live?: boolean;
+  lang?: string;
+  horizon_days?: number;
+}
+
 export interface AsteroidObject {
   name: string;
   hazardous: boolean;
@@ -473,6 +482,8 @@ export const api = {
     getJSON<AIAnalysis>("/api/ai-analysis", lang ? { lang } : undefined),
   predictions: (lang?: string, days?: number) =>
     getJSON<AIPrediction[]>("/api/predictions", { ...(lang ? { lang } : {}), ...(days ? { days } : {}) }),
+  predictionComment: (lang?: string, days?: number) =>
+    getJSON<PredictionComment>("/api/predictions/comment", { ...(lang ? { lang } : {}), ...(days ? { days } : {}) }),
   asteroids: (days = 7) => getJSON<AsteroidsData>("/api/asteroids", { days }),
   geomagnetic: () => getJSON<GeomagneticData>("/api/geomagnetic"),
   spaceWeather: (days = 7) => getJSON<SpaceWeatherData>("/api/space-weather", { days }),
