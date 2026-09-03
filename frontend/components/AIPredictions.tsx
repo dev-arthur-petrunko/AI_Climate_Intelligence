@@ -353,17 +353,9 @@ export default function AIPredictions() {
             <Sparkles className="w-5 h-5 text-violet" />
             <h3 className="font-semibold text-sm">{t.predictions.ui.aiComment}</h3>
           </div>
-          <div className="flex items-center space-x-2">
-            <span className="text-[10px] text-secondary uppercase tracking-wider">
-              {commentLive ? "AI Groq" : t.common.offline}
-            </span>
-            <button
-              onClick={() => loadComment()}
-              className="text-[10px] px-2 py-1 rounded-md bg-surface-2 hover:bg-surface-hover text-secondary hover:text-primary transition-colors"
-            >
-              {t.predictions.ui.refresh}
-            </button>
-          </div>
+          <span className="text-[10px] text-secondary uppercase tracking-wider">
+            {commentLive ? "AI Groq" : t.common.offline}
+          </span>
         </div>
         {commentLoading ? (
           <div className="space-y-2">
