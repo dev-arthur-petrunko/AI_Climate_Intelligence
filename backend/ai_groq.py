@@ -1529,13 +1529,16 @@ def _generate_prediction_comment(lang: str, days: int = 30, slot_utc: Optional[d
 
 
 def get_ai_prediction_comment(lang: str = "en", days: int = 30) -> Dict[str, Any]:
-    """Повертає AI-коментер до прогнозів запитуваною мовою та горизонтом."""
+    """Повертає AI-коментер до прогнозів запитуваною мовою та горизонтом.
+    Кешується до наступного UTC-дня — щоденна перегенерація на основі свіжих даних."""
     lang = _normalize_lang(lang)
     days = max(7, min(int(days or 30), 3650))
     key = f"ai_comment:{lang}:{days}"
+    now = datetime.now(timezone.utc)
+    today = now.date().isoformat()
     hit = _cache.get(key)
-    if hit:
+    if hit and hit.get("day") == today:
         return hit["data"]
     data = _generate_prediction_comment(lang, days)
-    _cache[key] = {"ts": time.time(), "data": data}
+    _cache[key] = {"ts": time.time(), "day": today, "data": data}
     return data

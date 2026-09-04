@@ -305,7 +305,7 @@ delta = series[-1]["value"] - series[-steps - 1]["value"]
 - Groq-промпт (system): «senior climate forecasting analyst» — короткий абзац + 2–4 булети, заземлені на snapshot (поточні значення, тренди, slope, R², аномалії, YoY), < 160 слів, `{lang}`
 - Fallback: `_template_prediction_comment()` — детермінований текст з `_COMMENT_TEMPLATES` (7 мов): для горизонту > 90 днів — структурні тренди + `intro_long`, для ≤ 90 днів — `intro_short` + живі події (fires/storms) + `note_short`; кожний індикатор: поточне значення + `recent_slope_per_year` + проєкція `cur + slope*days/365`
 - Немає Groq-ключа → `live: false`, `model: "fallback"`
-- Кешування: ключ `ai_comment:{lang}:{days}` (внутрішній `_cache`, як і для `/api/predictions`)
+- Кешування до наступного UTC-дня: ключ `ai_comment:{lang}:{days}` — один коментар на (мова × горизонт) на добу, потім перегенерація на свіжих даних
 
 ---
 

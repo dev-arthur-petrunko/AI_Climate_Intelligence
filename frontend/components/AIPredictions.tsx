@@ -201,10 +201,7 @@ export default function AIPredictions() {
     setLoading(true);
     load();
     loadComment();
-    const id = setInterval(() => {
-      load();
-      loadComment();
-    }, 30 * 60 * 1000);
+    const id = setInterval(load, 30 * 60 * 1000);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadComment, load]);
