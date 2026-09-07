@@ -374,9 +374,8 @@ async def ch4():
     data = _safe(lambda: get_ch4(), {})
     if not data or not data.get("series"):
         return data
-    series = data["series"]
-    values = [p["value"] for p in series if p.get("value") is not None]
-    data["analysis"] = analyze(values) if values else {}
+    annual = to_annual_average(data["series"])
+    data["analysis"] = analyze(annual) if annual else {}
     return data
 
 
@@ -386,9 +385,8 @@ async def n2o():
     data = _safe(lambda: get_n2o(), {})
     if not data or not data.get("series"):
         return data
-    series = data["series"]
-    values = [p["value"] for p in series if p.get("value") is not None]
-    data["analysis"] = analyze(values) if values else {}
+    annual = to_annual_average(data["series"])
+    data["analysis"] = analyze(annual) if annual else {}
     return data
 
 

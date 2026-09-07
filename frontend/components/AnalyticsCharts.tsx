@@ -518,7 +518,7 @@ export default function AnalyticsCharts() {
     }
     if (activeChart === "openaq" && openaq?.stations?.length) {
       const paramNames = ["pm25", "pm10", "no2", "o3", "so2"].filter(
-        (p) => openaq.global_averages[p] !== undefined
+        (p) => openaq.global_averages?.[p] !== undefined
       );
       return (
         <div className="space-y-4">
@@ -533,7 +533,7 @@ export default function AnalyticsCharts() {
           <Plot
             data={paramNames.map((p, i) => ({
               x: openaq.stations.map((s) => s.name),
-              y: openaq.stations.map((s) => s.measurements[p] ?? 0),
+              y: openaq.stations.map((s) => s.measurements?.[p] ?? 0),
               type: "bar" as const,
               name: p.toUpperCase(),
               marker: { color: ["#29F2FF", "#36A3FF", "#28E08F", "#FFB648", "#FF5D6C"][i % 5] },
@@ -768,10 +768,10 @@ export default function AnalyticsCharts() {
       );
     }
     if (id === "openaq" && openaq?.stations?.length) {
-      const pm25Stations = openaq.stations.filter((s) => s.measurements.pm25 != null).slice(0, 8);
+      const pm25Stations = openaq.stations.filter((s) => s.measurements?.pm25 != null).slice(0, 8);
       return (
         <Plot
-          data={[{ x: pm25Stations.map((s) => s.name), y: pm25Stations.map((s) => s.measurements.pm25), type: "bar", marker: { color: pm25Stations.map((s) => (s.measurements.pm25 > 35 ? "#FF5D6C" : s.measurements.pm25 > 12 ? "#FFB648" : "#28E08F")) } }]}
+          data={[{ x: pm25Stations.map((s) => s.name), y: pm25Stations.map((s) => s.measurements?.pm25 ?? 0), type: "bar", marker: { color: pm25Stations.map((s) => ((s.measurements?.pm25 ?? 0) > 35 ? "#FF5D6C" : (s.measurements?.pm25 ?? 0) > 12 ? "#FFB648" : "#28E08F")) } }]}
           layout={{ ...plotStyle, margin: { t: 10, r: 10, b: 40, l: 45 }, showlegend: false, xaxis: { ...plotStyle.xaxis, tickangle: -45 } }}
           style={{ width: "100%", height: "200px" }}
           useResizeHandler
