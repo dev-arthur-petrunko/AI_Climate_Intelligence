@@ -148,10 +148,13 @@ function isTodayDate(time?: string): boolean {
  *  публікації. Дані актуальні (останні доступні), але рік може відрізнятися
  *  від поточного на 1–2 роки (ocean heat — NOAA, ocean pH — HOT ship-based).
  *  Повертає локалізовану мітку замість застарілої дати. */
-function displayTime(ev: { time?: string; event_type?: string }): string | undefined {
+function displayTime(
+  ev: { time?: string; event_type?: string },
+  labels: { latestAnnual: string; latestShipBased: string }
+): string | undefined {
   if (!ev.time) return undefined;
-  if (ev.event_type === "Ocean Heat") return "latest (annual)";
-  if (ev.event_type === "Ocean pH") return "latest (ship-based)";
+  if (ev.event_type === "Ocean Heat") return labels.latestAnnual;
+  if (ev.event_type === "Ocean pH") return labels.latestShipBased;
   return ev.time;
 }
 
@@ -1348,7 +1351,7 @@ export default function EarthGlobe() {
                 <div className="flex items-center space-x-1.5 min-w-0">
                   <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: hoverFreshColor }} />
                   <span className="text-[10px] text-secondary truncate">
-                    {hovered.ongoing ? `${t.globe.since}:` : `${t.globe.updatedAt}:`} {displayTime(hovered) || "—"}
+                    {hovered.ongoing ? `${t.globe.since}:` : `${t.globe.updatedAt}:`} {displayTime(hovered, t.globe) || "—"}
                   </span>
                 </div>
                 <span className="text-[10px] font-semibold shrink-0" style={{ color: hoverFreshColor }}>
@@ -1441,7 +1444,7 @@ export default function EarthGlobe() {
                 <div className="flex items-center space-x-1.5 min-w-0">
                   <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: freshnessColor[selectedFresh] }} />
                   <span className="text-[11px] text-secondary truncate">
-                    {selected.ongoing ? `${t.globe.since}:` : `${t.globe.updatedAt}:`} {displayTime(selected) || "—"}
+                    {selected.ongoing ? `${t.globe.since}:` : `${t.globe.updatedAt}:`} {displayTime(selected, t.globe) || "—"}
                   </span>
                 </div>
                 <span className="text-[11px] font-semibold shrink-0" style={{ color: freshnessColor[selectedFresh] }}>
