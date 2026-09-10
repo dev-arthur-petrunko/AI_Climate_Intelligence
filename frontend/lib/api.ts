@@ -433,15 +433,19 @@ export interface SourcesData {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-async function getJSON<T>(path: string, params?: Record<string, string | number>): Promise<T> {
+const FETCH_TIMEOUT_MS = 15000;
+
+async function getJSON<T>(path: string, params?: Record<string, string | number>, timeoutMs = FETCH_TIMEOUT_MS): Promise<T> {
   const url = new URL(`${API_BASE}${path}`);
   if (params) {
     Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, String(v)));
   }
   let lastError: unknown;
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const res = await fetch(url.toString(), { cache: "no-store" });
+      const res = await fetch(url.toString(), { cache: "no-store", signal: controller.signal });
       if (!res.ok) {
         throw new Error(`API ${path} failed: ${res.status}`);
       }
@@ -452,7 +456,9 @@ async function getJSON<T>(path: string, params?: Record<string, string | number>
       return data;
     } catch (err) {
       lastError = err;
-      if (attempt < 2) await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+      if (attempt < 1) await new Promise((r) => setTimeout(r, 800));
+    } finally {
+      clearTimeout(timer);
     }
   }
   throw lastError as Error;

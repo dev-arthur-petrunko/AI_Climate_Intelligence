@@ -187,7 +187,10 @@ export default function AnalyticsCharts() {
     const hasRows = <T,>(r: PromiseSettledResult<T>, pick: (v: T) => unknown): boolean =>
       r.status === "fulfilled" && Array.isArray(pick(r.value)) && (pick(r.value) as unknown[]).length > 0;
 
-    const missing =
+    // Ретрай лише якщо відсутні ЦЕНТРАЛЬНІ кліматичні ряди (температура/гази/лід/океан).
+    // Опціональні дані (астероїди, космічна погода, посухи) можуть бути порожніми —
+    // через них не варто повторно штурмувати всі 22 ендпоїнти кожні 5 секунд.
+    const missingCore =
       !hasRows(g, (v) => v.series) ||
       !hasRows(c, (v) => v.series) ||
       !hasRows(ch4r, (v) => v.series) ||
@@ -196,17 +199,10 @@ export default function AnalyticsCharts() {
       !hasRows(ss, (v) => v.annual_minimum) ||
       !hasRows(sl, (v) => v.series) ||
       !hasRows(oh, (v) => v.series) ||
-      !hasRows(ph, (v) => v.series) ||
-      !hasRows(astr, (v) => v.objects) ||
-      !hasRows(kpr, (v) => v.forecast) ||
-      !hasRows(flr, (v) => v.series) ||
-      !hasRows(wnd, (v) => v.series) ||
-      !hasRows(sc, (v) => v.series) ||
-      !hasRows(eq, (v) => v.earthquakes) ||
-      !(sch.status === "fulfilled" && !sch.value.error);
+      !hasRows(ph, (v) => v.series);
 
     attemptsRef.current += 1;
-    if (missing && aliveRef.current && attemptsRef.current < 12) {
+    if (missingCore && aliveRef.current && attemptsRef.current < 5) {
       window.setTimeout(load, 5000);
     }
   }, []);

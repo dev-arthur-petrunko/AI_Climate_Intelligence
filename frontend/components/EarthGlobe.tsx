@@ -24,6 +24,24 @@ const EARTH_BUMP = "/earth/earth-topology.png";
 /** Радіус планети в одиницях сцени */
 const EARTH_RADIUS = 5;
 
+/** Таймаут для API-запитів глобуса (мс) — щоб одна повільна відповідь не блокувала сцену */
+const FETCH_TIMEOUT_MS = 12000;
+
+/** fetch з таймаутом: повертає null, якщо запит впав або перевищив ліміт часу */
+async function fetchJson<T>(url: string, timeoutMs = FETCH_TIMEOUT_MS): Promise<T | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    if (!res.ok) return null;
+    return (await res.json()) as T;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** Місяць: дистанція та радіус (художній масштаб, щоб був видимий у кадрі) */
 const MOON_DISTANCE = 42;
 const MOON_RADIUS = 1.9;
@@ -1069,18 +1087,17 @@ export default function EarthGlobe() {
   const load = useCallback(async () => {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
     try {
-      const [eventsRes, eonetRes, astRes, sl, oh, ph, south, north, co2Data] = await Promise.all([
-        fetch(`${apiUrl}/api/events`),
-        fetch(`${apiUrl}/api/eonet?days=14`).catch(() => null),
-        fetch(`${apiUrl}/api/asteroids?days=7`),
-        fetch(`${apiUrl}/api/sea-level`).then((r) => (r.ok ? r.json() : null)),
-        fetch(`${apiUrl}/api/ocean-heat`).then((r) => (r.ok ? r.json() : null)),
-        fetch(`${apiUrl}/api/ocean-ph`).then((r) => (r.ok ? r.json() : null)),
-        fetch(`${apiUrl}/api/sea-ice-south`).then((r) => (r.ok ? r.json() : null)),
-        fetch(`${apiUrl}/api/sea-ice`).then((r) => (r.ok ? r.json() : null)),
-        fetch(`${apiUrl}/api/co2`).then((r) => (r.ok ? r.json() : null)),
+      const [eventsRes, eonet, astData, sl, oh, ph, south, north, co2Data] = await Promise.all([
+        fetchJson<ClimateEvent[]>(`${apiUrl}/api/events`),
+        fetchJson<{ events?: RawEonetEvent[] }>(`${apiUrl}/api/eonet?days=14`),
+        fetchJson<{ objects?: AsteroidObject[] }>(`${apiUrl}/api/asteroids?days=7`),
+        fetchJson<SeaLevelData>(`${apiUrl}/api/sea-level`),
+        fetchJson<OceanHeatData>(`${apiUrl}/api/ocean-heat`),
+        fetchJson<OceanPhData>(`${apiUrl}/api/ocean-ph`),
+        fetchJson<SeaIceData>(`${apiUrl}/api/sea-ice-south`),
+        fetchJson<SeaIceData>(`${apiUrl}/api/sea-ice`),
+        fetchJson<CO2Series>(`${apiUrl}/api/co2`),
       ]);
-      const astData = await astRes.json().catch(() => null);
       // Реальні астероїди (NASA NeoWs) або резервний набір, якщо API порожній
       setAsteroids(
         astData && Array.isArray(astData.objects) && astData.objects.length > 0
@@ -1090,7 +1107,7 @@ export default function EarthGlobe() {
       const points: EventPoint[] = [];
 
       // Поточні події з FIRMS/NOAA (пожежі, циклони)
-      const data = (await eventsRes.json().catch(() => null)) as ClimateEvent[] | null;
+      const data = eventsRes as ClimateEvent[] | null;
       if (Array.isArray(data) && data.length > 0) {
         points.push(
           ...data.slice(0, 260).map((ev) => ({
@@ -1108,9 +1125,6 @@ export default function EarthGlobe() {
 
       // Події NASA EONET (природні катастрофи без ключа) — без Wildfire,
       // щоб не дублювати пожежі FIRMS на глобусі
-      const eonet = eonetRes
-        ? ((await eonetRes.json().catch(() => null)) as { events?: RawEonetEvent[] } | null)
-        : null;
       if (eonet && Array.isArray(eonet.events)) {
         const eonetPoints: EventPoint[] = eonet.events
           .filter((e) => e.coordinates && e.event_type && e.event_type !== "Wildfire")

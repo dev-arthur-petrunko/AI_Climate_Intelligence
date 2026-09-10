@@ -199,6 +199,7 @@ export default function SpaceDataPanel() {
           api.earthquakes(),
           api.aurora(wlat, wlon),
           api.schumann(),
+          loadLocalWeather(),
         ]);
       setGeo(geoRes.status === "fulfilled" ? geoRes.value : null);
       setSwd(swRes.status === "fulfilled" ? swRes.value : null);
@@ -212,7 +213,6 @@ export default function SpaceDataPanel() {
       setEarthquakes(eq && eq.earthquakes && eq.earthquakes.length > 0 ? eq : null);
       setAurora(auroraRes.status === "fulfilled" ? auroraRes.value : null);
       setSchumann(schRes.status === "fulfilled" ? schRes.value : null);
-      await loadLocalWeather();
     } catch {
       /* игнорируем */
     } finally {

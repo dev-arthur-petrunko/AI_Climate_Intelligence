@@ -116,7 +116,7 @@ class AIPrediction(BaseModel):
 # --- REST API Маршрути ---
 
 @app.get("/")
-async def root():
+def root():
     """Головний маршрут перевірки статусу API"""
     return {
         "message": "Climate Intelligence API",
@@ -127,7 +127,7 @@ async def root():
 
 
 @app.get("/api/health")
-async def health_check():
+def health_check():
     """Ендпоінт перевірки здоров'я сервісу"""
     return {"status": "healthy"}
 
@@ -152,7 +152,7 @@ async def _shutdown():
 
 
 @app.get("/api/db-status")
-async def db_status():
+def db_status():
     """Стан бази даних: чи підключена PostgreSQL та чи йдуть снапшоти."""
     from db import db_available
     from scheduler import last_store_time
@@ -164,25 +164,25 @@ async def db_status():
 
 
 @app.get("/api/weather")
-async def weather(lat: float = Query(DEFAULT_LAT), lon: float = Query(DEFAULT_LON)):
+def weather(lat: float = Query(DEFAULT_LAT), lon: float = Query(DEFAULT_LON)):
     """Поточна погода та 7-денний прогноз (Open-Meteo)"""
     return _safe(lambda: get_weather(lat, lon), {"source": "Open-Meteo", "current": {}, "daily": {}})
 
 
 @app.get("/api/marine")
-async def marine(lat: float = Query(DEFAULT_LAT), lon: float = Query(DEFAULT_LON)):
+def marine(lat: float = Query(DEFAULT_LAT), lon: float = Query(DEFAULT_LON)):
     """Температура поверхні океану та хвилі (Open-Meteo Marine)"""
     return _safe(lambda: get_marine(lat, lon), {"source": "Open-Meteo Marine", "hourly": {}})
 
 
 @app.get("/api/air-quality")
-async def air_quality(lat: float = Query(DEFAULT_LAT), lon: float = Query(DEFAULT_LON)):
+def air_quality(lat: float = Query(DEFAULT_LAT), lon: float = Query(DEFAULT_LON)):
     """Якість повітря: PM2.5, PM10, озон, індекс AQI (Open-Meteo)"""
     return _safe(lambda: get_air_quality(lat, lon), {"source": "Open-Meteo", "current": {}})
 
 
 @app.get("/api/gistemp")
-async def gistemp():
+def gistemp():
     """Глобальна температурна аномалія з 1880 року (NASA GISTEMP)"""
     data = get_gistemp()
     data["analysis"] = analyze(data.get("series", []))
@@ -190,7 +190,7 @@ async def gistemp():
 
 
 @app.get("/api/co2")
-async def co2():
+def co2():
     """Глобальна концентрація CO2, щомісяця (NOAA GML)"""
     data = get_co2()
     # Для статистики (trend/z-score) використовуємо річні середні, а не сірі місячні:
@@ -202,7 +202,7 @@ async def co2():
 
 
 @app.get("/api/sea-ice")
-async def sea_ice():
+def sea_ice():
     """Протяжність арктичного морського льоду (NSIDC Sea Ice Index)"""
     data = get_sea_ice()
     data["analysis"] = analyze(data.get("annual_minimum", []))
@@ -210,7 +210,7 @@ async def sea_ice():
 
 
 @app.get("/api/sea-ice-south")
-async def sea_ice_south():
+def sea_ice_south():
     """Протяжність антарктичного морського льоду (NSIDC Sea Ice Index)"""
     data = get_sea_ice_south()
     data["analysis"] = analyze(data.get("annual_minimum", []))
@@ -218,7 +218,7 @@ async def sea_ice_south():
 
 
 @app.get("/api/sea-level")
-async def sea_level():
+def sea_level():
     """Глобальний рівень моря за даними супутникової альтиметрії (University of Colorado)"""
     data = get_sea_level()
     data["analysis"] = analyze(data.get("series", []), time_key="date")
@@ -226,7 +226,7 @@ async def sea_level():
 
 
 @app.get("/api/sea-level-psmsl")
-async def sea_level_psmsl():
+def sea_level_psmsl():
     """Рівень моря — мареографи (PSMSL, 12 еталонних станцій, незалежна перевірка альтиметрії)"""
     data = get_sea_level_psmsl()
     data["analysis"] = analyze(data.get("series", []), time_key="date")
@@ -234,31 +234,31 @@ async def sea_level_psmsl():
 
 
 @app.get("/api/air-quality-openaq")
-async def air_quality_openaq():
+def air_quality_openaq():
     """Якість повітря — глобальні вимірювання (OpenAQ v3, регулятивні станції)"""
     return _safe(lambda: get_air_quality_openaq(), {"source": "OpenAQ", "error": True})
 
 
 @app.get("/api/drought/cdi")
-async def drought_cdi():
+def drought_cdi():
     """Засуха — Combined Drought Indicator (Copernicus EDO WCS, GeoTIFF)"""
     return _safe(lambda: get_drought_cdi(), {"source": "Copernicus EDO", "indicator": "CDI", "error": True})
 
 
 @app.get("/api/drought/spi")
-async def drought_spi():
+def drought_spi():
     """Засуха — Standardized Precipitation Index, ERA5 (Copernicus EDO WCS)"""
     return _safe(lambda: get_drought_spi(), {"source": "Copernicus EDO", "indicator": "SPI ERA5", "error": True})
 
 
 @app.get("/api/drought/grace")
-async def drought_grace():
+def drought_grace():
     """Засуха — GRACE Terrestrial Water Storage Anomaly (Copernicus EDO WCS)"""
     return _safe(lambda: get_drought_grace(), {"source": "Copernicus EDO", "indicator": "GRACE TWS", "error": True})
 
 
 @app.get("/api/ocean-heat")
-async def ocean_heat():
+def ocean_heat():
     """Вміст тепла в океані, верхні 2000 м (NOAA GML, через OWID)"""
     data = get_ocean_heat()
     data["analysis"] = analyze(data.get("series", []))
@@ -266,7 +266,7 @@ async def ocean_heat():
 
 
 @app.get("/api/ocean-ph")
-async def ocean_ph():
+def ocean_ph():
     """Закислення океану — pH поверхневої води, станція ALOHA (HOT)"""
     data = get_ocean_ph()
     data["analysis"] = analyze(data.get("series", []), time_key="date")
@@ -274,102 +274,102 @@ async def ocean_ph():
 
 
 @app.get("/api/hurricanes")
-async def hurricanes():
+def hurricanes():
     """Активні тропічні циклони в Атлантиці (NOAA NHC)"""
     return get_hurricanes()
 
 
 @app.get("/api/fires")
-async def fires(days: int = Query(1, ge=1, le=7)):
+def fires(days: int = Query(1, ge=1, le=7)):
     """Активні осередки пожеж (NASA FIRMS, потрібен FIRMS_API_KEY)"""
     return get_fires(days)
 
 
 @app.get("/api/asteroids")
-async def asteroids(days: int = Query(7, ge=1, le=7)):
+def asteroids(days: int = Query(7, ge=1, le=7)):
     """Навколоземні астероїди (NASA NeoWs, потрібен NASA_API_KEY)"""
     return _safe(lambda: get_neo(days), {"objects": [], "source": "fallback", "error": True})
 
 
 @app.get("/api/geomagnetic")
-async def geomagnetic():
+def geomagnetic():
     """Геомагнітна активність Kp-індекс в реальному часі (NOAA SWPC)"""
     return _safe(get_geomagnetic, {"current_kp": None, "series": [], "storm_level": "G0", "source": "fallback", "error": True})
 
 
 @app.get("/api/space-weather")
-async def space_weather(days: int = Query(7, ge=1, le=30)):
+def space_weather(days: int = Query(7, ge=1, le=30)):
     """Космічна погода: сонячні спалахи, CME, геомагнітні бурі (NASA DONKI)"""
     return _safe(lambda: get_solar_events(days), {"events": [], "source": "fallback", "error": True})
 
 
 @app.get("/api/eonet")
-async def eonet(days: int = Query(10, ge=1, le=30)):
+def eonet(days: int = Query(10, ge=1, le=30)):
     """Єдина лента природних подій на Землі (NASA EONET v3, без ключа).
     Пожежі, вулкани, повені, шторми, лід/сніг, посухи, пилові бурі, циклони."""
     return _safe(lambda: get_eonet(days), {"events": [], "source": "fallback", "error": True})
 
 
 @app.get("/api/geocode")
-async def geocode(q: str = Query(..., min_length=2), count: int = Query(8, ge=1, le=20)):
+def geocode(q: str = Query(..., min_length=2), count: int = Query(8, ge=1, le=20)):
     """Пошук міст/країн за назвою (Open-Meteo Geocoding, без ключа).
     Повертає назву, країну, широту/довготу для вибору міста в погоді."""
     return _safe(lambda: get_geocode(q, count), {"results": [], "source": "fallback", "error": True})
 
 
 @app.get("/api/kp-forecast")
-async def kp_forecast():
+def kp_forecast():
     """3-денний прогноз Kp-індексу (NOAA SWPC, без ключа)."""
     return _safe(get_kp_forecast, {"forecast": [], "source": "fallback", "error": True})
 
 
 @app.get("/api/solar-flares")
-async def solar_flares():
+def solar_flares():
     """Рентгенівський потік Сонця в реальному часі (GOES-18, без ключа).
     Дозволяє визначати поточний клас сонячного спалаху A/B/C/M/X."""
     return _safe(get_goes_xray, {"series": [], "current": None, "source": "fallback", "error": True})
 
 
 @app.get("/api/solar-cycle")
-async def solar_cycle():
+def solar_cycle():
     """Сонячний цикл: число Вольфа (SSN) та радіо-потік F10.7 (NOAA SWPC, без ключа)."""
     return _safe(get_solar_cycle, {"latest": None, "source": "fallback", "error": True})
 
 
 @app.get("/api/solar-wind")
-async def solar_wind():
+def solar_wind():
     """Сонячний вітер: швидкість, густина протонів та IMF Bz (NOAA SWPC, без ключа).
     Ключові індикатори для прогнозу геомагнітних бур та полярних сяйв."""
     return _safe(get_solar_wind, {"speed": None, "bz": None, "source": "fallback", "error": True})
 
 
 @app.get("/api/earthquakes")
-async def earthquakes():
+def earthquakes():
     """Значні землетруси за останній тиждень (USGS GeoJSON, без ключа)."""
     return _safe(get_earthquakes, {"earthquakes": [], "count": 0, "source": "fallback", "error": True})
 
 
 @app.get("/api/aurora")
-async def aurora(lat: float = Query(DEFAULT_LAT), lon: float = Query(DEFAULT_LON)):
+def aurora(lat: float = Query(DEFAULT_LAT), lon: float = Query(DEFAULT_LON)):
     """Ймовірність полярного сяйва в точці (NOAA SWPC OVATION, без ключа;
     фолбек — оцінка за Kp-індексом)."""
     return _safe(lambda: get_aurora(lat, lon), {"probability": None, "source": "fallback", "error": True})
 
 
 @app.get("/api/schumann")
-async def schumann():
+def schumann():
     """Шуманівський резонанс + складовий індекс активності (ResonanceOne, без ключа)."""
     return _safe(get_schumann, {"error": True, "source": "ResonanceOne"})
 
 
 @app.get("/api/sources")
-async def sources():
+def sources():
     """Статус усіх джерел даних: онлайн/офлайн. Жива перевірка кешується 30 хв."""
     return _safe(get_sources_status, {"sources": [], "error": True, "source": "fallback"})
 
 
 @app.get("/api/ch4")
-async def ch4():
+def ch4():
     """Глобальний метан (CH₄) — NOAA GML, похвилинні серії + analyze()."""
     data = _safe(lambda: get_ch4(), {})
     if not data or not data.get("series"):
@@ -380,7 +380,7 @@ async def ch4():
 
 
 @app.get("/api/n2o")
-async def n2o():
+def n2o():
     """Глобальний закис азоту (N₂O) — NOAA GML, похвилинні серії + analyze()."""
     data = _safe(lambda: get_n2o(), {})
     if not data or not data.get("series"):
@@ -391,13 +391,13 @@ async def n2o():
 
 
 @app.get("/api/gdacs")
-async def gdacs(event_type: str = Query("")):
+def gdacs(event_type: str = Query("")):
     """Природні катастрофи GDACS (UN OCHA + EU JRC) — повені, циклони, вулкани, пожежі, землетруси."""
     return _safe(lambda: get_gdacs(event_type), {"events": [], "source": "GDACS (fallback)", "error": True})
 
 
 @app.get("/api/coral-reef")
-async def coral_reef():
+def coral_reef():
     """NOAA Coral Reef Watch — термічний стрес коралів та ризик блікування."""
     return _safe(lambda: get_coral_reef(), {"source": "NOAA CRW (fallback)", "error": True})
 
@@ -589,7 +589,9 @@ async def get_kpi_metrics():
     )
 
     # Геомагнітна буря — Kp-індекс у реальному часі (NOAA SWPC, без ключа)
-    geomag = _safe(get_geomagnetic, {"current_kp": None, "storm_level": "G0", "source": "fallback"})
+    geomag = await asyncio.to_thread(
+        lambda: _safe(get_geomagnetic, {"current_kp": None, "storm_level": "G0", "source": "fallback"})
+    )
     current_kp = geomag.get("current_kp")
     if current_kp is not None:
         storm_level = geomag.get("storm_level", "G0")
@@ -813,7 +815,7 @@ async def get_climate_events():
 
 
 @app.get("/api/predictions/comment")
-async def get_predictions_comment(lang: str = Query("en"), days: int = Query(30, ge=7, le=3650)):
+def get_predictions_comment(lang: str = Query("en"), days: int = Query(30, ge=7, le=3650)):
     """AI-коментер до прогнозів: текст, заземлений на поточні дані + багаторічні тренди (AI Groq).
     days (7/30/90/365/730/1095/1460/1825/3650) задає горизонт, про який пише AI."""
     return _safe(
@@ -823,7 +825,7 @@ async def get_predictions_comment(lang: str = Query("en"), days: int = Query(30,
 
 
 @app.get("/api/predictions", response_model=List[AIPrediction])
-async def get_predictions(lang: str = Query("en"), days: int = Query(30, ge=7, le=3650)):
+def get_predictions(lang: str = Query("en"), days: int = Query(30, ge=7, le=3650)):
     """Прогнози штучного інтелекту щодо кліматичних ризиків (AI Groq).
     days (7/30/90/365/730/1095/1460/1825/3650) змінює горизонт: щоразу AI генерує прогнози під цей період."""
     predictions = get_ai_predictions(lang, days)
@@ -861,7 +863,7 @@ async def get_predictions(lang: str = Query("en"), days: int = Query(30, ge=7, l
 
 
 @app.get("/api/ai-analysis")
-async def ai_analysis(lang: str = Query("en")):
+def ai_analysis(lang: str = Query("en")):
     """AI-аналіз сьогоднішньої кліматичної ситуації (AI Groq, 2 рази на день о 09:00 та 17:00 за Києвом, мовою інтерфейсу)"""
     return get_ai_analysis(lang)
 
