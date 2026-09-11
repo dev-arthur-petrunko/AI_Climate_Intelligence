@@ -48,20 +48,22 @@ body {
     position: relative;
     background: linear-gradient(
       145deg,
-      rgba(255, 255, 255, 0.08) 0%,
-      rgba(13, 18, 38, 0.5) 35%,
-      rgba(13, 18, 38, 0.6) 100%
+      rgba(255, 255, 255, 0.07) 0%,
+      rgba(13, 18, 38, 0.32) 35%,
+      rgba(13, 18, 38, 0.42) 100%
     );
-    /* Малий blur без saturate: не "перемикає" canvas-кадри при записі екрана,
-       значно дешевший для композитора, ніж blur(20px)+saturate. */
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
     border: 1px solid rgba(255, 255, 255, 0.14);
     border-radius: 12px;
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.1),
       inset 0 -1px 0 rgba(255, 255, 255, 0.03),
       0 12px 48px rgba(0, 0, 0, 0.4);
+    /* Окремий композиційний шар: не дозволяє композитору «відкинути» панель
+       на кадр під час захоплення екрана (пропадання вікна на мілісекунду). */
+    transform: translateZ(0);
+    will-change: transform;
     transition: transform 180ms var(--ease-out), opacity 180ms ease, background-color 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
   }
   .glass:hover {
@@ -92,20 +94,21 @@ body {
     position: relative;
     background: linear-gradient(
       145deg,
-      rgba(255, 255, 255, 0.07) 0%,
-      rgba(13, 18, 38, 0.46) 40%,
-      rgba(13, 18, 38, 0.58) 100%
+      rgba(255, 255, 255, 0.06) 0%,
+      rgba(13, 18, 38, 0.3) 40%,
+      rgba(13, 18, 38, 0.38) 100%
     );
-    /* Зменшений blur без saturate — прибирає мерехтіння панелей над анімованим
-       WebGL-канвасом при записі екрана та знижує навантаження на композитор. */
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(28px) saturate(170%);
+    -webkit-backdrop-filter: blur(28px) saturate(170%);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 12px;
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.08),
       inset 0 -1px 0 rgba(255, 255, 255, 0.02),
       0 16px 56px rgba(0, 0, 0, 0.45);
+    /* Окремий композиційний шар — стабільний під час запису екрана. */
+    transform: translateZ(0);
+    will-change: transform;
     transition: transform 180ms var(--ease-out), opacity 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
   }
 
