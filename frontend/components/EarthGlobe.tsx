@@ -1216,7 +1216,7 @@ export default function EarthGlobe() {
     <div className="w-full h-full relative bg-[#070A16] overflow-hidden animate-fade-in">
       <Canvas
         camera={{ position: [0, 0, 16], fov: 45 }}
-        gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.0 }}
+        gl={{ antialias: true, preserveDrawingBuffer: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.0 }}
       >
         <Scene
           events={events}
