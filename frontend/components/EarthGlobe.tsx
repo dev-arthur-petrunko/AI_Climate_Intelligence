@@ -1083,14 +1083,68 @@ export default function EarthGlobe() {
     [t]
   );
 
-  /** Завантаження подій, EONET, астероїдів та океанічних даних з API бекенду */
+  /** Завантаження подій, EONET, астероїдів та океанічних даних з API бекенду.
+   *  Метки (події/астероїди) показуємо одразу після "швидких" запитів,
+   *  а океанічні точки додаємо пізніше, коли підвантажиться морські дані. */
   const load = useCallback(async () => {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+    // --- Швидкі метки: події (FIRMS/NOAA), EONET, астероїди (NeoWs) ---
+    const [eventsRes, eonet, astData] = await Promise.all([
+      fetchJson<ClimateEvent[]>(`${apiUrl}/api/events`),
+      fetchJson<{ events?: RawEonetEvent[] }>(`${apiUrl}/api/eonet?days=14`),
+      fetchJson<{ objects?: AsteroidObject[] }>(`${apiUrl}/api/asteroids?days=7`),
+    ]);
+    // Реальні астероїди (NASA NeoWs) або резервний набір, якщо API порожній
+    setAsteroids(
+      astData && Array.isArray(astData.objects) && astData.objects.length > 0
+        ? astData.objects
+        : fallbackAsteroids
+    );
+    const points: EventPoint[] = [];
+
+    // Поточні події з FIRMS/NOAA (пожежі, циклони)
+    const data = eventsRes as ClimateEvent[] | null;
+    if (Array.isArray(data) && data.length > 0) {
+      points.push(
+        ...data.slice(0, 260).map((ev) => ({
+          coordinates: ev.coordinates as [number, number],
+          event_type: ev.event_type,
+          severity: ev.severity,
+          location: ev.location,
+          time: ev.time,
+          frp: ev.frp ?? undefined,
+          confidence: ev.confidence ?? undefined,
+          satellite: ev.satellite ?? undefined,
+        }))
+      );
+    }
+
+    // Події NASA EONET (природні катастрофи без ключа) — без Wildfire,
+    // щоб не дублювати пожежі FIRMS на глобусі
+    if (eonet && Array.isArray(eonet.events)) {
+      const eonetPoints: EventPoint[] = eonet.events
+        .filter((e) => e.coordinates && e.event_type && e.event_type !== "Wildfire")
+        .slice(0, 90)
+        .map((e) => ({
+          coordinates: e.coordinates as [number, number],
+          event_type: e.event_type,
+          severity: e.severity || "medium",
+          location: e.title || e.location || "",
+          time: e.time,
+          ongoing: e.status === "ongoing",
+        }));
+      points.push(...eonetPoints);
+    }
+
+    // Показуємо швидкі метки негайно, не чекаючи на повільні океанські API
+    if (points.length > 0) {
+      setEvents(points);
+    }
+
+    // --- Океанічні індикатори (додаються тихенько, коли прийдуть) ---
     try {
-      const [eventsRes, eonet, astData, sl, oh, ph, south, north, co2Data] = await Promise.all([
-        fetchJson<ClimateEvent[]>(`${apiUrl}/api/events`),
-        fetchJson<{ events?: RawEonetEvent[] }>(`${apiUrl}/api/eonet?days=14`),
-        fetchJson<{ objects?: AsteroidObject[] }>(`${apiUrl}/api/asteroids?days=7`),
+      const [sl, oh, ph, south, north, co2Data] = await Promise.all([
         fetchJson<SeaLevelData>(`${apiUrl}/api/sea-level`),
         fetchJson<OceanHeatData>(`${apiUrl}/api/ocean-heat`),
         fetchJson<OceanPhData>(`${apiUrl}/api/ocean-ph`),
@@ -1098,54 +1152,12 @@ export default function EarthGlobe() {
         fetchJson<SeaIceData>(`${apiUrl}/api/sea-ice`),
         fetchJson<CO2Series>(`${apiUrl}/api/co2`),
       ]);
-      // Реальні астероїди (NASA NeoWs) або резервний набір, якщо API порожній
-      setAsteroids(
-        astData && Array.isArray(astData.objects) && astData.objects.length > 0
-          ? astData.objects
-          : fallbackAsteroids
-      );
-      const points: EventPoint[] = [];
-
-      // Поточні події з FIRMS/NOAA (пожежі, циклони)
-      const data = eventsRes as ClimateEvent[] | null;
-      if (Array.isArray(data) && data.length > 0) {
-        points.push(
-          ...data.slice(0, 260).map((ev) => ({
-            coordinates: ev.coordinates as [number, number],
-            event_type: ev.event_type,
-            severity: ev.severity,
-            location: ev.location,
-            time: ev.time,
-            frp: ev.frp ?? undefined,
-            confidence: ev.confidence ?? undefined,
-            satellite: ev.satellite ?? undefined,
-          }))
-        );
-      }
-
-      // Події NASA EONET (природні катастрофи без ключа) — без Wildfire,
-      // щоб не дублювати пожежі FIRMS на глобусі
-      if (eonet && Array.isArray(eonet.events)) {
-        const eonetPoints: EventPoint[] = eonet.events
-          .filter((e) => e.coordinates && e.event_type && e.event_type !== "Wildfire")
-          .slice(0, 90)
-          .map((e) => ({
-            coordinates: e.coordinates as [number, number],
-            event_type: e.event_type,
-            severity: e.severity || "medium",
-            location: e.title || e.location || "",
-            time: e.time,
-            ongoing: e.status === "ongoing",
-          }));
-        points.push(...eonetPoints);
-      }
-
-      points.push(...buildOceanPoints(sl, oh, ph, south, north, co2Data));
-      if (points.length > 0) {
-        setEvents(points);
+      const ocean = buildOceanPoints(sl, oh, ph, south, north, co2Data);
+      if (ocean.length > 0) {
+        setEvents((prev) => [...prev.filter((p) => !ocean.includes(p)), ...ocean]);
       }
     } catch {
-      /* залишаємо резервні події */
+      /* залишаємо вже показані метки */
     }
   }, [buildOceanPoints]);
 
@@ -1216,7 +1228,8 @@ export default function EarthGlobe() {
     <div className="w-full h-full relative bg-[#070A16] overflow-hidden animate-fade-in">
       <Canvas
         camera={{ position: [0, 0, 16], fov: 45 }}
-        gl={{ antialias: true, preserveDrawingBuffer: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.0 }}
+        gl={{ antialias: true, alpha: false, preserveDrawingBuffer: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.0 }}
+        onCreated={({ gl }) => gl.setClearColor("#070A16", 1)}
       >
         <Scene
           events={events}
