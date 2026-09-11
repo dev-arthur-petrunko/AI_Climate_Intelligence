@@ -24,7 +24,7 @@ import csv
 import io
 import math
 import logging
-import random
+import threading
 import re
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
@@ -46,21 +46,42 @@ _HEADERS = {
 }
 
 _CACHE: dict = {}
+_CACHE_LOCK_GUARD: dict = {}  # per-key locks for thundering-herd protection
 
 
-def _cached(key: str, ttl_seconds: int, fetcher):
+def _cached(key: str, ttl_seconds: int, fetcher, error_ttl_seconds: int | None = None):
     now = time.time()
     hit = _CACHE.get(key)
-    if hit and now - hit["ts"] < ttl_seconds:
+    if hit and now - hit["ts"] < hit.get("ttl", ttl_seconds):
         return hit["data"]
-    data = fetcher()
-    # Не кешуємо помилки upstream: при тимчасовому збої (стартовий сплеск,
-    # троттлінг NOAA/NASA) фолбек не повинен лишатися в кеші на весь TTL —
-    # наступний запит повторить звернення до джерела.
-    if isinstance(data, dict) and data.get("error"):
+    # Thundering-herd guard: ensure only one thread fetches a given key at a time
+    lock = _CACHE_LOCK_GUARD.setdefault(key, threading.Lock())
+    with lock:
+        # Re-check after acquiring lock (another thread may have populated it)
+        hit = _CACHE.get(key)
+        if hit and now - hit["ts"] < hit.get("ttl", ttl_seconds):
+            return hit["data"]
+        try:
+            data = fetcher()
+        except Exception as exc:
+            # Під час троттлінгу (429) не стукаємо в upstream кожним запитом:
+            # кешуємо збій на короткий час, щоб наступні запити отримали фолбек миттєво.
+            if error_ttl_seconds:
+                _CACHE[key] = {
+                    "ts": time.time(),
+                    "ttl": error_ttl_seconds,
+                    "data": {"source": "upstream-unavailable", "error": True},
+                }
+            raise exc
+        # Не кешуємо upstream-фолбек надовго: при тимчасовому збої (стартовий
+        # сплеск, троттлінг NOAA/NASA) наступний запит повторить звернення до
+        # джерела. Але на невеликий error_ttl кешуємо, щоб гасити 429-лійку.
+        if isinstance(data, dict) and data.get("error"):
+            if error_ttl_seconds:
+                _CACHE[key] = {"ts": time.time(), "ttl": error_ttl_seconds, "data": data}
+            return data
+        _CACHE[key] = {"ts": time.time(), "ttl": ttl_seconds, "data": data}
         return data
-    _CACHE[key] = {"ts": now, "data": data}
-    return data
 
 
 # ---------------------------------------------------------------------------
@@ -83,25 +104,12 @@ def _fetch_weather_openmeteo(lat: float, lon: float) -> dict:
         "forecast_days": 7,
         "timezone": "auto",
     }
-    max_retries = 2
-    for attempt in range(max_retries + 1):
-        try:
-            r = httpx.get(
-                "https://api.open-meteo.com/v1/forecast", params=params,
-                timeout=httpx.Timeout(8.0), headers=_HEADERS,
-            )
-            r.raise_for_status()
-            return r.json()
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code == 429:
-                if attempt < max_retries:
-                    delay = (2 ** attempt) + random.uniform(0, 1)
-                    logger.warning("Open-Meteo 429, retrying in %.1f seconds...", delay)
-                    time.sleep(delay)
-                    continue
-            raise
-        except Exception:
-            raise
+    r = httpx.get(
+        "https://api.open-meteo.com/v1/forecast", params=params,
+        timeout=httpx.Timeout(10.0), headers=_HEADERS,
+    )
+    r.raise_for_status()
+    return r.json()
 
 
 # Грубе співставлення коду погоди OpenWeatherMap -> WMO (сумісно з фронтендом)
@@ -179,7 +187,7 @@ def fetch_weather(lat: float, lon: float) -> dict:
 
 
 def get_weather(lat: float, lon: float) -> dict:
-    return _cached(f"weather:{lat:.2f}:{lon:.2f}", 600, lambda: fetch_weather(lat, lon))
+    return _cached(f"weather:{lat:.2f}:{lon:.2f}", 600, lambda: fetch_weather(lat, lon), error_ttl_seconds=90)
 
 
 # ---------------------------------------------------------------------------

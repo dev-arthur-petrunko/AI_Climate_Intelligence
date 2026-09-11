@@ -435,33 +435,49 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 const FETCH_TIMEOUT_MS = 15000;
 
+const inFlight = new Map<string, Promise<unknown>>();
+
 async function getJSON<T>(path: string, params?: Record<string, string | number>, timeoutMs = FETCH_TIMEOUT_MS): Promise<T> {
   const url = new URL(`${API_BASE}${path}`);
   if (params) {
     Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, String(v)));
   }
-  let lastError: unknown;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-      const res = await fetch(url.toString(), { cache: "no-store", signal: controller.signal });
-      if (!res.ok) {
-        throw new Error(`API ${path} failed: ${res.status}`);
+  const urlKey = url.toString();
+  // Дедуплікація: якщо такий самий запит уже летить (кілька компонентів
+  // одночасно на одну URL), перевикористовуємо його проміс — менше навантаження
+  // на бекенд і Open-Meteo/NASA.
+  const pending = inFlight.get(urlKey);
+  if (pending) return pending as Promise<T>;
+  const promise = (async () => {
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const res = await fetch(urlKey, { cache: "no-store", signal: controller.signal });
+        if (!res.ok) {
+          throw new Error(`API ${path} failed: ${res.status}`);
+        }
+        const data = (await res.json()) as T;
+        if (data && typeof data === "object" && (data as { error?: boolean }).error === true) {
+          throw new Error(`API ${path} returned fallback error`);
+        }
+        return data;
+      } catch (err) {
+        lastError = err;
+        if (attempt < 1) await new Promise((r) => setTimeout(r, 800));
+      } finally {
+        clearTimeout(timer);
       }
-      const data = (await res.json()) as T;
-      if (data && typeof data === "object" && (data as { error?: boolean }).error === true) {
-        throw new Error(`API ${path} returned fallback error`);
-      }
-      return data;
-    } catch (err) {
-      lastError = err;
-      if (attempt < 1) await new Promise((r) => setTimeout(r, 800));
-    } finally {
-      clearTimeout(timer);
     }
+    throw lastError as Error;
+  })();
+  inFlight.set(urlKey, promise);
+  try {
+    return (await promise) as T;
+  } finally {
+    inFlight.delete(urlKey);
   }
-  throw lastError as Error;
 }
 
 export const api = {
