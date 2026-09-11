@@ -1393,7 +1393,7 @@ export default function EarthGlobe() {
       {/* Вікно з детальною інформацією при кліку на маркер/астероїд */}
       {selected && (
         <div
-          className="absolute inset-0 z-50 flex items-center justify-center bg-black/45 backdrop-blur-sm animate-fade-in p-4"
+          className="absolute inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
           onClick={() => setSelected(null)}
         >
           <div
