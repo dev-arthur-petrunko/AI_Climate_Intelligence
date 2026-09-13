@@ -1105,14 +1105,31 @@ def fetch_neo(days: int = 7) -> dict:
         try:
             miss_dist = float(row[idx.get("dist", 4)])  # AU
             miss_km = miss_dist * 149597870.7  # 1 AU = ~149.6M km
+            # SBDB CAD не віддає діаметр, але дає абсолютну зоряну величину H.
+            # Оцінюємо діаметр стандартною формулою: D[км] = 1329 / sqrt(albedo) * 10^(-H/5).
+            # Діапазон albedo 0.05–0.25 → реалістичний діапазон розмірів.
+            h_raw = row[idx.get("h", None)] if idx.get("h", None) is not None else None
+            try:
+                h_mag = float(h_raw) if h_raw not in (None, "") else None
+            except (TypeError, ValueError):
+                h_mag = None
+            if h_mag is not None:
+                pow10 = 10.0 ** (-h_mag / 5.0)
+                diameter_m_min = round(1329 / math.sqrt(0.25) * pow10 * 1000, 1)
+                diameter_m_max = round(1329 / math.sqrt(0.05) * pow10 * 1000, 1)
+                if diameter_m_min > diameter_m_max:
+                    diameter_m_min, diameter_m_max = diameter_m_max, diameter_m_min
+            else:
+                diameter_m_min = None
+                diameter_m_max = None
             objects.append({
                 "name": row[idx.get("des", 0)],
                 "hazardous": miss_km < 7500000,  # < 0.05 AU = потенційно небезпечний
                 "approach_date": row[idx.get("cd", 3)],
                 "miss_km": round(miss_km, 1),
                 "velocity_kms": round(float(row[idx.get("v_rel", 7)]), 2),
-                "diameter_m_min": None,  # SBDB не дає діаметр в CAD
-                "diameter_m_max": None,
+                "diameter_m_min": diameter_m_min,
+                "diameter_m_max": diameter_m_max,
             })
         except (ValueError, IndexError, KeyError):
             continue
@@ -1703,7 +1720,7 @@ def fetch_earthquakes(days: int = 7, limit: int = 12) -> dict:
             }
         )
 
-    quakes.sort(key=lambda q: q["magnitude"] if q["magnitude"] is not None else -1, reverse=True)
+    quakes.sort(key=lambda q: q["time"] if q["time"] is not None else 0, reverse=True)
     return {
         "source": "USGS",
         "count": len(quakes),
@@ -1985,17 +2002,44 @@ def fetch_air_quality_openaq() -> dict:
 
 
 def _air_quality_openaq_fallback() -> dict:
-    """Fallback: aggregated Open-Meteo air quality data for default location."""
+    """Fallback: aggregated Open-Meteo air quality data for default location.
+
+    Returns a single pseudo-station so charts render even without an OpenAQ key.
+    Open-Meteo parameter keys are mapped to the OpenAQ-style names used by the UI.
+    """
+    param_map = {
+        "pm2_5": "pm25",
+        "pm10": "pm10",
+        "ozone": "o3",
+        "nitrogen_dioxide": "no2",
+        "sulphur_dioxide": "so2",
+        "carbon_monoxide": "co",
+    }
     try:
-        data = fetch_air_quality(DEFAULT_LAT, DEFAULT_LON)
+        data = fetch_air_quality(50.45, 30.52)
+        current = data.get("current", {})
+        measurements = {}
+        for om_key, aq_key in param_map.items():
+            v = current.get(om_key)
+            if v is not None:
+                measurements[aq_key] = round(float(v), 2)
+        station = {
+            "name": "Open-Meteo (Kyiv)",
+            "country": "UA",
+            "lat": 50.45,
+            "lon": 30.52,
+            "location_id": None,
+            "distance_km": 0,
+            "measurements": measurements,
+        }
         return {
             "source": "Open-Meteo (fallback — OpenAQ key missing)",
             "unit": "µg/m³",
-            "description": "Air quality for default location",
+            "description": "Air quality for default location (Kyiv)",
             "aqi_category": "N/A",
-            "global_averages": data.get("current", {}),
-            "station_count": 0,
-            "stations": [],
+            "global_averages": measurements,
+            "station_count": 1,
+            "stations": [station],
         }
     except Exception:
         return {
@@ -2173,9 +2217,10 @@ def get_drought_cdi() -> dict:
 
 
 def fetch_drought_spi() -> dict:
-    """Copernicus EDO — Standardized Precipitation Index (ERA5).
+    """Copernicus EDO — Standardized Precipitation Index (ERA5, Long Term).
 
     Uses the WCS endpoint to fetch SPI data from ERA5 reanalysis.
+    CoverageID spaLT (6-month accumulation, last available date).
     """
     try:
         import io
@@ -2194,9 +2239,10 @@ def fetch_drought_spi() -> dict:
         "SERVICE": "WCS",
         "VERSION": "2.0.0",
         "REQUEST": "GetCoverage",
-        "coverageID": "spi_era5",
+        "coverageID": "spaLT",
         "CRS": "EPSG:4326",
         "format": "GEOTIFF",
+        "SELECTED_TIMESCALE": "06",
     }
 
     try:
@@ -2305,7 +2351,7 @@ def fetch_drought_grace() -> dict:
         "SERVICE": "WCS",
         "VERSION": "2.0.0",
         "REQUEST": "GetCoverage",
-        "coverageID": "grace_tws",
+        "coverageID": "twsan",
         "CRS": "EPSG:4326",
         "format": "GEOTIFF",
     }

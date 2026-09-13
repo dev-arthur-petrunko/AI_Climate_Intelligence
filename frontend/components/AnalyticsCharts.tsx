@@ -1379,6 +1379,49 @@ export default function AnalyticsCharts() {
             {renderEqHist()}
           </ChartCard>
         </div>
+        {eqObjects.length > 0 && (
+          <div className="glass p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold">{ch.eqList}</h3>
+              <span className="text-[10px] text-secondary font-mono">{sw.sourceUSGS}</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-secondary/70 border-b border-white/5 text-left">
+                    <th className="py-2 pr-3 font-medium">{ew.time}</th>
+                    <th className="py-2 pr-3 font-medium">{ew.magnitude}</th>
+                    <th className="py-2 pr-3 font-medium">{ew.depth}</th>
+                    <th className="py-2 font-medium">{ew.location}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...eqObjects]
+                    .sort((a, b) => new Date(b.time!).getTime() - new Date(a.time!).getTime())
+                    .slice(0, 30)
+                    .map((o, i) => (
+                      <tr key={o.id || `eq-${i}`} className="border-b border-white/5 last:border-0">
+                        <td className="py-2 pr-3 text-secondary font-mono whitespace-nowrap">
+                          {new Date(o.time!).toLocaleString(undefined, {
+                            year: "numeric", month: "2-digit", day: "2-digit",
+                            hour: "2-digit", minute: "2-digit",
+                          })}
+                        </td>
+                        <td className="py-2 pr-3 font-mono text-[#FF5D6C] font-bold">
+                          {o.magnitude != null ? `M ${o.magnitude.toFixed(1)}` : "—"}
+                        </td>
+                        <td className="py-2 pr-3 font-mono text-secondary">{o.depth_km != null ? `${o.depth_km} km` : "—"}</td>
+                        <td className="py-2 text-primary truncate max-w-[280px]">
+                          {o.place}
+                          {o.tsunami ? <span className="ml-1.5 text-[9px] text-[#FF5D6C] font-bold">⚠ {ch.tsun}</span> : null}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
         {gdacs && gdacs.events && gdacs.events.length > 0 && (
           <div className="glass p-5">
             <div className="flex items-center justify-between mb-3">
